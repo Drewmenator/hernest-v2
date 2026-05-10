@@ -13,8 +13,4 @@ export default defineConfig({
       external: ["firebase-admin"],
     }
   },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-  }
 })
