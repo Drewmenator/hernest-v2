@@ -12,14 +12,11 @@ export function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      await signInWithPopup(auth, googleProvider);
+      // Use redirect for better mobile/Safari compatibility
+      await signInWithRedirect(auth, googleProvider);
     } catch (e: any) {
-      if (e.code === "auth/popup-blocked") {
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        setError("Sign in failed. Please try again.");
-        setLoading(false);
-      }
+      setError("Sign in failed. Please try again.");
+      setLoading(false);
     }
   };
 
