@@ -12,7 +12,7 @@ export interface CalendarToken {
   connectedAt: number;
 }
 
-export interface ConnectedCalendars {
+export interface ConnectedCalendars extends Record<string, unknown> {
   google?: CalendarToken;
   outlook?: CalendarToken;
 }
