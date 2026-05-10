@@ -12,10 +12,16 @@ export function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      // Use redirect for better mobile/Safari compatibility
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (e: any) {
-      setError("Sign in failed. Please try again.");
+      console.error("Auth error:", e.code, e.message);
+      if (e.code === "auth/popup-blocked" || e.code === "auth/cancelled-popup-request") {
+        try { await signInWithRedirect(auth, googleProvider); } catch {}
+      } else if (e.code === "auth/unauthorized-domain") {
+        setError("Domain not authorized. Please add hernest-v2.vercel.app to Firebase authorized domains.");
+      } else {
+        setError(`Sign in failed: ${e.code}`);
+      }
       setLoading(false);
     }
   };
