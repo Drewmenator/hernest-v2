@@ -200,12 +200,13 @@ export function Input({
         background: T.ivory,
         border: `1.5px solid ${T.linen}`,
         borderRadius: 12,
-        padding: "11px 14px",
+        padding: "12px 14px",
         fontFamily: F.sans,
-        fontSize: 14,
+        fontSize: 16, // 16px prevents iOS zoom on focus
         color: T.esp,
         outline: "none",
         boxSizing: "border-box",
+        WebkitAppearance: "none",
         ...style,
       }}
     />
@@ -240,7 +241,7 @@ export function Button({
       style={{
         ...styles[variant],
         borderRadius: 14,
-        padding: "12px 20px",
+        padding: "14px 20px",
         fontFamily: F.sans,
         fontSize: 14,
         fontWeight: 600,
@@ -248,6 +249,9 @@ export function Button({
         opacity: disabled ? 0.5 : 1,
         transition: "all .2s",
         width: "100%",
+        minHeight: 48,
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent",
         ...style,
       }}
     >

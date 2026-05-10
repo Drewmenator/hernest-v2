@@ -35,7 +35,7 @@ export function TabBar() {
       borderTop: `1px solid rgba(229,217,201,.8)`,
       zIndex: 100,
       boxShadow: "0 -4px 24px rgba(46,31,20,.06)",
-      paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      paddingBottom: "env(safe-area-inset-bottom, 16px)",
     }}>
       {/* More drawer */}
       {showMore && (
@@ -92,7 +92,8 @@ export function TabBar() {
             style={{
               display: "flex", flexDirection: "column", alignItems: "center",
               gap: 2, background: "none", border: "none", cursor: "pointer",
-              padding: "4px 8px", borderRadius: 14, flex: 1,
+              padding: "6px 8px", borderRadius: 14, flex: 1,
+              minHeight: 44, touchAction: "manipulation",
             }}
           >
             <div style={{

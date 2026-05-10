@@ -26,12 +26,53 @@ import { ProfileScreen }    from "./modules/profile/ProfileScreen";
 
 // Global styles
 const globalStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=DM+Sans:wght@400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { background: ${T.cream}; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
-  button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
-  input, textarea, select { font-family: 'DM Sans', sans-serif; }
+  
+  /* Mobile-first base */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    height: 100%;
+    /* Safe area support for iPhone notch/home indicator */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  
+  body {
+    background: ${T.cream};
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Remove tap highlights on mobile */
+  * { -webkit-tap-highlight-color: transparent; }
+  
+  /* Buttons — minimum 44px touch target per Apple HIG */
+  button {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  
+  /* Inputs */
+  input, textarea, select {
+    font-family: 'DM Sans', sans-serif;
+    /* Prevent zoom on focus in iOS */
+    font-size: max(16px, 1em);
+  }
+  
+  /* Scrollable containers */
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .scroll-x::-webkit-scrollbar { display: none; }
+
+  /* Animations */
   @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
   @keyframes spin { to { transform:rotate(360deg) } }
   @keyframes breathe { 0%,100% { transform:scale(1) } 50% { transform:scale(1.04) } }
@@ -103,7 +144,7 @@ export default function App() {
     <>
       <style>{globalStyles}</style>
       <BrowserRouter>
-        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: T.cream, position: "relative" }}>
+        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
           <AppContent />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
