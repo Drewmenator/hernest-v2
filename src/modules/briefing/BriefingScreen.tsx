@@ -3,20 +3,13 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Pill, AIBadge, Spinner } from "../../shared/components";
 import { ai, aiJSON } from "../../core/ai";
-import { db } from "../../core/db";
+import { db as localDb } from "../../core/db";
 
 export function BriefingScreen() {
   const { user, profile } = useStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("morning");
-
-  useEffect(() => {
-    db.getTodayBriefing().then(cached => {
-      if (cached && !cached.stale) { setData(cached.data); return; }
-      generate();
-    });
-  }, []);
 
   const generate = async () => {
     if (!data) setLoading(true);
@@ -26,9 +19,16 @@ export function BriefingScreen() {
 5 priorities, 3 reminders. Be warm and specific.`;
     const ctx = `Name: ${name}. Challenge: ${profile?.challenge||"mental load"}. Kids: ${profile?.kids?.map((k:any)=>k.name).join(",")||"none"}.`;
     const result = await aiJSON(sys, ctx, "morning_briefing", null);
-    if (result) { setData(result); await db.cacheBriefing(result); }
+    if (result) { setData(result); await localDb.cacheBriefing(result); }
     setLoading(false);
   };
+
+  useEffect(() => {
+    localDb.getTodayBriefing().then(cached => {
+      if (cached && !cached.stale) { setData(cached.data); return; }
+      generate();
+    }).catch(() => generate());
+  }, []);
 
   if (loading && !data) return (
     <div style={{animation:"fadeUp .45s ease both"}}>
