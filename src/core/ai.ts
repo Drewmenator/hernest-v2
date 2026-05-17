@@ -76,7 +76,7 @@ export async function ai(
         feature,
         model,
         messages: history.length > 0 ? history : undefined,
-        max_tokens: 1000,
+        max_tokens: feature === "morning_briefing" ? 2000 : 1000,
       }),
     });
 
