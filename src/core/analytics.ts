@@ -8,7 +8,7 @@ async function getPostHog() {
   if (!key) return null;
   if (_ph) return _ph;
   const { default: posthog } = await import("posthog-js");
-  posthog.init(key, {
+  // posthog.init(key, {
     api_host: host,
     person_profiles: "identified_only",
     capture_pageview: false,
