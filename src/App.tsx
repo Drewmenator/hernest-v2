@@ -158,23 +158,26 @@ export default function App() {
 function AppContent() {
   const { activeTab } = useStore();
 
-  const screens: Record<string, React.ReactNode> = {
-    home:     <HomeScreen />,
-    nora:     <NoraScreen />,
-    plan:     <PlanScreen />,
-    budget:   <BudgetScreen />,
-    briefing: <BriefingScreen />,
-    thrive:   <ThriveScreen />,
-    style:    <StyleScreen />,
-    trips:    <TripsScreen />,
-    circle:   <CircleScreen />,
-    calendar: <CalendarScreen />,
-    profile:  <ProfileScreen />,
+  const renderScreen = () => {
+    switch (activeTab) {
+      case "home":     return <HomeScreen />;
+      case "nora":     return <NoraScreen />;
+      case "plan":     return <PlanScreen />;
+      case "budget":   return <BudgetScreen />;
+      case "briefing": return <BriefingScreen />;
+      case "thrive":   return <ThriveScreen />;
+      case "style":    return <StyleScreen />;
+      case "trips":    return <TripsScreen />;
+      case "circle":   return <CircleScreen />;
+      case "calendar": return <CalendarScreen />;
+      case "profile":  return <ProfileScreen />;
+      default:         return <HomeScreen />;
+    }
   };
 
   return (
     <div style={{ padding: "16px 16px calc(90px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
-      {screens[activeTab] || <HomeScreen />}
+      {renderScreen()}
     </div>
   );
 }
