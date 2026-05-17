@@ -128,6 +128,15 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
         const jsonEnd = rawText.lastIndexOf("}");
         if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON in briefing response");
         const parsed = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1)) as Briefing;
+        if (!parsed.priorities) parsed.priorities = [];
+        if (!parsed.calendar) parsed.calendar = { highlights: [] };
+        if (!parsed.tasks) parsed.tasks = { aiSuggestion: "", completionNote: "" };
+        if (!parsed.budget) parsed.budget = { status: "healthy", keyMessage: "", forecastMessage: "" };
+        if (!parsed.energy) parsed.energy = { predictedLevel: "medium", predictionBasis: "", tip: "", scheduleSuggestion: "" };
+        if (!parsed.affirmation) parsed.affirmation = { text: "", theme: "" };
+        if (!parsed.circle) parsed.circle = {};
+        if (!parsed.focusWord) parsed.focusWord = { word: "Today", emoji: "✦", why: "Focus on what matters most." };
+        if (!parsed.greeting) parsed.greeting = "Good morning.";
       setBriefing(parsed);
       trackEvent("briefing_generated");
       await localDb.cacheBriefing(parsed as any);
@@ -153,7 +162,7 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
   // ── Tabs ──────────────────────────────────────────────────────────
   const tabs = [
 
-    ...(ctx?.trips.isClose && ctx.trips.next ? [{ id:"travel", label:`✈ ${ctx.trips.next.dest}` }] : []),
+    ...(ctx?.trips?.isClose && ctx?.trips?.next ? [{ id:"travel", label:`✈ ${ctx.trips.next.dest}` }] : []),
   ];
 
   // ── Tone color ────────────────────────────────────────────────────
