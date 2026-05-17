@@ -6,6 +6,7 @@ import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, S
 import { saveData, loadData } from "../../core/firebase";
 import { ai, aiJSON } from "../../core/ai";
 import { askCFO } from "../../core/aiOrchestrator";
+import { runDecisionV2, saveDecisionV2, selectDecisionMode } from "../../core/household/DecisionEngineV2";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 

@@ -7,6 +7,8 @@ import { signOut, deleteUser } from "firebase/auth";
 import { auth } from "../../core/firebase";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
+import { getMemorySettingsView, confirmMemory, deleteMemory, markMemoryIncorrect, type HouseholdMemory } from "../../core/memoryServiceV2";
+import { type AdaptiveUXUserSettings, DEFAULT_ADAPTIVE_SETTINGS } from "../../core/household/adaptiveUX";
 
 const SECTIONS = ["partner","privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];

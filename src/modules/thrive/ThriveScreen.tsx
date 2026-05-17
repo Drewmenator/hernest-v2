@@ -4,6 +4,7 @@ import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Pill, ProgressBar, AIBadge, Spinner } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { askWellness } from "../../core/aiOrchestrator";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 
