@@ -13,7 +13,7 @@ if (!getApps().length) {
 const adminDb = getFirestore();
 const FREE_LIMIT = 10;
 
-const ALLOWED = ["nora_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief"];
+const ALLOWED = ["nora_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief","household_cfo","nora_household","wellness_coach_v2","trip_planner_v2","circle_companion"];
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   const { prompt, system, feature, model, messages, max_tokens = 1000 } = req.body || {};
 
-  if (prompt && prompt.length > 4000) return res.status(400).json({ error: "Message too long" });
+  if (prompt && prompt.length > 12000) return res.status(400).json({ error: "Message too long" });
   if (feature && !ALLOWED.includes(feature)) return res.status(400).json({ error: "Invalid feature" });
   if (max_tokens > 2000) return res.status(400).json({ error: "max_tokens too large" });
   if (!prompt && !messages) return res.status(400).json({ error: "Missing prompt" });
