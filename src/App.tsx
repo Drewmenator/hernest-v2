@@ -90,10 +90,23 @@ const globalStyles = `
   @keyframes slideUp { from { transform:translateY(100%) } to { transform:translateY(0) } }
 `;
 
+
+// ── Graph event wirer — only mounts when user is logged in ────────
+function GraphWirer() {
+  const { handleEvent } = useContextGraph();
+  useEffect(() => {
+    const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
+    const unsub = bus.subscribe("*", async (event: any) => {
+      if (!GRAPH_EVENTS.includes(event.type)) return;
+      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch {}
+    });
+    return unsub;
+  }, [handleEvent]);
+  return null;
+}
+
 export default function App() {
   const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab } = useStore();
-  const { handleEvent } = useContextGraph();
-
   // Auth listener
   useEffect(() => {
     getRedirectResult(auth).catch(() => {});
@@ -205,15 +218,7 @@ export default function App() {
     }
   };
 
-  // ── Wire 1: Graph event bus ────────────────────────────────────────
-  useEffect(() => {
-    const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
-    const unsub = bus.subscribe("*", async (event: any) => {
-      if (!GRAPH_EVENTS.includes(event.type)) return;
-      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch {}
-    });
-    return unsub;
-  }, [handleEvent]);
+  // Graph event wiring moved to GraphWirer component
 
 
   return (
@@ -226,6 +231,7 @@ export default function App() {
               {renderScreen()}
             </React.Suspense>
           </div>
+          <GraphWirer />
           <NoraMini />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
