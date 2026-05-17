@@ -20,13 +20,27 @@ export const db   = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // ── Data Helpers ──────────────────────────────────────────────────
+// Strip undefined values recursively — Firestore rejects undefined
+function stripUndefined(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  if (obj && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefined(v)])
+    );
+  }
+  return obj;
+}
+
 export async function saveData(
   uid: string,
   collection: string,
   data: Record<string, unknown>
 ): Promise<void> {
   try {
-    await setDoc(doc(db, "users", uid, "data", collection), data, { merge: true });
+    const clean = stripUndefined(data) as Record<string, unknown>;
+    await setDoc(doc(db, "users", uid, "data", collection), clean, { merge: true });
   } catch (e) {
     console.error(`[Firebase] saveData failed: ${collection}`, e);
   }

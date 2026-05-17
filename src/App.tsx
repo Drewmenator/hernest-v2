@@ -4,11 +4,18 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
 import { auth } from "./core/firebase";
+import { loadData } from "./core/firebase";
+import { initConnectivity } from "./core/connectivity";
+import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
 import { bus } from "./core/events";
+import { useContextGraph } from "./core/graph";
+import { ErrorBoundary } from "./shared/components/ErrorBoundary";
+const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { ROUTES } from "./config";
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
+import { NoraMini } from "./shared/components/NoraMini";
 
 // Screens
 import { LoginScreen }      from "./modules/auth/LoginScreen";
@@ -19,11 +26,14 @@ import { PlanScreen }       from "./modules/plan/PlanScreen";
 import { BudgetScreen }     from "./modules/budget/BudgetScreen";
 import { BriefingScreen }   from "./modules/briefing/BriefingScreen";
 import { ThriveScreen }     from "./modules/thrive/ThriveScreen";
-import { StyleScreen }      from "./modules/style/StyleScreen";
-import { TripsScreen }      from "./modules/trips/TripsScreen";
-import { CircleScreen }     from "./modules/circle/CircleScreen";
+const StyleScreen = React.lazy(() => import("./modules/style/StyleScreen").then(m => ({ default: m.StyleScreen })));
+const TripsScreen = React.lazy(() => import("./modules/trips/TripsScreen").then(m => ({ default: m.TripsScreen })));
+const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").then(m => ({ default: m.CircleScreen })));
+import { FamilyScreen }    from "./modules/family/FamilyScreen";
 import { ProfileScreen }    from "./modules/profile/ProfileScreen";
-import { CalendarScreen }   from "./modules/calendar/CalendarScreen";
+const CalendarScreen = React.lazy(() => import("./modules/calendar/CalendarScreen").then(m => ({ default: m.CalendarScreen })));
+import { SettingsScreen }   from "./modules/settings/SettingsScreen";
+import { UpgradeScreen }   from "./modules/upgrade/UpgradeScreen";
 
 // Global styles
 const globalStyles = `
@@ -86,10 +96,26 @@ export default function App() {
   // Auth listener
   useEffect(() => {
     getRedirectResult(auth).catch(() => {});
+    // Safety timeout — never stay on loading screen forever
+    const loadingTimeout = setTimeout(() => {
+      const s = useStore.getState();
+      if (s.screen === "loading") s.setScreen("login");
+    }, 5000);
     const unsub = onAuthStateChanged(auth, async (u) => {
+      clearTimeout(loadingTimeout);
       if (u) {
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
         await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
+        // Load profile from Firebase into store
+        try {
+          const profileData = await loadData(u.uid, "profile");
+          if (profileData) setProfile(profileData as any);
+        } catch(e) {
+          console.warn("[App] profile load failed:", e);
+        }
+        // Wire up cross-module connectivity
+        initConnectivity(u.uid);
+        connectIntelligenceLayer(u.uid);
         setScreen("app");
       } else {
         setUser(null);
@@ -98,6 +124,24 @@ export default function App() {
       setAuthChecked(true);
     });
     return () => unsub();
+  }, []);
+
+  // Handle OAuth callbacks
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("calendar_connected") === "google") {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Small delay to let app load then show success
+      setTimeout(() => {
+        import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected ✓"));
+      }, 1500);
+    }
+    if (params.get("calendar_error")) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => {
+        import("react-hot-toast").then(({ default: toast }) => toast.error("Calendar connection failed — try again"));
+      }, 1500);
+    }
   }, []);
 
   // Online/offline
@@ -115,6 +159,8 @@ export default function App() {
     window.addEventListener("hn_limit_reached", handler);
     return () => window.removeEventListener("hn_limit_reached", handler);
   }, []);
+
+  const { activeTab } = useStore();
 
   if (screen === "loading") {
     return (
@@ -141,43 +187,50 @@ export default function App() {
     </>
   );
 
+  const screens: Record<string, React.ReactNode> = {
+    home:     <EB name="Home"><HomeScreen /></EB>,
+    nora:     <EB name="Nora"><NoraScreen /></EB>,
+    plan:     <EB name="Plan"><PlanScreen /></EB>,
+    budget:   <EB name="Budget"><BudgetScreen /></EB>,
+    briefing: <BriefingScreen />,
+    thrive:   <EB name="Thrive"><ThriveScreen /></EB>,
+    style:    <StyleScreen />,
+    trips:    <TripsScreen />,
+    circle:   <EB name="Circle"><CircleScreen /></EB>,
+    family:   <EB name="Family"><FamilyScreen /></EB>,
+    calendar: <CalendarScreen />,
+    settings: <SettingsScreen />,
+    upgrade:  <UpgradeScreen />,
+    profile:  <ProfileScreen />,
+  };
+
+  // ── Wire 1: Graph event bus ────────────────────────────────────────
+  const { handleEvent } = useContextGraph();
+  useEffect(() => {
+    const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
+    const unsub = bus.subscribe("*", async (event: any) => {
+      if (!GRAPH_EVENTS.includes(event.type)) return;
+      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch {}
+    });
+    return unsub;
+  }, [handleEvent]);
+
+
   return (
-    <>
+    <ErrorBoundary>
       <style>{globalStyles}</style>
       <BrowserRouter>
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <AppContent />
+          <div style={{ padding: "16px 16px calc(90px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
+            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #C9A96130",borderTop:"2px solid #C9A961",animation:"spin 0.8s linear infinite"}}/></div>}>
+              {screens[activeTab] || <HomeScreen />}
+            </React.Suspense>
+          </div>
+          <NoraMini />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
         </div>
       </BrowserRouter>
-    </>
-  );
-}
-
-function AppContent() {
-  const { activeTab } = useStore();
-
-  const renderScreen = () => {
-    switch (activeTab) {
-      case "home":     return <HomeScreen />;
-      case "nora":     return <NoraScreen />;
-      case "plan":     return <PlanScreen />;
-      case "budget":   return <BudgetScreen />;
-      case "briefing": return <BriefingScreen />;
-      case "thrive":   return <ThriveScreen />;
-      case "style":    return <StyleScreen />;
-      case "trips":    return <TripsScreen />;
-      case "circle":   return <CircleScreen />;
-      case "calendar": return <CalendarScreen />;
-      case "profile":  return <ProfileScreen />;
-      default:         return <HomeScreen />;
-    }
-  };
-
-  return (
-    <div style={{ padding: "16px 16px calc(90px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
-      {renderScreen()}
-    </div>
+    </ErrorBoundary>
   );
 }

@@ -2,6 +2,26 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
+export interface SchoolInfo {
+  country: string;
+  schoolType: "public" | "private" | "homeschool" | "other";
+  grade?: string;
+  district?: string;
+  schoolName?: string;
+  termDates?: Array<{ term: string; start: string; end: string }>;
+  calendarEvents?: Array<{ id: string; title: string; date: string; endDate?: string; type: "holiday" | "inset" | "exam" | "event" | "other" }>;
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  role: "partner" | "child" | "parent" | "inlaw" | "other";
+  age?: number;
+  notes?: string;
+  color: string;
+  schoolInfo?: SchoolInfo;
+}
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -21,41 +41,82 @@ export interface UserProfile {
   soloParent: boolean;
   energyPattern: "morning" | "evening" | "variable";
   diet: string;
-  style?: {
-    bodyShape: string;
-    size: string;
-    height: string;
-    vibe: string;
-    dressCode: string;
-    budget: string;
-  };
+  style?: { bodyShape: string; size: string; height: string; vibe: string; dressCode: string; budget: string };
+}
+
+export type HouseholdModule = "budget" | "calendar" | "family" | "trips" | "thrive" | "style" | "nora" | "home" | "plan" | "circle";
+export type InsightCategory = "spending" | "savings" | "debt" | "cashflow" | "stress" | "scheduling" | "family" | "health" | "decision" | "opportunity";
+
+export interface HouseholdInsight {
+  id: string;
+  observation: string;
+  whyItMatters: string;
+  options: string[];
+  recommendation: string;
+  confidenceLevel: number;
+  category: InsightCategory;
+  sourceModules: HouseholdModule[];
+  createdAt: string;
+  dismissed?: boolean;
+}
+
+export interface ScenarioResult {
+  id: string;
+  question: string;
+  financialImpact: string;
+  tradeoffs: string[];
+  riskLevel: "low" | "medium" | "high";
+  recommendedAction: string;
+  confidenceLevel: number;
+  affectedModules: HouseholdModule[];
+  createdAt: string;
+}
+
+export interface FinancialSnapshot {
+  monthlyIncome: number;
+  totalBudget: number;
+  totalSpent: number;
+  cashRemaining: number;
+  savingsRate: number;
+  totalDebt: number;
+  debtToIncomeRatio: number;
+  projectedMonthEnd: number;
+  topOverspendCategories: string[];
+  financialHealthScore: number;
+  financialHealthGrade: "A" | "B" | "C" | "D" | "F" | "—";
+}
+
+export interface HouseholdSnapshot {
+  financial: FinancialSnapshot;
+  calendarLoad: "light" | "normal" | "heavy" | "critical";
+  busyWeeksAhead: number;
+  activeGoals: Array<{ name: string; riskStatus: "on_track" | "at_risk" | "off_track" }>;
+  householdStressLevel: "low" | "moderate" | "high";
+  lastRefreshed: string;
 }
 
 interface AppStore {
-  // Auth
   user: { uid: string; email: string; displayName: string | null } | null;
   authChecked: boolean;
   profile: UserProfile | null;
-
-  // Navigation
+  familyMembers: FamilyMember[];
   activeTab: string;
   screen: "loading" | "login" | "onboarding" | "app";
-
-  // UI
   showMore: boolean;
   showSettings: boolean;
   showUpgrade: boolean;
   isOnline: boolean;
-
-  // AI Usage
   dailyUsage: number;
   usageLimit: number;
-
-  // Actions
+  householdSnapshot: HouseholdSnapshot | null;
+  householdInsights: HouseholdInsight[];
+  activeScenario: ScenarioResult | null;
+  householdRefreshing: boolean;
   setUser: (user: AppStore["user"]) => void;
   setAuthChecked: (checked: boolean) => void;
   setProfile: (profile: UserProfile | null) => void;
   updateProfile: (partial: Partial<UserProfile>) => void;
+  setFamilyMembers: (members: FamilyMember[]) => void;
   setScreen: (screen: AppStore["screen"]) => void;
   setActiveTab: (tab: string) => void;
   setShowMore: (show: boolean) => void;
@@ -64,48 +125,32 @@ interface AppStore {
   setIsOnline: (online: boolean) => void;
   incrementUsage: () => void;
   reset: () => void;
+  setHouseholdSnapshot: (snap: HouseholdSnapshot) => void;
+  setHouseholdInsights: (insights: HouseholdInsight[]) => void;
+  addHouseholdInsight: (insight: HouseholdInsight) => void;
+  dismissInsight: (id: string) => void;
+  setActiveScenario: (scenario: ScenarioResult | null) => void;
+  setHouseholdRefreshing: (refreshing: boolean) => void;
+  updateFinancialSnapshot: (snap: Partial<FinancialSnapshot>) => void;
 }
 
-const defaultProfile: UserProfile = {
-  uid: "",
-  name: "",
-  email: "",
-  avatar: "👩",
-  city: "",
-  role: "",
-  kids: [],
-  parents: [],
-  inlaws: [],
-  priorities: [],
-  tripGoal: "",
-  fitnessGoal: "",
-  savingsGoal: "",
-  challenge: "",
-  soloParent: false,
-  energyPattern: "morning",
-  diet: "",
+const defaultFinancialSnapshot: FinancialSnapshot = {
+  monthlyIncome: 0, totalBudget: 0, totalSpent: 0, cashRemaining: 0,
+  savingsRate: 0, totalDebt: 0, debtToIncomeRatio: 0, projectedMonthEnd: 0,
+  topOverspendCategories: [], financialHealthScore: 0, financialHealthGrade: "—",
 };
 
 export const useStore = create<AppStore>()(
   immer((set) => ({
-    user: null,
-    authChecked: false,
-    profile: null,
-    activeTab: "home",
-    screen: "loading",
-    showMore: false,
-    showSettings: false,
-    showUpgrade: false,
-    isOnline: navigator.onLine,
-    dailyUsage: 0,
-    usageLimit: 10,
-
+    user: null, authChecked: false, profile: null, activeTab: "home",
+    screen: "loading", showMore: false, showSettings: false, showUpgrade: false,
+    isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 10,
+    householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
     setUser: (user) => set((s) => { s.user = user; }),
     setAuthChecked: (checked) => set((s) => { s.authChecked = checked; }),
     setProfile: (profile) => set((s) => { s.profile = profile; }),
-    updateProfile: (partial) => set((s) => {
-      if (s.profile) Object.assign(s.profile, partial);
-    }),
+    updateProfile: (partial) => set((s) => { if (s.profile) Object.assign(s.profile, partial); }),
+    setFamilyMembers: (members) => set((s) => { s.familyMembers = members; }),
     setScreen: (screen) => set((s) => { s.screen = screen; }),
     setActiveTab: (tab) => set((s) => { s.activeTab = tab; }),
     setShowMore: (show) => set((s) => { s.showMore = show; }),
@@ -114,11 +159,33 @@ export const useStore = create<AppStore>()(
     setIsOnline: (online) => set((s) => { s.isOnline = online; }),
     incrementUsage: () => set((s) => { s.dailyUsage += 1; }),
     reset: () => set((s) => {
-      s.user = null;
-      s.profile = null;
-      s.screen = "login";
-      s.activeTab = "home";
-      s.dailyUsage = 0;
+      s.user = null; s.profile = null; s.screen = "login";
+      s.activeTab = "home"; s.dailyUsage = 0;
+      s.householdSnapshot = null; s.householdInsights = []; s.activeScenario = null;
+    }),
+    setHouseholdSnapshot: (snap) => set((s) => { s.householdSnapshot = snap; }),
+    setHouseholdInsights: (insights) => set((s) => { s.householdInsights = insights; }),
+    addHouseholdInsight: (insight) => set((s) => {
+      const exists = s.householdInsights.some(i => i.observation === insight.observation);
+      if (!exists) s.householdInsights = [insight, ...s.householdInsights].slice(0, 20);
+    }),
+    dismissInsight: (id) => set((s) => {
+      const idx = s.householdInsights.findIndex(i => i.id === id);
+      if (idx !== -1) s.householdInsights[idx].dismissed = true;
+    }),
+    setActiveScenario: (scenario) => set((s) => { s.activeScenario = scenario; }),
+    setHouseholdRefreshing: (refreshing) => set((s) => { s.householdRefreshing = refreshing; }),
+    updateFinancialSnapshot: (snap) => set((s) => {
+      if (!s.householdSnapshot) {
+        s.householdSnapshot = {
+          financial: { ...defaultFinancialSnapshot, ...snap },
+          calendarLoad: "normal", busyWeeksAhead: 0, activeGoals: [],
+          householdStressLevel: "low", lastRefreshed: new Date().toISOString(),
+        };
+      } else {
+        Object.assign(s.householdSnapshot.financial, snap);
+        s.householdSnapshot.lastRefreshed = new Date().toISOString();
+      }
     }),
   }))
 );
