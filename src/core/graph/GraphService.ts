@@ -1077,7 +1077,7 @@ export async function explainWhyRecommendationWasMade(
 
 export async function saveGraphToFirestore(userId: string, graph: HouseholdContextGraph): Promise<void> {
   try {
-    await saveData(userId, GRAPH_KEY, graph as unknown as Record<string, unknown>);
+    await saveData(userId, GRAPH_KEY, JSON.parse(JSON.stringify(graph)) as Record<string, unknown>);
   } catch (e) {
     console.error("[Graph] save failed:", e);
   }
