@@ -91,7 +91,8 @@ const globalStyles = `
 `;
 
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab } = useStore();
+  const { handleEvent } = useContextGraph();
 
   // Auth listener
   useEffect(() => {
@@ -160,7 +161,6 @@ export default function App() {
     return () => window.removeEventListener("hn_limit_reached", handler);
   }, []);
 
-  const { activeTab } = useStore();
 
   if (screen === "loading") {
     return (
@@ -206,7 +206,6 @@ export default function App() {
   };
 
   // ── Wire 1: Graph event bus ────────────────────────────────────────
-  const { handleEvent } = useContextGraph();
   useEffect(() => {
     const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
     const unsub = bus.subscribe("*", async (event: any) => {
