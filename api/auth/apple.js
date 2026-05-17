@@ -1,5 +1,5 @@
-const { initializeApp, getApps, cert } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 if (!getApps().length) {
   initializeApp({ credential: cert({
@@ -11,7 +11,7 @@ if (!getApps().length) {
 
 const adminDb = getFirestore();
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   if (req.method === "OPTIONS") return res.status(200).end();

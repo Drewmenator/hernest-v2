@@ -1,4 +1,4 @@
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   const clientId = process.env.OUTLOOK_CLIENT_ID;
   const tenantId = process.env.OUTLOOK_TENANT_ID || "common";
   const redirectUri = "https://hernest-v2.vercel.app/api/auth/outlook/callback";

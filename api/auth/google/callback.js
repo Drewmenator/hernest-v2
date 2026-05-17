@@ -1,4 +1,4 @@
-const admin = require("firebase-admin");
+import admin from "firebase-admin";
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -10,7 +10,7 @@ if (!admin.apps.length) {
   });
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const { code, state: uid } = req.query;
   if (!code || !uid) return res.redirect("https://hernest-v2.vercel.app?calendar_error=missing_params");
 

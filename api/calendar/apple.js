@@ -1,5 +1,5 @@
-const { initializeApp, getApps, cert } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 if (!getApps().length) {
   initializeApp({ credential: cert({
@@ -34,7 +34,7 @@ function parseICSEvents(icsText) {
   return events;
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   const { uid } = req.query;
   if (!uid) return res.status(400).json({ error: "Missing uid" });
