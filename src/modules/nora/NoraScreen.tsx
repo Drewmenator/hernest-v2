@@ -1,167 +1,423 @@
 import React, { useState, useEffect, useRef } from "react";
+import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
+import { Card, PageTitle, Spinner } from "../../shared/components";
 import { ai } from "../../core/ai";
-import { extractFactsFromConversation, saveMemoryFacts, loadMemoryFacts, buildMemoryContext } from "../../core/memory";
+import { askNora } from "../../core/aiOrchestrator";
 import { bus } from "../../core/events";
+import { extractFactsFromConversation, saveMemoryFacts, buildMemoryContext } from "../../core/memory";
 import { saveData, loadData } from "../../core/firebase";
-import { Card, Spinner } from "../../shared/components";
+import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
+import toast from "react-hot-toast";
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: number;
-  extracted?: string[]; // extracted tasks
+interface Msg { role: "user"|"assistant"; content: string; type?: "text"|"task-suggestion"|"crisis"; tasks?: ExtractedTask[]; }
+interface ExtractedTask { id: string; title: string; category: string; dueDate?: string; confidence: number; }
+
+// ── Intent classifier (unchanged) ────────────────────────────────
+const INTENT_PATTERNS = {
+  "task-extraction": [
+    /I need to/i, /I should/i, /I have to/i, /don't forget/i,
+    /remember to/i, /remind me to/i, /add .* to/i, /schedule/i,
+    /book/i, /pick up/i, /drop off/i, /buy/i, /call/i, /email/i,
+  ],
+  "emotional-support": [
+    /I('m| am) (stressed|tired|exhausted|overwhelmed|anxious|worried|sad|lonely)/i,
+    /I can'?t (cope|handle|deal|manage)/i,
+    /everything (is|feels) (too much|hard|heavy)/i,
+    /I feel like/i, /nobody (understands|helps|cares)/i,
+    /I('m| am) struggling/i, /so hard/i, /falling apart/i,
+  ],
+  "financial": [
+    /afford/i, /budget/i, /money/i, /spend/i, /cost/i, /debt/i,
+    /savings/i, /salary/i, /income/i, /expensive/i, /cheap/i, /price/i,
+    /can we/i, /should we buy/i, /worth it/i, /financial/i,
+  ],
+  "information": [
+    /what('s| is) my/i, /how much/i, /show me/i,
+    /when is/i, /where is/i, /tell me/i, /remind me of/i,
+  ],
+  "action-request": [
+    /plan (my|the)/i, /generate/i, /create (a|an)/i,
+    /help me (with|to)/i, /can you/i, /I want to/i,
+  ],
+};
+
+const CRISIS_PATTERNS = [
+  /(kill|hurt|harm) myself/i,
+  /end (it|my life|everything)/i,
+  /(don'?t|do not) want to (live|be here|exist)/i,
+  /suicide/i,
+  /(no|nobody) (would|will) miss me/i,
+];
+
+function classifyIntent(msg: string): string {
+  for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
+    if (patterns.some(p => p.test(msg))) return intent;
+  }
+  return "general";
 }
 
-const PROMPTS = [
+function detectCrisis(msg: string): boolean {
+  return CRISIS_PATTERNS.some(p => p.test(msg));
+}
+
+const QUICK_REPLIES = [
   "What should I focus on today?",
   "I'm feeling overwhelmed",
-  "Plan my week for me",
-  "What's on my plate this week?",
+  "Are we on track financially?",
+  "Help me plan my week",
+  "I need to vent",
 ];
 
 export function NoraScreen() {
-  const { user, profile } = useStore();
-  const [msgs, setMsgs]     = useState<Message[]>([]);
-  const [input, setInput]   = useState("");
+  const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
+  const [msgs, setMsgs]       = useState<Msg[]>([]);
+  const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [pendingTasks, setPendingTasks] = useState<ExtractedTask[]>([]);
+  const [feedback, setFeedback] = useState<Record<number, "up"|"down">>({});
+  const [householdCtxStr, setHouseholdCtxStr] = useState<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  const name = profile?.name || "lovely";
+  const name = (profile as any)?.name || "lovely";
 
+  // ── Load household context on mount ──────────────────────────────
   useEffect(() => {
-    // Load session messages
-    try {
-      const saved = sessionStorage.getItem("hn_v2_nora_msgs");
-      if (saved) setMsgs(JSON.parse(saved));
-      else setMsgs([{
-        role: "assistant",
-        content: `Hello${profile?.name ? `, ${profile.name}` : ""}. I'm Nora, your AI chief of staff.\n\nTalk to me naturally — tell me what's on your mind and I'll help organise everything for you.`,
-        timestamp: Date.now(),
-      }]);
-    } catch { }
-  }, []);
+    if (!user?.uid) return;
+
+    // Use existing snapshot if available, otherwise build one
+    const buildCtx = async () => {
+      try {
+        const snap = householdSnapshot || await buildHouseholdSnapshot(user.uid);
+        if (!householdSnapshot) setHouseholdSnapshot(snap);
+
+        const ctxStr = buildIntelligencePromptContext(snap, {
+          profileName: profile?.name,
+          kids: profile?.kids?.map((k: any) => k.name),
+        });
+        setHouseholdCtxStr(ctxStr);
+      } catch (e) {
+        console.warn("[Nora] household context build failed:", e);
+      }
+    };
+    buildCtx();
+  }, [user?.uid]);
+
+  // ── Session restore ───────────────────────────────────────────────
+  useEffect(() => {
+    const saved = sessionStorage.getItem(`nora_session_${user?.uid}`);
+    if (saved) {
+      try { setMsgs(JSON.parse(saved)); return; } catch {}
+    }
+    setMsgs([{
+      role: "assistant",
+      content: `Good ${getTimeOfDay()}, ${name} ✦\n\nI'm Nora — your household's AI chief of staff. I can help you plan your day, talk through finances, manage the mental load, or just listen.\n\nWhat's on your mind?`,
+      type: "text",
+    }]);
+  }, [user?.uid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    try { sessionStorage.setItem("hn_v2_nora_msgs", JSON.stringify(msgs.slice(-30))); } catch { }
+  }, [msgs, loading]);
+
+  useEffect(() => {
+    if (user?.uid && msgs.length > 1) {
+      sessionStorage.setItem(`nora_session_${user.uid}`, JSON.stringify(msgs));
+    }
   }, [msgs]);
 
-  const send = async (text?: string) => {
-    const prompt = (text || input).trim();
-    if (!prompt || loading) return;
-    setInput("");
+  const getTimeOfDay = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "morning";
+    if (h < 17) return "afternoon";
+    if (h < 21) return "evening";
+    return "night";
+  };
 
-    const userMsg: Message = { role: "user", content: prompt, timestamp: Date.now() };
+  const startVoice = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { toast.error("Voice not supported on this browser"); return; }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-GB";
+    recognition.onstart  = () => setRecording(true);
+    recognition.onend    = () => setRecording(false);
+    recognition.onerror  = () => setRecording(false);
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      if (transcript.trim()) send(transcript.trim());
+    };
+    recognition.start();
+  };
+
+  const saveFeedback = async (index: number, type: "up"|"down", content: string) => {
+    setFeedback(p => ({ ...p, [index]: type }));
+    if (!user?.uid) return;
+    try {
+      const existing = await loadData(user.uid, "nora_feedback");
+      const items = (existing?.items as any[]) || [];
+      items.unshift({ type, content: content.slice(0, 200), timestamp: Date.now() });
+      await saveData(user.uid, "nora_feedback", { items: items.slice(0, 50) });
+    } catch {}
+  };
+
+  const send = async (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || loading) return;
+
+    const userMsg: Msg = { role: "user", content: msg };
     setMsgs(p => [...p, userMsg]);
+    setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setLoading(true);
 
-    const profileCtx = profile ? `Name: ${profile.name}. Challenge: ${profile.challenge}. Kids: ${profile.kids.map(k => k.name).join(", ") || "none"}.` : "";
-    const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.content }));
+    try {
+      // ── Crisis detection (unchanged) ─────────────────────────────
+      if (detectCrisis(msg)) {
+        const crisisResp: Msg = {
+          role: "assistant",
+          type: "crisis",
+          content: `I'm really glad you told me. What you're feeling is real, and you don't have to carry it alone.\n\nI'm not equipped to help in the way you deserve right now, but these people are:\n\n🆘 **Samaritans**: 116 123 (free, 24/7)\n🆘 **Shout**: Text SHOUT to 85258\n🆘 **NHS 111** or **999** if you're in immediate danger\n\nYou matter. Please reach out to one of these services — they want to hear from you.`,
+        };
+        setMsgs(p => [...p, crisisResp]);
+        trackEvent("nora_crisis_detected");
+        await bus.publish("nora.crisis.detected", { message: msg }, { userId: user!.uid, source: "nora" });
+        setLoading(false);
+        return;
+      }
 
-    // Load memory context per blueprint
-    const memoryCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
-    
-    const sys = `You are Nora, a warm intelligent AI Mental Load Manager inside HerNest. ${profileCtx}
-${memoryCtx ? `What you know about her:
-${memoryCtx}` : ""}
-Be concise, warm, and practical. Use her name occasionally.
-If they mention tasks, extract them and list them clearly.
-Never lecture. Never judge. Always validate first.
-If they seem overwhelmed, lead with empathy before solutions.`;
+      const intent = classifyIntent(msg);
 
-    const result = await ai(sys, prompt, "nora_chat", history);
+      // ── Build enriched context ───────────────────────────────────
+      const memCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
+      const familyRoster = familyMembers.length > 0
+        ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")
+        : "";
+      const profileCtx = `Name: ${name}. Role: ${(profile as any)?.role||""}. Challenge: ${(profile as any)?.challenge||""}. Kids: ${(profile as any)?.kids?.map((k:any)=>k.name).join(", ")||"none"}.`;
 
-    if (result.error) {
-      setMsgs(p => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again in a moment.", timestamp: Date.now() }]);
-    } else {
-      const assistantMsg: Message = { role: "assistant", content: result.text, timestamp: Date.now() };
+      // ── NEW: Household context injected into every conversation ──
+      const householdSection = householdCtxStr
+        ? `\n\nHOUSEHOLD INTELLIGENCE (live data):\n${householdCtxStr}`
+        : "";
+
+      // ── System prompt ────────────────────────────────────────────
+      let sys = `You are Nora, ${name}'s warm, intelligent household AI — a combination of chief of staff, financial advisor, and trusted friend inside HerNest.
+
+ABOUT HER:
+${profileCtx}
+${familyRoster ? `Her family: ${familyRoster}` : ""}
+${memCtx ? `What you know about her:\n${memCtx}` : ""}
+Time: ${getTimeOfDay()} on ${new Date().toLocaleDateString("en-US",{weekday:"long"})}.
+${householdSection}
+
+Intent detected: ${intent}.
+
+NORA'S PRINCIPLES:
+- You have real household data — use it. Reference actual numbers.
+- Be concise — 2-4 sentences unless emotional support or financial analysis needed
+- Use her name occasionally, warmly
+- Validate before solving
+- For financial questions: use the household data to give real answers, not generic advice
+- Never lecture or moralize
+- If she's overwhelmed, lead with empathy FIRST, then practical help`;
+
+      // ── Intent-specific instructions ─────────────────────────────
+      if (intent === "task-extraction") {
+        sys += `\n\nTASK EXTRACTION MODE: After responding warmly, extract any tasks mentioned.
+Return your response then on a new line: TASKS_JSON:[{"title":"","category":"family|work|home|travel|personal","dueDate":"YYYY-MM-DD or null","confidence":0.9}]
+Only include TASKS_JSON if you found clear actionable tasks.`;
+      } else if (intent === "emotional-support") {
+        sys += `\n\nEMOTIONAL SUPPORT MODE: Lead with deep validation. Ask ONE question. Don't problem-solve unless asked. Be warm and present.`;
+      } else if (intent === "financial") {
+        sys += `\n\nFINANCIAL MODE: You have the household's actual financial data above. Use it directly.
+Reference real numbers — actual spending, income, debt, goals. 
+Apply Decision Quality thinking: frame the decision, name the tradeoffs, give a clear recommendation.
+Sound like a trusted CFO friend — warm but rigorous.`;
+      } else if (intent === "action-request") {
+        sys += `\n\nACTION MODE: Be specific and practical. Give a clear plan or answer with real numbers where relevant.`;
+      }
+
+      const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.content }));
+      // ── Orchestrator handles context, model routing, memory writeback ──
+      const noraText = await askNora(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
+      const result = { text: noraText, error: null };
+
+      if (!noraText) throw new Error("empty response");
+
+      // ── Parse task extraction (unchanged) ────────────────────────
+      let responseText = result.text;
+      let extracted: ExtractedTask[] = [];
+
+      if (intent === "task-extraction" && result.text.includes("TASKS_JSON:")) {
+        const parts = result.text.split("TASKS_JSON:");
+        responseText = parts[0].trim();
+        try {
+          const rawTasks = JSON.parse(parts[1].trim());
+          extracted = rawTasks.map((t: any) => ({ ...t, id: crypto.randomUUID() }));
+        } catch {}
+      }
+
+      const assistantMsg: Msg = {
+        role: "assistant",
+        type: extracted.length > 0 ? "task-suggestion" : "text",
+        content: extracted.length > 0
+          ? `${responseText}\n\nI found ${extracted.length} task${extracted.length>1?"s":""} in that:\n${extracted.map((t,i)=>`${i+1}. ${t.title}${t.dueDate?` (by ${t.dueDate})`:""}${t.category?` · ${t.category}`:""}`).join("\n")}\n\nShall I add ${extracted.length>1?"these":"this"} to your plan?`
+          : responseText,
+        tasks: extracted.length > 0 ? extracted : undefined,
+      };
+
       setMsgs(p => [...p, assistantMsg]);
+      if (extracted.length > 0) setPendingTasks(extracted);
 
-      // Extract facts from conversation per blueprint Memory Service
+      // ── Background fact extraction (unchanged) ───────────────────
+      const allMsgs = [...msgs, userMsg, assistantMsg];
       if (user?.uid) {
-        const allMsgs = [...msgs, userMsg, assistantMsg];
         await bus.publish("nora.conversation.ended", { messages: allMsgs }, { userId: user.uid, source: "nora" });
-        
-        // Run fact extraction in background
         extractFactsFromConversation(allMsgs, user.uid).then(facts => {
-          if (facts.length > 0) saveMemoryFacts(user.uid!, facts);
+          if (facts.length > 0 && user.uid) saveMemoryFacts(user.uid, facts);
         }).catch(() => {});
       }
+
+    } catch(e) {
+      setMsgs(p => [...p, { role:"assistant", content:"I'm having a moment — please try again." }]);
     }
     setLoading(false);
   };
 
+  const confirmTasks = async () => {
+    if (!pendingTasks.length || !user?.uid) return;
+    const existing = await loadData(user.uid, "tasks");
+    const current = (existing?.tasks as any[]) || [];
+    const newTasks = pendingTasks.map(t => ({
+      id: t.id, title: t.title, category: t.category,
+      done: false, priority: "medium", source: "nora",
+      dueDate: t.dueDate || undefined, createdAt: Date.now(),
+    }));
+    await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
+    for (const task of newTasks) {
+      await bus.publish("plan.task.created", task, { userId: user.uid, source: "nora" });
+    }
+    setPendingTasks([]);
+    toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan ✓`);
+    setMsgs(p => [...p, { role:"assistant", content:`Done! I've added ${newTasks.length > 1 ? "all of them" : "it"} to your plan. You'll find ${newTasks.length > 1 ? "them" : "it"} in the Plan tab ✦` }]);
+  };
+
+  const dismissTasks = () => {
+    setPendingTasks([]);
+    setMsgs(p => [...p, { role:"assistant", content:"No worries — I'll keep this in mind though." }]);
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 90px)" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 90px)", animation:"fadeUp .3s ease both" }}>
+
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, ${T.esp} 0%, #3D2E22 100%)`, borderRadius: 22, padding: "18px 20px", marginBottom: 12, boxShadow: "0 24px 48px -24px rgba(42,31,24,.35)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 46, height: 46, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}, #8B6914)`, display: "flex", alignItems: "center", justifyContent: "center", animation: "breathe 3s ease-in-out infinite", boxShadow: `0 0 20px rgba(201,169,97,.4)`, flexShrink: 0 }}>
-            <span style={{ fontSize: 20 }}>✦</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 600, color: "#fff", margin: 0, fontStyle: "italic" }}>Nora</h2>
-            <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,.4)", margin: 0, letterSpacing: 1.5, textTransform: "uppercase" }}>Mental Load Manager</p>
-          </div>
-          <button onClick={() => { setMsgs([{ role: "assistant", content: `Fresh start 💛 What's on your mind, ${name}?`, timestamp: Date.now() }]); sessionStorage.removeItem("hn_v2_nora_msgs"); }} style={{ background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, padding: "5px 10px", fontFamily: F.sans, fontSize: 10, color: "rgba(255,255,255,.5)", cursor: "pointer" }}>
-            Clear
-          </button>
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
+        <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
+        <div>
+          <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Nora</p>
+          <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>
+            ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
+          </p>
         </div>
+        <button onClick={()=>{ setMsgs([]); sessionStorage.removeItem(`nora_session_${user?.uid}`); }}
+          style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
+          New chat
+        </button>
       </div>
 
-      {/* Prompt chips */}
-      {msgs.length <= 1 && (
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
-          {PROMPTS.map((p, i) => (
-            <button key={i} onClick={() => send(p)} style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "7px 14px", fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
-              {p}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
-        {msgs.map((m, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 12, animation: "fadeUp .3s ease both" }}>
-            {m.role === "assistant" && (
-              <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginRight: 8, background: `linear-gradient(135deg, ${T.gold}, #8B6914)`, display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "flex-end" }}>
-                <span style={{ fontSize: 12 }}>✦</span>
-              </div>
+      <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as any }}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:12 }}>
+            {m.role==="assistant" && (
+              <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:8, flexShrink:0, alignSelf:"flex-end", fontSize:14 }}>✦</div>
             )}
-            <div style={{ maxWidth: "82%", background: m.role === "user" ? `linear-gradient(135deg, ${T.esp}, #4a3020)` : "#fff", borderRadius: m.role === "user" ? "20px 20px 4px 20px" : "20px 20px 20px 4px", padding: "12px 16px", boxShadow: "0 2px 12px rgba(0,0,0,.08)", border: m.role === "assistant" ? `1px solid ${T.linen}` : "none" }}>
-              {m.content.split("\n").filter(l => l.trim()).map((line, j) => (
-                <p key={j} style={{ margin: "0 0 5px", lineHeight: 1.65, fontSize: 13, fontFamily: F.sans, color: m.role === "user" ? "rgba(255,255,255,.9)" : T.esp }}>{line}</p>
-              ))}
+            <div style={{ maxWidth:"82%", display:"flex", flexDirection:"column", gap:4 }}>
+              <div style={{
+                background: m.role==="user" ? `linear-gradient(135deg,${T.esp},#4a3020)` : m.type==="crisis" ? `${T.blush}15` : "#fff",
+                borderRadius: m.role==="user" ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
+                padding: "12px 16px",
+                border: m.role==="assistant" ? `1px solid ${m.type==="crisis"?T.blush:T.linen}` : "none",
+              }}>
+                {m.content.split("\n").filter(l=>l.trim()).map((line,j)=>{
+                  const parts = line.split(/\*\*(.*?)\*\*/g);
+                  return (
+                    <p key={j} style={{ fontFamily:F.sans, fontSize:13, color:m.role==="user"?"rgba(255,255,255,.9)":m.type==="crisis"?T.blush:T.esp, margin:"0 0 6px", lineHeight:1.6 }}>
+                      {parts.map((part,pi) => pi%2===1 ? <strong key={pi}>{part}</strong> : part)}
+                    </p>
+                  );
+                })}
+              </div>
+
+              {m.role==="assistant" && m.type!=="crisis" && i < msgs.length-1 && (
+                <div style={{ display:"flex", gap:6, paddingLeft:4 }}>
+                  <button onClick={()=>saveFeedback(i,"up",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="up"?1:0.4, padding:"2px 4px" }}>👍</button>
+                  <button onClick={()=>saveFeedback(i,"down",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="down"?1:0.4, padding:"2px 4px" }}>👎</button>
+                </div>
+              )}
+
+              {m.type==="task-suggestion" && m.tasks && pendingTasks.length>0 && i===msgs.length-1 && (
+                <div style={{ background:`${T.gold}10`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"12px 14px" }}>
+                  <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.gold, margin:"0 0 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Add to Plan?</p>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={confirmTasks} style={{ flex:1, padding:"8px", background:T.gold, color:"#fff", border:"none", borderRadius:10, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>✓ Yes, add {pendingTasks.length > 1 ? "all" : "it"}</button>
+                    <button onClick={dismissTasks} style={{ flex:1, padding:"8px", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, fontFamily:F.sans, fontSize:12, color:T.taupe, cursor:"pointer", minHeight:36 }}>Not now</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
+
         {loading && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}, #8B6914)`, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 12 }}>✦</span></div>
-            <div style={{ background: "#fff", borderRadius: "20px 20px 20px 4px", padding: "12px 16px", border: `1px solid ${T.linen}` }}>
-              <Spinner size={16} />
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>✦</div>
+            <div style={{ background:"#fff", borderRadius:"20px 20px 20px 4px", padding:"12px 16px", border:`1px solid ${T.linen}` }}>
+              <div style={{ display:"flex", gap:4 }}>
+                {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:T.taupe, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
+              </div>
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
+
+        {msgs.length === 1 && !loading && (
+          <div style={{ marginBottom:12 }}>
+            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", textAlign:"center" }}>Quick start</p>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
+              {QUICK_REPLIES.map(q=>(
+                <button key={q} onClick={()=>send(q)} style={{ padding:"8px 14px", borderRadius:20, border:`1px solid ${T.linen}`, background:T.ivory, fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef}/>
       </div>
 
       {/* Input */}
-      <div style={{ display: "flex", gap: 8, paddingTop: 8, borderTop: `1px solid ${T.linen}` }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-          placeholder={`Talk to Nora...`}
-          maxLength={2000}
-          style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 14, padding: "11px 14px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }}
-        />
-        <button onClick={() => send()} disabled={!input.trim() || loading} style={{ width: 44, height: 44, borderRadius: 14, background: input.trim() && !loading ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: input.trim() && !loading ? "pointer" : "not-allowed", flexShrink: 0, transition: "all .2s" }}>
-          →
-        </button>
+      <div style={{ borderTop:`1px solid ${T.linen}`, paddingTop:10, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e=>{ setInput(e.target.value); e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"; }}
+            onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
+            placeholder="Talk to Nora..."
+            rows={1}
+            disabled={loading}
+            style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:16, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"none", lineHeight:1.5, minHeight:48, WebkitOverflowScrolling:"touch" as any }}
+          />
+          <button onClick={startVoice} disabled={loading} style={{ width:48, height:48, borderRadius:16, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:20, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
+            {recording?"⏹":"🎤"}
+          </button>
+          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:48, height:48, borderRadius:16, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:18, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
+            {loading?<Spinner size={16} color="#fff"/>:"→"}
+          </button>
+        </div>
+        <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, textAlign:"center", margin:"6px 0 0" }}>Enter to send · Shift+Enter for new line</p>
       </div>
     </div>
   );

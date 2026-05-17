@@ -283,3 +283,29 @@ export function ProgressBar({
     </div>
   );
 }
+
+// ── AIErrorCard ───────────────────────────────────────────────────
+export function AIErrorCard({
+  message = "Something went wrong",
+  onRetry,
+}: {
+  message?: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div style={{
+      background: T.ivory, border: `1.5px solid ${T.linen}`,
+      borderRadius: 20, padding: "24px 20px", textAlign: "center", marginBottom: 12,
+    }}>
+      <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: T.taupe, margin: "0 0 6px" }}>✦</p>
+      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px", lineHeight: 1.6 }}>{message}</p>
+      <button onClick={onRetry} style={{
+        background: T.esp, color: "#fff", border: "none", borderRadius: 12,
+        padding: "10px 24px", fontFamily: F.sans, fontSize: 13, fontWeight: 600,
+        cursor: "pointer", minHeight: 40, touchAction: "manipulation",
+      }}>
+        Try again
+      </button>
+    </div>
+  );
+}

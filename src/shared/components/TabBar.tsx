@@ -1,27 +1,31 @@
 // ─── HerNest V2 Tab Bar ───────────────────────────────────────────
 import React from "react";
 import { T, F } from "../../config/theme";
+import { HomeIcon, NoraIcon, PlanIcon, BudgetIcon, BriefIcon, FamilyIcon, ThriveIcon, StyleIcon, TripsIcon, CircleIcon, CalendarIcon, ProfileIcon, SettingsIcon, UpgradeIcon, MoreIcon } from "./Icons";
 import { useStore } from "../../core/store";
 
 const TABS = [
-  { id: "home",     label: "Home",    icon: "⌂" },
-  { id: "nora",     label: "Nora",    icon: "✦" },
-  { id: "plan",     label: "Plan",    icon: "☐" },
-  { id: "budget",   label: "Budget",  icon: "◎" },
-  { id: "briefing", label: "Brief",   icon: "☀" },
+  { id: "home",     label: "Home",    IC: HomeIcon },
+  { id: "nora",     label: "Nora",    IC: NoraIcon },
+  { id: "plan",     label: "Plan",    IC: PlanIcon },
+  { id: "budget",   label: "Budget",  IC: BudgetIcon },
+  { id: "briefing", label: "Brief",   IC: BriefIcon },
 ];
 
 const MORE_TABS = [
-  { id: "thrive",   label: "Thrive",    icon: "🌿" },
-  { id: "style",    label: "Style",     icon: "✦" },
-  { id: "trips",    label: "Trips",     icon: "✈" },
-  { id: "circle",   label: "Circle",    icon: "◉" },
-  { id: "calendar", label: "Calendar",  icon: "📅" },
-  { id: "profile",  label: "Profile",   icon: "👩" },
+  { id: "family",   label: "Family",    IC: FamilyIcon },
+  { id: "thrive",   label: "Thrive",    IC: ThriveIcon },
+  { id: "style",    label: "Style",     IC: StyleIcon },
+  { id: "trips",    label: "Trips",     IC: TripsIcon },
+  { id: "circle",   label: "Circle",    IC: CircleIcon },
+  { id: "calendar", label: "Calendar",  IC: CalendarIcon },
+  { id: "profile",  label: "Profile",   IC: ProfileIcon },
+  { id: "settings", label: "Settings",  IC: SettingsIcon },
+  { id: "upgrade",  label: "Go Pro ✦",  IC: UpgradeIcon },
 ];
 
 export function TabBar() {
-  const { activeTab, setActiveTab, showMore, setShowMore, setShowSettings } = useStore();
+  const { activeTab, setActiveTab, showMore, setShowMore } = useStore();
 
   const isMoreActive = MORE_TABS.some(t => t.id === activeTab);
 
@@ -60,27 +64,17 @@ export function TabBar() {
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 16 }}>{t.icon}</span>
+              <t.IC size={18} color={activeTab === t.id ? T.gold : T.bark} strokeWidth={1.4}/>
               <span style={{
                 fontFamily: F.sans, fontSize: 12,
                 fontWeight: activeTab === t.id ? 700 : 400,
-                color: activeTab === t.id ? T.esp : T.bark,
+                color: activeTab === t.id ? T.gold : T.bark,
               }}>
                 {t.label}
               </span>
             </button>
           ))}
-          <button
-            onClick={() => { setShowSettings(true); setShowMore(false); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 14px", borderRadius: 14,
-              background: "#fff", border: `1px solid ${T.linen}`, cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: 16 }}>⚙</span>
-            <span style={{ fontFamily: F.sans, fontSize: 12, color: T.bark }}>Settings</span>
-          </button>
+
         </div>
       )}
 
@@ -102,11 +96,11 @@ export function TabBar() {
               background: activeTab === t.id ? T.gold : "transparent",
               marginBottom: 1, transition: "all .2s",
             }} />
-            <span style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
+            <t.IC size={20} color={activeTab === t.id ? T.gold : T.taupe} strokeWidth={activeTab === t.id ? 1.8 : 1.3}/>
             <span style={{
               fontFamily: F.sans, fontSize: 9,
               fontWeight: activeTab === t.id ? 700 : 500,
-              color: activeTab === t.id ? T.esp : T.taupe,
+              color: activeTab === t.id ? T.gold : T.taupe,
               letterSpacing: 0.6,
             }}>
               {t.label}
@@ -128,22 +122,11 @@ export function TabBar() {
             background: isMoreActive || showMore ? T.gold : "transparent",
             marginBottom: 1, transition: "all .2s",
           }} />
-          <div style={{
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            gap: 3, width: 22, height: 22,
-          }}>
-            {[0,1,2].map(i => (
-              <div key={i} style={{
-                width: 16, height: 2, borderRadius: 2,
-                background: showMore || isMoreActive ? T.esp : T.taupe,
-              }} />
-            ))}
-          </div>
+          <MoreIcon size={20} color={showMore || isMoreActive ? T.gold : T.taupe} strokeWidth={1.4}/>
           <span style={{
             fontFamily: F.sans, fontSize: 9,
             fontWeight: showMore || isMoreActive ? 700 : 500,
-            color: showMore || isMoreActive ? T.esp : T.taupe,
+            color: showMore || isMoreActive ? T.gold : T.taupe,
             letterSpacing: 0.6,
           }}>
             More

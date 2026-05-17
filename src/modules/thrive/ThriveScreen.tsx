@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Pill, ProgressBar, AIBadge, Spinner } from "../../shared/components";
@@ -7,350 +8,497 @@ import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 
-// ── Types ──────────────────────────────────────────────────────────
-interface SleepLog { hours: number; date: string; quality?: "poor"|"okay"|"good"; }
-interface Habit { id: string; label: string; icon: string; done: boolean; source: "manual"|"inferred"; }
+// ── Types per blueprint ────────────────────────────────────────────
+interface SleepLog { date: string; hours: number; quality: "poor"|"fair"|"good"|"excellent"; }
+interface WaterLog  { date: string; glasses: number; target: number; timestamps: string[]; }
+interface MoodLog   { date: string; rating: number; label: string; note?: string; }
+interface Habit     { id: string; name: string; icon: string; category: string; done: boolean; streak: number; autoDetect?: boolean; lastCompleted?: string; }
+interface WeeklyScore {
+  score: number; headline: string;
+  breakdown: { sleep: number; hydration: number; habits: number; mood: number };
+  wins: string[]; focus: string; affirmation: string;
+  trend: string; generatedAt: number;
+}
 interface CoachMsg { role: "user"|"assistant"; content: string; }
-interface WeeklyScore { score: number; headline: string; wins: string[]; focus: string; affirmation: string; generatedAt: number; }
 
-const DEFAULT_HABITS: Habit[] = [
-  { id:"water",    label:"Drink 8 glasses",      icon:"💧", done:false, source:"manual" },
-  { id:"move",     label:"Move your body",        icon:"🏃", done:false, source:"manual" },
-  { id:"mindful",  label:"5 min mindfulness",     icon:"🧘", done:false, source:"manual" },
-  { id:"nourish",  label:"Eat nourishing food",   icon:"🥗", done:false, source:"manual" },
-  { id:"outside",  label:"Get outside today",     icon:"☀️", done:false, source:"manual" },
-  { id:"gratitude",label:"3 things I'm grateful for", icon:"🙏", done:false, source:"manual" },
-];
+const SLEEP_QUALITY = [
+  { value:"poor",      label:"Poor",      emoji:"😞", color:T.blush },
+  { value:"fair",      label:"Fair",      emoji:"😐", color:T.taupe },
+  { value:"good",      label:"Good",      emoji:"🙂", color:T.sky },
+  { value:"excellent", label:"Excellent", emoji:"✨", color:T.sage },
+] as const;
 
 const MOOD_LEVELS = [
-  { value:1, label:"Struggling", emoji:"😞" },
-  { value:2, label:"Low",        emoji:"😕" },
-  { value:3, label:"Okay",       emoji:"😐" },
-  { value:4, label:"Good",       emoji:"🙂" },
-  { value:5, label:"Thriving",   emoji:"✨" },
+  { value:3, label:"Struggling", emoji:"◦", color:"#C4846A", desc:"Hard day" },
+  { value:6, label:"Okay",       emoji:"◎", color:"#C9A961", desc:"Getting through" },
+  { value:9, label:"Good",       emoji:"✦", color:"#4CAF7D", desc:"Feeling good" },
 ];
 
-const SLEEP_OPTIONS = [4,5,6,7,8,9];
+const DEFAULT_HABITS: Habit[] = [
+  { id:"water",    name:"Drink 8 glasses",       icon:"💧", category:"nutrition",   done:false, streak:0, autoDetect:true },
+  { id:"move",     name:"Move your body",         icon:"🏃", category:"movement",    done:false, streak:0 },
+  { id:"mindful",  name:"5 min mindfulness",      icon:"🧘", category:"mindfulness", done:false, streak:0 },
+  { id:"nourish",  name:"Eat nourishing food",    icon:"🥗", category:"nutrition",   done:false, streak:0 },
+  { id:"outside",  name:"Get outside",            icon:"☀️", category:"movement",    done:false, streak:0 },
+  { id:"sleep7",   name:"Sleep 7+ hours",         icon:"😴", category:"rest",        done:false, streak:0, autoDetect:true },
+  { id:"gratitude",name:"3 gratitudes",           icon:"🙏", category:"mindfulness", done:false, streak:0 },
+];
+
+// ── Weekly Score Engine per blueprint ─────────────────────────────
+function calcSleepScore(logs: SleepLog[]): number {
+  if (!logs.length) return 5;
+  const avg = logs.reduce((a,l)=>a+l.hours,0)/logs.length;
+  const qualBonus = logs.filter(l=>l.quality==="excellent").length * 0.5;
+  let base = avg>=7&&avg<=8 ? 10 : avg>=6 ? 8 : avg>=5 ? 6 : 3;
+  return Math.min(10, base + qualBonus);
+}
+
+function calcHydrationScore(logs: WaterLog[]): number {
+  if (!logs.length) return 5;
+  const avg = logs.reduce((a,l)=>a+l.glasses,0)/logs.length;
+  const ratio = avg/8;
+  return ratio>=1?10 : ratio>=0.75?8 : ratio>=0.5?6 : 4;
+}
+
+function calcHabitsScore(habits: Habit[]): number {
+  if (!habits.length) return 5;
+  const done = habits.filter(h=>h.done).length;
+  return Math.round((done/habits.length)*10*10)/10;
+}
+
+function calcMoodScore(logs: MoodLog[]): number {
+  if (!logs.length) return 5;
+  return logs.reduce((a,l)=>a+l.rating,0)/logs.length;
+}
+
+function detectPatterns(sleepLogs: SleepLog[], moodLogs: MoodLog[]): string {
+  if (sleepLogs.length < 3 || moodLogs.length < 3) return "";
+  const avgSleep = sleepLogs.reduce((a,l)=>a+l.hours,0)/sleepLogs.length;
+  const avgMood  = moodLogs.reduce((a,l)=>a+l.rating,0)/moodLogs.length;
+  if (avgSleep < 6 && avgMood < 5) return "Low sleep is affecting your mood. Prioritise rest this week.";
+  if (avgSleep >= 7.5 && avgMood >= 7) return "Great sleep is lifting your mood. Keep protecting your bedtime!";
+  return "";
+}
 
 export function ThriveScreen() {
   const { user, profile } = useStore();
   const [tab, setTab] = useState("today");
 
   // Today state
-  const [water, setWater]   = useState(0);
-  const [sleep, setSleep]   = useState<SleepLog|null>(null);
-  const [mood, setMood]     = useState<number|null>(null);
-  const [habits, setHabits] = useState<Habit[]>(DEFAULT_HABITS);
+  const [sleepLog, setSleepLog]   = useState<SleepLog|null>(null);
+  const [sleepQuality, setSleepQuality] = useState<SleepLog["quality"]>("good");
+  const [sleepHours, setSleepHours] = useState<number|null>(null);
+  const [waterLog, setWaterLog]   = useState<WaterLog|null>(null);
+  const [moodLog, setMoodLog]     = useState<MoodLog|null>(null);
+  const [habits, setHabits]       = useState<Habit[]>(DEFAULT_HABITS);
   const [celebrated, setCelebrated] = useState(false);
 
   // Weekly score
-  const [score, setScore]       = useState<WeeklyScore|null>(null);
-  const [generatingScore, setGeneratingScore] = useState(false);
+  const [score, setScore]         = useState<WeeklyScore|null>(null);
+  const [genScore, setGenScore]   = useState(false);
+
+  // History for score calc
+  const [sleepHistory, setSleepHistory] = useState<SleepLog[]>([]);
+  const [moodHistory, setMoodHistory]   = useState<MoodLog[]>([]);
+  const [waterHistory, setWaterHistory] = useState<WaterLog[]>([]);
 
   // Coach
-  const [coachMsgs, setCoachMsgs]   = useState<CoachMsg[]>([
-    { role:"assistant", content:`Hello${profile?.name?`, ${profile.name}`:""}. I'm your wellness coach. I can see your sleep, water, habits and mood. How are you feeling today?` }
+  const [coachMsgs, setCoachMsgs] = useState<CoachMsg[]>([
+    { role:"assistant", content:`Hello${(profile as any)?.name?`, ${(profile as any).name}`:""}! I'm your wellness coach. I can see your sleep, water, habits and mood data. What would you like to work on?` }
   ]);
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const doneCount = habits.filter(h => h.done).length;
   const today = new Date().toISOString().split("T")[0];
+  const doneCount = habits.filter(h=>h.done).length;
+  const water = waterLog?.glasses || 0;
 
-  // Load from Firestore
   useEffect(() => {
     if (!user?.uid) return;
     loadData(user.uid, "thrive").then(d => {
       if (!d) return;
-      if (d.water)  setWater(d.water as number);
-      if (d.habits) setHabits(d.habits as Habit[]);
-      if (d.score)  setScore(d.score as WeeklyScore);
-      // Load today's sleep
-      if (d.sleepLog) {
-        const logs = d.sleepLog as SleepLog[];
-        const todayLog = logs.find(l => l.date === today);
-        if (todayLog) setSleep(todayLog);
+      if (d.habits) {
+        // Reset habits daily — clear done status if not completed today
+        const loadedHabits = (d.habits as Habit[]).map(h => ({
+          ...h,
+          done: h.lastCompleted === today ? h.done : false,
+        }));
+        setHabits(loadedHabits);
       }
-      // Load today's mood
-      if (d.moodLog) {
-        const logs = d.moodLog as { date: string; value: number }[];
-        const todayMood = logs.find(l => l.date === today);
-        if (todayMood) setMood(todayMood.value);
-      }
+      if (d.score) setScore(d.score as WeeklyScore);
+      // Load today's logs
+      const sLogs = (d.sleepLog as SleepLog[]) || [];
+      const mLogs = (d.moodLog  as MoodLog[])  || [];
+      const wLogs = (d.waterLog as WaterLog[])  || [];
+      setSleepHistory(sLogs); setMoodHistory(mLogs); setWaterHistory(wLogs);
+      const todaySleep = sLogs.find(l=>l.date===today);
+      const todayMood  = mLogs.find(l=>l.date===today);
+      const todayWater = wLogs.find(l=>l.date===today);
+      if (todaySleep) { setSleepLog(todaySleep); setSleepHours(todaySleep.hours); setSleepQuality(todaySleep.quality); }
+      if (todayMood)  setMoodLog(todayMood);
+      if (todayWater) setWaterLog(todayWater);
     });
   }, [user?.uid]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [coachMsgs]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [coachMsgs]);
 
-  // ── Persist helpers ───────────────────────────────────────────────
   const persist = async (updates: Record<string, unknown>) => {
     if (!user?.uid) return;
     await saveData(user.uid, "thrive", updates);
   };
 
-  // ── Water ─────────────────────────────────────────────────────────
+  // ── Sleep per blueprint (quality + hours) ─────────────────────────
+  const logSleep = async () => {
+    if (!sleepHours || !user?.uid) return;
+    const log: SleepLog = { date:today, hours:sleepHours, quality:sleepQuality };
+    const updated = [...sleepHistory.filter(l=>l.date!==today), log];
+    setSleepLog(log); setSleepHistory(updated);
+
+    // Auto-detect "sleep 7+" habit
+    const updatedHabits = habits.map(h =>
+      h.id==="sleep7" ? { ...h, done:sleepHours>=7, streak:sleepHours>=7?h.streak+1:0 } : h
+    );
+    setHabits(updatedHabits);
+
+    await persist({ sleepLog:updated, habits:updatedHabits, moodLog:moodHistory, waterLog:waterHistory, score });
+    await bus.publish("thrive.sleep.logged", { hours:sleepHours, quality:sleepQuality }, { userId:user.uid, source:"thrive" });
+    trackEvent("sleep_logged", { hours: sleepHours, quality: sleepQuality });
+    toast.success(`${sleepHours}h ${sleepQuality} sleep logged ✓`);
+  };
+
+  // ── Water with timestamps per blueprint ───────────────────────────
   const logWater = async (glasses: number) => {
-    setWater(glasses);
-    await persist({ water: glasses });
-    await bus.publish("thrive.water.logged", { glasses }, { userId: user!.uid, source: "thrive" });
+    if (!user?.uid) return;
+    const existing = waterLog || { date:today, glasses:0, target:8, timestamps:[] };
+    const log: WaterLog = { ...existing, glasses, timestamps:[...existing.timestamps, new Date().toISOString()] };
+    const updated = [...waterHistory.filter(l=>l.date!==today), log];
+    setWaterLog(log); setWaterHistory(updated);
+
+    // Auto-detect water habit
+    const updatedHabits = habits.map(h =>
+      h.id==="water" ? { ...h, done:glasses>=8, streak:glasses>=8?h.streak+1:h.streak } : h
+    );
+    setHabits(updatedHabits);
+
+    if ((waterLog?.glasses||0) < 8 && glasses >= 8) {
+      toast.success("💧 Daily water goal reached! 🎉");
+    }
+
+    await persist({ waterLog:updated, habits:updatedHabits, sleepLog:sleepHistory, moodLog:moodHistory, score });
+    await bus.publish("thrive.water.logged", { glasses }, { userId:user!.uid, source:"thrive" });
   };
 
-  // ── Sleep ─────────────────────────────────────────────────────────
-  const logSleep = async (hours: number) => {
-    const log: SleepLog = { hours, date: today };
-    setSleep(log);
-    // Load existing logs and update
-    const existing = await loadData(user!.uid, "thrive");
-    const logs: SleepLog[] = (existing?.sleepLog as SleepLog[]) || [];
-    const updated = [...logs.filter(l => l.date !== today), log];
-    await persist({ sleepLog: updated });
-    await bus.publish("thrive.sleep.logged", { hours }, { userId: user!.uid, source: "thrive" });
-    toast.success(`${hours}h sleep logged ✓`);
+  // ── Mood 1-10 per blueprint ───────────────────────────────────────
+  const logMood = async (rating: number) => {
+    if (!user?.uid) return;
+    const label = MOOD_LEVELS.find(m=>m.value===rating)?.label || "Okay";
+    const log: MoodLog = { date:today, rating, label };
+    const updated = [...moodHistory.filter(l=>l.date!==today), log];
+    setMoodLog(log); setMoodHistory(updated);
+    await persist({ moodLog:updated, sleepLog:sleepHistory, waterLog:waterHistory, habits, score });
+    await bus.publish("thrive.mood.logged", { rating, label }, { userId:user!.uid, source:"thrive" });
   };
 
-  // ── Mood ──────────────────────────────────────────────────────────
-  const logMood = async (value: number) => {
-    setMood(value);
-    const existing = await loadData(user!.uid, "thrive");
-    const logs = (existing?.moodLog as { date: string; value: number }[]) || [];
-    const updated = [...logs.filter(l => l.date !== today), { date: today, value }];
-    await persist({ moodLog: updated });
-    await bus.publish("thrive.mood.logged", { value }, { userId: user!.uid, source: "thrive" });
-  };
-
-  // ── Habits ────────────────────────────────────────────────────────
+  // ── Habits with streak tracking per blueprint ──────────────────────
   const toggleHabit = async (id: string) => {
-    const updated = habits.map(h => h.id === id ? { ...h, done: !h.done } : h);
+    if (!user?.uid) return;
+    const updated = habits.map(h => {
+      if (h.id !== id) return h;
+      const nowDone = !h.done;
+      return { ...h, done:nowDone, streak:nowDone?h.streak+1:Math.max(0,h.streak-1), lastCompleted:nowDone?today:h.lastCompleted };
+    });
     setHabits(updated);
-    await persist({ habits: updated });
 
-    const h = updated.find(h => h.id === id);
+    const h = updated.find(h=>h.id===id);
     if (h?.done) {
-      await bus.publish("thrive.habit.completed", { id, label: h.label }, { userId: user!.uid, source: "thrive" });
-      // Celebrate if all done
-      const allDone = updated.every(h => h.done);
-      if (allDone && !celebrated) {
+      await bus.publish("thrive.habit.completed", { id, name:h.name, streak:h.streak }, { userId:user.uid, source:"thrive" });
+      // Streak celebration per blueprint
+      if (h.streak === 7)  toast.success(`🔥 7-day streak on "${h.name}"!`);
+      if (h.streak === 30) toast.success(`🏆 30-day streak on "${h.name}"! Incredible!`);
+      // All done
+      if (updated.every(h=>h.done) && !celebrated) {
         setCelebrated(true);
-        toast.success("🎉 All habits complete today! You're amazing!");
-        setTimeout(() => setCelebrated(false), 5000);
+        toast.success("🎉 All habits complete! You're amazing today!");
+        setTimeout(()=>setCelebrated(false),5000);
       }
     }
+    await persist({ habits:updated, sleepLog:sleepHistory, moodLog:moodHistory, waterLog:waterHistory, score });
   };
 
-  // ── Weekly Score ─────────────────────────────────────────────────
+  // ── Weekly Score per blueprint weighted formula ────────────────────
   const generateScore = async () => {
-    setGeneratingScore(true);
-    const sleepAvg = sleep?.hours || 0;
-    const habitsRate = Math.round((doneCount / habits.length) * 100);
-    const moodVal = mood || 3;
+    setGenScore(true);
+    const sleepS = calcSleepScore(sleepHistory.slice(-7));
+    const hydraS = calcHydrationScore(waterHistory.slice(-7));
+    const habitS = calcHabitsScore(habits);
+    const moodS  = calcMoodScore(moodHistory.slice(-7));
+    // Weighted composite per blueprint: sleep 25%, hydration 15%, habits 20%, mood 25%, movement 15% (movement defaults 5)
+    const total = sleepS*0.25 + hydraS*0.15 + habitS*0.20 + moodS*0.25 + 5*0.15;
+    const pattern = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
 
-    const sys = `You are Nora, a warm wellness coach. Generate a weekly wellness score.
+    const sys = `You are Nora, a warm wellness coach. Generate a weekly wellness score summary.
 Return ONLY valid JSON:
-{"score":0,"headline":"one punchy sentence","wins":["string","string"],"focus":"one gentle suggestion","affirmation":"one warm personal sentence"}
-Score 1-10 honestly. Adjust tone: gentle if score<5, encouraging if 5-7, celebratory if 8+.`;
+{"headline":"one punchy sentence","wins":["string","string"],"focus":"one gentle suggestion","affirmation":"one warm personal sentence","trend":"improving|stable|declining"}
+Score is ${total.toFixed(1)}/10. Sleep: ${sleepS.toFixed(1)}, Hydration: ${hydraS.toFixed(1)}, Habits: ${habitS.toFixed(1)}, Mood: ${moodS.toFixed(1)}.
+${pattern ? `Pattern detected: ${pattern}` : ""}
+User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}.`;
 
-    const ctx = `Name: ${profile?.name||"lovely"}. Sleep: ${sleepAvg}h avg. Habits done: ${habitsRate}%. Mood: ${moodVal}/5. Water: ${water}/8 glasses.`;
-    const result = await ai(sys, ctx, "wellness_score");
+    const result = await ai(sys, `Weekly score breakdown for ${(profile as any)?.name||"user"}`, "wellness_score");
 
     if (!result.error) {
       try {
-        const data = JSON.parse(result.text.replace(/```json|```/g,"").trim());
-        const weekScore: WeeklyScore = { ...data, generatedAt: Date.now() };
-        setScore(weekScore);
-        await persist({ score: weekScore });
-        await bus.publish("thrive.score.generated", { score: data.score }, { userId: user!.uid, source: "thrive" });
+        const data = JSON.parse(result.text.replace(/```json\s*/gi,"").replace(/```/g,"").trim());
+        const ws: WeeklyScore = {
+          score: Math.round(total*10)/10,
+          headline: data.headline,
+          breakdown: { sleep:sleepS, hydration:hydraS, habits:habitS, mood:moodS },
+          wins: data.wins||[], focus:data.focus, affirmation:data.affirmation,
+          trend: data.trend||"stable", generatedAt:Date.now(),
+        };
+        setScore(ws);
+        await persist({ score:ws, habits, sleepLog:sleepHistory, moodLog:moodHistory, waterLog:waterHistory });
+        await bus.publish("thrive.score.generated", { score:total }, { userId:user!.uid, source:"thrive" });
       } catch { toast.error("Couldn't generate score"); }
     }
-    setGeneratingScore(false);
+    setGenScore(false);
   };
 
-  // ── Wellness Coach ────────────────────────────────────────────────
+  // ── Wellness Coach with real data per blueprint ────────────────────
   const askCoach = async () => {
-    if (!coachInput.trim() || coachLoading) return;
+    if (!coachInput.trim()||coachLoading) return;
     const userMsg: CoachMsg = { role:"user", content:coachInput };
-    setCoachMsgs(p => [...p, userMsg]);
+    setCoachMsgs(p=>[...p,userMsg]);
     setCoachInput("");
     setCoachLoading(true);
 
-    const ctx = `Sleep last night: ${sleep?.hours||"unknown"}h. Water today: ${water}/8 glasses. Habits done: ${doneCount}/${habits.length}. Mood: ${mood ? MOOD_LEVELS.find(m=>m.value===mood)?.label : "not logged"}.`;
+    const avgSleep = sleepHistory.slice(-7).reduce((a,l)=>a+l.hours,0)/Math.max(sleepHistory.slice(-7).length,1);
+    const avgMood  = moodHistory.slice(-7).reduce((a,l)=>a+l.rating,0)/Math.max(moodHistory.slice(-7).length,1);
+    const pattern  = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
+
     const sys = `You are Nora, a warm empathetic wellness coach inside HerNest.
-${ctx}
-You can see her actual wellness data. Be specific, warm, and non-judgmental.
-If she's struggling, lead with compassion. If thriving, match her energy.
-Keep responses concise — 2-3 sentences max.`;
 
-    const history = coachMsgs.slice(-6).map(m => ({ role:m.role, content:m.content }));
+WELLNESS DATA:
+- Sleep this week: avg ${avgSleep.toFixed(1)}h. Today: ${sleepLog?.hours||"not logged"}h (${sleepLog?.quality||"unknown"}).
+- Water today: ${water}/8 glasses.
+- Habits today: ${doneCount}/${habits.length} done.
+- Mood today: ${moodLog?.rating||"not logged"}/10 (${moodLog?.label||"unknown"}).
+- Weekly score: ${score?.score||"not generated"}/10.
+${pattern ? `Pattern: ${pattern}` : ""}
+
+RULES:
+1. NEVER judge. No "you should" or "that's a lot."
+2. Use REAL numbers: "You've slept avg ${avgSleep.toFixed(1)}h" not "you haven't slept much."
+3. Frame everything as choices, not failures.
+4. Celebrate wins genuinely.
+5. If struggling, suggest ONE small thing.
+6. Keep responses to 2-3 sentences.`;
+
+    const history = coachMsgs.slice(-6).map(m=>({ role:m.role, content:m.content }));
     const result = await ai(sys, coachInput, "wellness_coach", history);
-
-    setCoachMsgs(p => [...p, {
-      role:"assistant",
-      content: result.error ? "I'm having trouble connecting. Please try again." : result.text
-    }]);
+    setCoachMsgs(p=>[...p,{ role:"assistant", content:result.error?"Having trouble connecting — try again.":result.text }]);
     setCoachLoading(false);
   };
 
+  // ── Score color ────────────────────────────────────────────────────
+  const scoreColor = score ? score.score>=8?T.sage:score.score>=6?T.gold:T.blush : T.esp;
+
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="WELLNESS" title="Thrive" />
+      <PageTitle eyebrow="WELLNESS" title="Thrive"/>
 
       <HeroCard
         eyebrow="TODAY"
-        title={doneCount===habits.length && habits.length>0 ? "All habits complete 🎉" : `${doneCount} of ${habits.length} habits done`}
-        subtitle={sleep ? `${sleep.hours}h sleep · ${water}/8 glasses · ${mood ? MOOD_LEVELS.find(m=>m.value===mood)?.label : "mood not logged"}` : "Log your sleep and mood below"}
-        color={doneCount===habits.length && habits.length>0 ? T.sage : T.esp}
+        title={doneCount===habits.length&&habits.length>0?"All habits done 🎉":`${doneCount} of ${habits.length} habits`}
+        subtitle={`${sleepLog?`${sleepLog.hours}h ${sleepLog.quality} sleep · `:""}${water}/8 water · ${moodLog?`Mood ${moodLog.rating}/10`:""}`}
+        color={doneCount===habits.length&&habits.length>0?T.sage:T.esp}
       >
         <div style={{ marginTop:12 }}><ProgressBar value={doneCount} max={habits.length} color={T.gold}/></div>
       </HeroCard>
 
+      {/* Pattern detection callout */}
+      {detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7)) && (
+        <div style={{ background:`${T.sky}15`, border:`1px solid ${T.sky}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10 }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>💡</span>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, lineHeight:1.5 }}>
+            {detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7))}
+          </p>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
-        {["today","score","coach"].map(t => (
-          <Pill key={t} label={t==="today"?"Today":t==="score"?"Weekly Score":"💬 Nora Coach"} active={tab===t} onClick={()=>setTab(t)}/>
+        {["today","score","coach"].map(t=>(
+          <Pill key={t} label={t==="today"?"Today":t==="score"?"Weekly Score":"💬 Coach"} active={tab===t} onClick={()=>setTab(t)}/>
         ))}
       </div>
 
       {/* ── TODAY ─────────────────────────────────────────────────── */}
       {tab==="today" && <>
 
-        {/* Mood */}
+        {/* Mood 1-10 per blueprint */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>HOW ARE YOU FEELING?</p>
-          <div style={{ display:"flex", justifyContent:"space-between" }}>
-            {MOOD_LEVELS.map(m => (
-              <button key={m.value} onClick={()=>logMood(m.value)} style={{ flex:1, padding:"10px 4px", borderRadius:12, border:`2px solid ${mood===m.value?T.gold:T.linen}`, background:mood===m.value?T.goldP:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, touchAction:"manipulation", minHeight:60 }}>
-                <span style={{ fontSize:22 }}>{m.emoji}</span>
-                <span style={{ fontFamily:F.sans, fontSize:9, color:mood===m.value?T.gold:T.taupe, fontWeight:mood===m.value?700:400 }}>{m.label}</span>
+          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>HOW ARE YOU FEELING TODAY? {moodLog&&<span style={{ color:T.gold, fontWeight:400 }}>({moodLog.rating}/10 — {moodLog.label})</span>}</p>
+          <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:4 }}>
+            {MOOD_LEVELS.map(m=>(
+              <button key={m.value} onClick={()=>logMood(m.value)} style={{ flex:1, padding:"16px 8px", borderRadius:16, border:`2px solid ${moodLog?.rating===m.value?(m as any).color:T.linen}`, background:moodLog?.rating===m.value?`${(m as any).color}15`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, touchAction:"manipulation", transition:"all 0.2s" }}>
+                <span style={{ fontSize:18 }}>{m.emoji}</span>
+                <span style={{ fontFamily:F.sans, fontSize:8, color:moodLog?.rating===m.value?T.gold:T.taupe }}>{m.value}</span>
               </button>
             ))}
           </div>
         </Card>
 
-        {/* Sleep */}
+        {/* Sleep with quality per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
-          <div style={{ display:"flex", gap:8, justifyContent:"space-between" }}>
-            {SLEEP_OPTIONS.map(h => (
-              <button key={h} onClick={()=>logSleep(h)} style={{ flex:1, padding:"10px 4px", borderRadius:12, border:`2px solid ${sleep?.hours===h?T.sky:T.linen}`, background:sleep?.hours===h?T.skyP:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:56 }}>
-                <span style={{ fontFamily:F.serif, fontSize:18, fontWeight:700, color:sleep?.hours===h?T.sky:T.esp }}>{h}</span>
-                <span style={{ fontFamily:F.sans, fontSize:9, color:T.taupe }}>hrs</span>
+          <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
+            {[4,5,6,7,8,9,10].map(h=>(
+              <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.sky:T.linen}`, background:sleepHours===h?T.skyP:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
+                <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:sleepHours===h?T.sky:T.esp }}>{h}</span>
+                <span style={{ fontFamily:F.sans, fontSize:8, color:T.taupe }}>hrs</span>
               </button>
             ))}
           </div>
-          {sleep && (
-            <p style={{ fontFamily:F.sans, fontSize:11, color:sleep.hours>=7?T.sage:sleep.hours>=6?T.gold:T.blush, margin:"10px 0 0", textAlign:"center" }}>
-              {sleep.hours>=7 ? "✓ Great sleep!" : sleep.hours>=6 ? "Almost there — aim for 7+ hours" : "Low sleep detected — be gentle with yourself today"}
-            </p>
-          )}
+          {/* Quality selector per blueprint */}
+          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", fontWeight:600 }}>Quality</p>
+          <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+            {SLEEP_QUALITY.map(q=>(
+              <button key={q.value} onClick={()=>setSleepQuality(q.value)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepQuality===q.value?q.color:T.linen}`, background:sleepQuality===q.value?`${q.color}15`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
+                <span style={{ fontSize:18 }}>{q.emoji}</span>
+                <span style={{ fontFamily:F.sans, fontSize:9, color:sleepQuality===q.value?q.color:T.taupe }}>{q.label}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={logSleep} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.sky:T.linen, color:"#fff", border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
+            Log {sleepHours||"?"}h {sleepQuality} sleep
+          </button>
+          {sleepLog && <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"8px 0 0", textAlign:"center" }}>
+            {sleepLog.hours>=7?"✓ Great sleep!":sleepLog.hours>=6?"Almost there — aim for 7+ hours":"Low sleep — be gentle with yourself today"}
+          </p>}
         </Card>
 
-        {/* Water */}
+        {/* Water with visual tracker per blueprint */}
         <Card>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>WATER TODAY</p>
             <span style={{ fontFamily:F.serif, fontSize:24, fontWeight:700, color:T.sky }}>{water}<span style={{ fontFamily:F.sans, fontSize:12, color:T.taupe }}>/8</span></span>
           </div>
-          <div style={{ display:"flex", gap:6 }}>
-            {Array.from({length:8},(_,i) => (
-              <button key={i} onClick={()=>logWater(i<water?i:i+1)} style={{ flex:1, height:32, borderRadius:8, cursor:"pointer", background:i<water?T.sky:T.skyP, border:"none", transition:"background .15s", touchAction:"manipulation" }}/>
+          <div style={{ display:"flex", gap:4 }}>
+            {Array.from({length:8},(_,i)=>(
+              <button key={i} onClick={()=>logWater(i<water?i:i+1)} style={{ flex:1, height:36, borderRadius:8, cursor:"pointer", background:i<water?T.sky:T.skyP, border:"none", transition:"background .15s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <span style={{ fontSize:14 }}>{i<water?"💧":"○"}</span>
+              </button>
             ))}
           </div>
-          <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"8px 0 0", textAlign:"center" }}>Tap to log · tap filled glass to remove</p>
+          <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"6px 0 0", textAlign:"center" }}>Tap filled to reduce · tap empty to add</p>
         </Card>
 
-        {/* Habits */}
+        {/* Habits with streak tracking per blueprint */}
         <Card>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>HABITS</p>
             <span style={{ fontFamily:F.sans, fontSize:11, color:T.gold }}>{doneCount}/{habits.length}</span>
           </div>
-          {habits.map(h => (
-            <div key={h.id} onClick={()=>toggleHabit(h.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom:`1px solid ${T.linen}`, cursor:"pointer", touchAction:"manipulation" }}>
-              <div style={{ width:36, height:36, borderRadius:"50%", background:h.done?`${T.sage}20`:T.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, transition:"background .2s" }}>{h.icon}</div>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:h.done?T.taupe:T.esp, margin:0, flex:1, textDecoration:h.done?"line-through":"none", transition:"all .2s" }}>{h.label}</p>
-              <div style={{ width:24, height:24, borderRadius:8, border:`2px solid ${h.done?T.sage:T.linen}`, background:h.done?T.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, flexShrink:0, transition:"all .2s" }}>
-                {h.done ? "✓" : ""}
+          {habits.map(h=>(
+            <div key={h.id} onClick={()=>!h.autoDetect&&toggleHabit(h.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 0", borderBottom:`1px solid ${T.linen}`, cursor:h.autoDetect?"default":"pointer", touchAction:"manipulation" }}>
+              <div style={{ width:36, height:36, borderRadius:"50%", background:h.done?`${T.sage}20`:T.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{h.icon}</div>
+              <div style={{ flex:1 }}>
+                <p style={{ fontFamily:F.sans, fontSize:13, color:h.done?T.taupe:T.esp, margin:0, textDecoration:h.done?"line-through":"none" }}>{h.name}</p>
+                {h.streak > 0 && <p style={{ fontFamily:F.sans, fontSize:10, color:T.gold, margin:"2px 0 0" }}>🔥 {h.streak} day streak</p>}
+                {h.autoDetect && <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"2px 0 0" }}>Auto-tracked</p>}
+              </div>
+              <div style={{ width:24, height:24, borderRadius:8, border:`2px solid ${h.done?T.sage:T.linen}`, background:h.done?T.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, flexShrink:0 }}>
+                {h.done?"✓":""}
               </div>
             </div>
           ))}
         </Card>
       </>}
 
-      {/* ── WEEKLY SCORE ───────────────────────────────────────────── */}
+      {/* ── WEEKLY SCORE per blueprint weighted formula ────────────── */}
       {tab==="score" && <>
         {score ? (
           <>
-            <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"24px 20px", marginBottom:16, textAlign:"center" }}>
-              <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>WEEKLY SCORE</p>
-              <div style={{ fontFamily:F.serif, fontSize:72, fontWeight:600, color:T.gold, lineHeight:1 }}>{score.score}</div>
-              <div style={{ fontFamily:F.sans, fontSize:11, color:"rgba(255,255,255,0.4)" }}>/10</div>
+            <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"28px 20px", marginBottom:16, textAlign:"center" }}>
+              <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>WEEKLY WELLNESS SCORE</p>
+              <div style={{ fontFamily:F.serif, fontSize:80, fontWeight:600, color:scoreColor, lineHeight:1 }}>{score.score}</div>
+              <div style={{ fontFamily:F.sans, fontSize:12, color:"rgba(255,255,255,0.4)" }}>/10</div>
               <p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:"#fff", margin:"16px 0 0", lineHeight:1.4 }}>{score.headline}</p>
-              <AIBadge label="Generated by Nora" />
+              <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold, textTransform:"uppercase", letterSpacing:"0.1em" }}>{score.trend}</span>
             </div>
-            {score.wins?.length > 0 && (
-              <Card>
-                <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>THIS WEEK'S WINS</p>
-                {score.wins.map((w,i) => (
-                  <div key={i} style={{ display:"flex", gap:10, padding:"8px 0" }}>
-                    <span style={{ color:T.gold, flexShrink:0 }}>✦</span>
-                    <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{w}</p>
+
+            {/* Score breakdown per blueprint */}
+            <Card>
+              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SCORE BREAKDOWN</p>
+              {[
+                { label:"Sleep",      value:score.breakdown.sleep,      weight:"25%", color:T.sky },
+                { label:"Mood",       value:score.breakdown.mood,       weight:"25%", color:T.gold },
+                { label:"Habits",     value:score.breakdown.habits,     weight:"20%", color:T.sage },
+                { label:"Hydration",  value:score.breakdown.hydration,  weight:"15%", color:T.lav },
+              ].map(item=>(
+                <div key={item.label} style={{ marginBottom:12 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>{item.label} <span style={{ color:T.taupe, fontSize:10 }}>({item.weight})</span></span>
+                    <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:item.color }}>{item.value.toFixed(1)}</span>
                   </div>
-                ))}
-              </Card>
-            )}
-            {score.focus && (
-              <Card>
-                <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>FOCUS FOR NEXT WEEK</p>
-                <p style={{ fontFamily:F.sans, fontSize:14, color:T.esp, margin:0, lineHeight:1.6 }}>{score.focus}</p>
-              </Card>
-            )}
-            {score.affirmation && (
-              <div style={{ background:`linear-gradient(135deg,${T.gold}15,${T.esp}08)`, border:`1px solid ${T.gold}30`, borderRadius:16, padding:"16px 18px", marginBottom:12 }}>
-                <p style={{ fontFamily:F.serif, fontSize:16, fontStyle:"italic", color:T.esp, margin:0, lineHeight:1.6 }}>{score.affirmation}</p>
-              </div>
-            )}
-            <button onClick={generateScore} disabled={generatingScore} style={{ width:"100%", padding:"12px", background:"none", border:`1.5px solid ${T.linen}`, borderRadius:14, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", marginTop:4, minHeight:48 }}>
-              ↻ Regenerate Score
-            </button>
+                  <ProgressBar value={item.value} max={10} color={item.color} height={5}/>
+                </div>
+              ))}
+            </Card>
+
+            {score.wins?.length>0 && <Card>
+              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>THIS WEEK'S WINS</p>
+              {score.wins.map((w,i)=>(
+                <div key={i} style={{ display:"flex", gap:10, padding:"7px 0" }}>
+                  <span style={{ color:T.gold, flexShrink:0 }}>✦</span>
+                  <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{w}</p>
+                </div>
+              ))}
+            </Card>}
+
+            {score.focus && <Card>
+              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>FOCUS NEXT WEEK</p>
+              <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.6 }}>{score.focus}</p>
+            </Card>}
+
+            <div style={{ background:`linear-gradient(135deg,${scoreColor}15,${T.esp}08)`, border:`1px solid ${scoreColor}30`, borderRadius:16, padding:"16px 18px", marginBottom:12 }}>
+              <p style={{ fontFamily:F.serif, fontSize:16, fontStyle:"italic", color:T.esp, margin:0, lineHeight:1.7 }}>{score.affirmation}</p>
+            </div>
+
+            <button onClick={()=>setScore(null)} style={{ width:"100%", padding:"10px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:12, color:T.taupe, cursor:"pointer", minHeight:44 }}>↻ Regenerate</button>
           </>
         ) : (
           <Card>
-            <p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"16px 0 8px", lineHeight:1.6 }}>
-              Nora will analyse your sleep, water, habits and mood to generate your personalised weekly wellness score.
+            <p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"16px 0 12px", lineHeight:1.6 }}>
+              Nora calculates your wellness score using a weighted formula:<br/>
+              <span style={{ color:T.esp, fontWeight:600 }}>Sleep 25% · Mood 25% · Habits 20% · Hydration 15%</span>
             </p>
-            <button onClick={generateScore} disabled={generatingScore} style={{ width:"100%", padding:"14px", background:`linear-gradient(135deg,${T.esp},#4a2e18)`, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:52, touchAction:"manipulation" }}>
-              {generatingScore ? <><Spinner size={18} color="#fff"/>Calculating...</> : "✦ Generate My Score"}
+            <button onClick={generateScore} disabled={genScore} style={{ width:"100%", padding:"14px", background:`linear-gradient(135deg,${T.esp},#4a2e18)`, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:52, touchAction:"manipulation" }}>
+              {genScore?<><Spinner size={18} color="#fff"/>Calculating...</>:"✦ Generate My Score"}
             </button>
           </Card>
         )}
       </>}
 
-      {/* ── NORA COACH ─────────────────────────────────────────────── */}
+      {/* ── NORA COACH ────────────────────────────────────────────── */}
       {tab==="coach" && (
         <div style={{ display:"flex", flexDirection:"column" }}>
           <div style={{ marginBottom:12 }}>
-            {coachMsgs.map((m,i) => (
+            {coachMsgs.map((m,i)=>(
               <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:10 }}>
-                {m.role==="assistant" && (
-                  <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${T.sage},#4a8c50)`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:8, flexShrink:0, alignSelf:"flex-end" }}>
-                    <span style={{ fontSize:12 }}>✦</span>
-                  </div>
-                )}
+                {m.role==="assistant" && <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${T.sage},#4a8c50)`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:8, flexShrink:0, alignSelf:"flex-end", fontSize:12 }}>✦</div>}
                 <div style={{ maxWidth:"82%", background:m.role==="user"?`linear-gradient(135deg,${T.esp},#4a3020)`:"#fff", borderRadius:m.role==="user"?"20px 20px 4px 20px":"20px 20px 20px 4px", padding:"12px 16px", border:m.role==="assistant"?`1px solid ${T.linen}`:"none" }}>
-                  {m.content.split("\n").filter(l=>l.trim()).map((line,j) => (
+                  {m.content.split("\n").filter(l=>l.trim()).map((line,j)=>(
                     <p key={j} style={{ fontFamily:F.sans, fontSize:13, color:m.role==="user"?"rgba(255,255,255,.9)":T.esp, margin:"0 0 4px", lineHeight:1.6 }}>{line}</p>
                   ))}
                 </div>
               </div>
             ))}
-            {coachLoading && (
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${T.sage},#4a8c50)`, display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:12 }}>✦</span></div>
-                <div style={{ background:"#fff", borderRadius:"20px 20px 20px 4px", padding:"12px 16px", border:`1px solid ${T.linen}` }}><Spinner size={16}/></div>
-              </div>
-            )}
+            {coachLoading && <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${T.sage},#4a8c50)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>✦</div>
+              <div style={{ background:"#fff", borderRadius:"20px 20px 20px 4px", padding:"12px 16px", border:`1px solid ${T.linen}` }}><Spinner size={16}/></div>
+            </div>}
             <div ref={bottomRef}/>
           </div>
           <div style={{ display:"flex", gap:8, borderTop:`1px solid ${T.linen}`, paddingTop:8 }}>

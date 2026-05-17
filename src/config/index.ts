@@ -12,8 +12,8 @@ export const EMAILS = {
 };
 
 export const AI = {
-  HAIKU: "claude-haiku-4-5-20251001",
-  SONNET: "claude-sonnet-4-6",
+  HAIKU: "claude-haiku-4-5",
+  SONNET: "claude-sonnet-4-5",
   FREE_LIMIT: 10,
   PRO_LIMIT: 1000,
 };

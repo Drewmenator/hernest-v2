@@ -8,7 +8,7 @@ import { ai } from "../../core/ai";
 import toast from "react-hot-toast";
 
 const ROLE_COLORS: Record<string, string> = {
-  partner: T.blush, child: T.sky, parent: T.sage, inlaw: "#E8842A", other: T.taupe,
+  partner: T.blush, child: T.sky, parent: T.sage, inlaw: T.orange, other: T.taupe,
 };
 const ROLE_ICONS: Record<string, string> = {
   partner: "💛", child: "⭐", parent: "🌿", inlaw: "🌸", other: "✦",

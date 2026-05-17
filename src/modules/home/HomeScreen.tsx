@@ -1,79 +1,621 @@
 import React, { useEffect, useState } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, HeroCard, PageTitle, NoraCallout } from "../../shared/components";
+import { useAdaptiveUX, filterInsightsForDisplay, getStateBannerProps, getAdaptiveGreeting } from "../../core/household/adaptiveUX";
 import { loadData } from "../../core/firebase";
+import { db } from "../../core/db";
+import { Spinner } from "../../shared/components";
+import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 
+// ── Briefing Hero Card (unchanged) ────────────────────────────────
+const getWindow = () => {
+  const h = new Date().getHours();
+  if (h >= 6 && h < 12) return { id:"morning",   label:"YOUR MORNING",   greeting:"Good morning",   icon:"☀" };
+  if (h >= 12 && h < 17) return { id:"afternoon", label:"AFTERNOON CHECK", greeting:"Good afternoon", icon:"◦" };
+  return { id:"evening", label:"EVENING WIND-DOWN", greeting:"Good evening", icon:"✦" };
+};
+
+function BriefingHero({ onExpand }: { onExpand: () => void }) {
+  const [weather, setWeather] = React.useState<any>(null);
+  React.useEffect(() => {
+    import("../../core/weather").then(({ getWeatherByLocation }) => {
+      getWeatherByLocation().then(w => { if (w) setWeather(w); });
+    });
+  }, []);
+  const [briefing, setBriefing] = useState<any>(null);
+  const [expanded, setExpanded] = useState(false);
+  const { user, profile } = useStore();
+  const [tasks, setTasks] = React.useState<any[]>([]);
+  const [events, setEvents] = React.useState<any[]>([]);
+  const [moodLogged, setMoodLogged] = React.useState(false);
+  const [mood, setMood] = React.useState<string|null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    db.getTodayBriefing().then((cached: any) => {
+      if (cached?.data) setBriefing(cached.data);
+    }).catch(() => {});
+    import("../../core/firebase").then(({ loadData }) => {
+      const uid = user?.uid;
+      if (!uid) return;
+      loadData(uid, "tasks").then((d:any) => { if (d?.tasks) setTasks(d.tasks); });
+      loadData(uid, "calendar").then((d:any) => { if (d?.events) setEvents(d.events); });
+      loadData(uid, "thrive").then((d:any) => {
+        const today = new Date().toISOString().split("T")[0];
+        const todayMood = (d?.moodLog as any[])?.find((m:any) => m.date === today);
+        if (todayMood) setMoodLogged(true);
+      });
+    });
+  }, [user?.uid]);
+
+  if (!briefing) return (
+    <div onClick={onExpand} style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }}>
+      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>{getWindow().label}</p>
+      <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: "#fff", margin: "0 0 4px" }}>{getWindow().icon} {getWindow().greeting}</p>
+      <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0 }}>Tap to generate your {getWindow().id} briefing →</p>
+    </div>
+  );
+
+  return (
+    <div style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div>
+          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 4px" }}>{getWindow().label}</p>
+          {briefing.focusWord && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: F.serif, fontSize: 32, fontStyle: "italic", color: T.gold, letterSpacing:"-0.02em" }}>{briefing.focusWord.word}</span>
+              <span style={{ fontSize: 24 }}>{briefing.focusWord.emoji}</span>
+            </div>
+          )}
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+          {weather && (
+            <div style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(255,255,255,0.08)", borderRadius:20, padding:"3px 10px" }}>
+              <span style={{ fontSize:14 }}>{weather.icon}</span>
+              <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:"rgba(255,255,255,0.8)" }}>{weather.temp}°{weather.unit}</span>
+            </div>
+          )}
+          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {briefing.greeting && !expanded && (
+        <p style={{ fontFamily:F.serif, fontSize:14, fontStyle:"italic", color:"rgba(255,255,255,0.7)", margin:"0 0 10px", lineHeight:1.5 }}>
+          "{briefing.greeting}"
+        </p>
+      )}
+
+      {!expanded && (() => {
+        const today = new Date().toISOString().split("T")[0];
+        const pendingTasks = tasks.filter((t:any) => t.status === "pending").length;
+        const doneTasks = tasks.filter((t:any) => t.status === "completed" && t.updatedAt > Date.now() - 86400000).length;
+        const nextEvent = events.filter((e:any) => e.date >= today).sort((a:any,b:any) => a.date.localeCompare(b.date))[0];
+        return (
+          <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+            <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:20, padding:"3px 10px", display:"flex", alignItems:"center", gap:4 }}>
+              <span style={{ fontSize:11 }}>✓</span>
+              <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:11, color:"rgba(255,255,255,0.8)" }}>{doneTasks}/{doneTasks+pendingTasks} tasks</span>
+            </div>
+            {nextEvent && (
+              <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:20, padding:"3px 10px", display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ fontSize:11 }}>📅</span>
+                <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:11, color:"rgba(255,255,255,0.8)" }}>{nextEvent.title?.slice(0,20)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {!expanded && briefing.priorities?.slice(0, 3).map((p: any, i: number) => (
+        <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0" }}>
+          <span style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, flexShrink: 0 }}>{i + 1}.</span>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.8)", margin: 0, lineHeight: 1.4 }}>{p.text}</p>
+        </div>
+      ))}
+
+      {!expanded && getWindow().id === "evening" && !moodLogged && (
+        <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.1)" }}>
+          <p style={{ fontFamily:F.sans, fontSize:11, color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>How did today feel?</p>
+          <div style={{ display:"flex", gap:8 }}>
+            {[{label:"◦ Hard", color:"#C4846A"},{label:"◎ Okay", color:"#C9A961"},{label:"✦ Good", color:"#4CAF7D"}].map(m => (
+              <button key={m.label} onClick={async e => {
+                e.stopPropagation();
+                setMoodLogged(true);
+                setMood(m.label);
+                const { loadData, saveData } = await import("../../core/firebase");
+                if (!user?.uid) return;
+                const today = new Date().toISOString().split("T")[0];
+                const d = await loadData(user.uid, "thrive");
+                const logs = (d?.moodLog as any[]) || [];
+                const rating = m.label.includes("Hard") ? 3 : m.label.includes("Okay") ? 6 : 9;
+                logs.unshift({ date:today, rating, label:m.label.replace(/[◦◎✦] /,"") });
+                await saveData(user.uid, "thrive", { ...d, moodLog: logs.slice(0,30) });
+              }}
+                style={{ flex:1, padding:"6px 8px", background:"rgba(255,255,255,0.06)", border:`1px solid ${m.color}40`, borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontSize:11, color:m.color, cursor:"pointer", touchAction:"manipulation" }}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mood && <p style={{ fontFamily:F.sans, fontSize:11, color:"rgba(255,255,255,0.4)", margin:"6px 0 0", textAlign:"center" }}>Logged ✓</p>}
+        </div>
+      )}
+
+      <div style={{ maxHeight: expanded ? "800px" : "0px", overflow: "hidden", transition: "max-height 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>
+        {briefing.focusWord?.why && (
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.6)", margin: "8px 0 12px", fontStyle: "italic" }}>{briefing.focusWord.why}</p>
+        )}
+        {briefing.priorities?.map((p: any, i: number) => (
+          <div key={i} style={{ display: "flex", gap: 10, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, flexShrink: 0, width: 16 }}>{p.rank}.</span>
+            <div>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: "#fff", margin: "0 0 2px", fontWeight: 600 }}>{p.text}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,0.5)", margin: 0 }}>{p.whyToday}</p>
+            </div>
+          </div>
+        ))}
+        {briefing.energy && (
+          <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(255,255,255,0.06)", borderRadius: 10 }}>
+            <p style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, margin: "0 0 4px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Energy · {briefing.energy.predictedLevel}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.7)", margin: 0 }}>{briefing.energy.tip}</p>
+          </div>
+        )}
+        {briefing.affirmation && (
+          <p style={{ fontFamily: F.serif, fontSize: 14, fontStyle: "italic", color: "rgba(255,255,255,0.7)", margin: "12px 0 0", lineHeight: 1.6 }}>"{briefing.affirmation.text}"</p>
+        )}
+      </div>
+
+      <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "10px 0 0", textAlign: "center" }}>
+        {expanded ? "Tap to collapse" : "Tap to expand full briefing"}
+      </p>
+    </div>
+  );
+}
+
+// ── NEW: Household Pulse Card ─────────────────────────────────────
+function HouseholdPulseCard() {
+  const { user, profile, householdSnapshot, householdInsights, setHouseholdSnapshot, setHouseholdInsights, dismissInsight } = useStore();
+  const [loading, setLoading] = useState(false);
+  const [insightLoading, setInsightLoading] = useState(false);
+
+  // Load snapshot + insights on mount
+  useEffect(() => {
+    if (!user?.uid || householdSnapshot) return;
+    setLoading(true);
+    buildHouseholdSnapshot(user.uid)
+      .then(snap => setHouseholdSnapshot(snap))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || householdInsights.length > 0) return;
+    loadHouseholdInsights(user.uid).then(ins => {
+      if (ins.length > 0) setHouseholdInsights(ins);
+    });
+  }, [user?.uid]);
+
+  const handleGenerateInsight = async () => {
+    if (!user?.uid || !householdSnapshot) return;
+    setInsightLoading(true);
+    try {
+      const insights = await generateHouseholdInsights(householdSnapshot, user.uid, {
+        profileName: profile?.name,
+        kids: profile?.kids?.map((k: any) => k.name),
+      });
+      if (insights.length > 0) {
+        setHouseholdInsights(insights);
+        await saveHouseholdInsights(user.uid, insights);
+      }
+    } catch {}
+    setInsightLoading(false);
+  };
+
+  const snap = householdSnapshot;
+  const adaptiveConfig = useAdaptiveUX(snap);
+  const filteredInsights = filterInsightsForDisplay(householdInsights, adaptiveConfig);
+  const topInsight = getTopInsight(filteredInsights.length ? filteredInsights : householdInsights);
+  const banner = getStateBannerProps(adaptiveConfig);
+
+  const gradeColor = (grade: string) => {
+    const map: Record<string, string> = { A: T.sage, B: T.teal, C: T.gold, D: T.blush, F: "#ff4444", "—": T.taupe };
+    return map[grade] || T.taupe;
+  };
+
+  const loadColor = (load: string) => {
+    const map: Record<string, string> = { light: T.sage, normal: T.teal, heavy: T.gold, critical: T.blush };
+    return map[load] || T.taupe;
+  };
+
+  const loadLabel = (load: string) => {
+    const map: Record<string, string> = { light: "Light", normal: "Steady", heavy: "Heavy", critical: "Critical" };
+    return map[load] || load;
+  };
+
+  if (loading) return (
+    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12, display: "flex", justifyContent: "center" }}>
+      <Spinner size={20} />
+    </div>
+  );
+
+  if (!snap) return null;
+
+  const f = snap.financial;
+  const pct = f.totalBudget > 0 ? Math.round((f.totalSpent / f.totalBudget) * 100) : 0;
+
+  return (
+    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: 0 }}>HOUSEHOLD PULSE</p>
+        <span style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe }}>
+          {new Date(snap.lastRefreshed).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+        </span>
+      </div>
+
+      {/* Adaptive state banner */}
+      {banner.show && (
+        <div style={{ padding: "8px 10px", background: `${banner.color}15`, borderRadius: 10, marginBottom: 10, borderLeft: `3px solid ${banner.color}` }}>
+          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: banner.color, margin: "0 0 2px" }}>{banner.label}</p>
+          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.esp, margin: 0 }}>{banner.description}</p>
+        </div>
+      )}
+
+      {/* Three stat pills */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {/* Financial health */}
+        <div onClick={() => useStore.getState().setActiveTab("budget")}
+          style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
+          <p style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: gradeColor(f.financialHealthGrade), margin: "0 0 2px" }}>
+            {f.financialHealthGrade}
+          </p>
+          <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Finance</p>
+        </div>
+
+        {/* Calendar load */}
+        <div onClick={() => useStore.getState().setActiveTab("calendar")}
+          style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
+          <p style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: loadColor(snap.calendarLoad), margin: "0 0 2px" }}>
+            {loadLabel(snap.calendarLoad)}
+          </p>
+          <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Schedule</p>
+        </div>
+
+        {/* Household stress */}
+        <div style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center" }}>
+          <p style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700,
+            color: snap.householdStressLevel === "high" ? T.blush : snap.householdStressLevel === "moderate" ? T.gold : T.sage,
+            margin: "0 0 2px", textTransform: "capitalize" }}>
+            {snap.householdStressLevel}
+          </p>
+          <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Stress</p>
+        </div>
+      </div>
+
+      {/* Budget bar */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe }}>Budget this month</span>
+          <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700,
+            color: pct > 90 ? T.blush : pct > 70 ? T.gold : T.sage }}>
+            {pct}% · ${Math.round(f.cashRemaining).toLocaleString()} left
+          </span>
+        </div>
+        <div style={{ height: 4, background: T.linen, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: pct > 90 ? T.blush : pct > 70 ? T.gold : T.sage, borderRadius: 4, transition: "width 0.6s ease" }} />
+        </div>
+      </div>
+
+      {/* Goals at risk */}
+      {snap.activeGoals.filter(g => g.riskStatus !== "on_track").length > 0 && (
+        <div style={{ padding: "8px 10px", background: `${T.gold}10`, borderRadius: 10, marginBottom: 10 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>
+            ⚠ {snap.activeGoals.filter(g => g.riskStatus !== "on_track").map(g => g.name).join(", ")} {snap.activeGoals.filter(g => g.riskStatus !== "on_track").length === 1 ? "goal needs" : "goals need"} attention
+          </p>
+        </div>
+      )}
+
+      {/* Top AI insight */}
+      {topInsight && !topInsight.dismissed && (
+        <div style={{ padding: "10px 12px", background: `${T.teal}10`, borderRadius: 12, border: `1px solid ${T.teal}25`, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.teal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                ✦ NORA'S INSIGHT
+              </p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: "0 0 4px", lineHeight: 1.5 }}>
+                {topInsight.observation}
+              </p>
+              <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.teal, margin: 0 }}>
+                → {topInsight.recommendation}
+              </p>
+            </div>
+            <button onClick={() => dismissInsight(topInsight.id)}
+              style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 16, flexShrink: 0, padding: 0 }}>
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generate / refresh insights — hidden in relief mode */}
+      {adaptiveConfig.showOptimizationNudges && (
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={handleGenerateInsight} disabled={insightLoading}
+          style={{ flex: 1, padding: "8px", background: "none", border: `1px solid ${T.teal}`, borderRadius: 10, fontFamily: F.sans, fontSize: 11, color: T.teal, cursor: "pointer" }}>
+          {insightLoading ? "Analyzing..." : householdInsights.length > 0 ? "↺ Refresh insights" : "✦ Generate insights"}
+        </button>
+        <button onClick={() => useStore.getState().setActiveTab("budget")}
+          style={{ flex: 1, padding: "8px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, fontFamily: F.sans, fontSize: 11, color: T.esp, cursor: "pointer" }}>
+          View CFO →
+        </button>
+      </div>
+      )}
+    </div>
+  );
+}
+
+// ── Today's Intelligence Card (unchanged) ─────────────────────────
+function IntelligenceCard() {
+  const { user } = useStore();
+  const [data, setData] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      loadData(user.uid, "tasks"),
+      loadData(user.uid, "budget_v2").then(d => d || loadData(user.uid, "budget")),
+      loadData(user.uid, "calendar"),
+      loadData(user.uid, "school"),
+      loadData(user.uid, "trips"),
+      loadData(user.uid, "circle"),
+    ]).then(([tasksD, budgetD, calendarD, schoolD, tripsD, circleD]) => {
+      const allTasks = (tasksD?.tasks as any[]) || [];
+      const pending = allTasks.filter((t: any) => t.status !== "completed");
+      const overdue = pending.filter((t: any) => t.dueDate && t.dueDate < today);
+      const categories = (budgetD?.categories as any[]) || [];
+      const totalBudget = categories.reduce((s: number, c: any) => s + (c.budget || 0), 0);
+      const totalSpent = categories.reduce((s: number, c: any) => s + (c.spent || 0), 0);
+      const budgetPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+      const budgetStatus = budgetPct >= 95 ? "critical" : budgetPct >= 85 ? "warning" : budgetPct >= 70 ? "watch" : "healthy";
+      const calEvents = (calendarD?.events as any[]) || [];
+      const todayEvents = calEvents.filter((e: any) => e.date === today);
+      const schoolEvents = (schoolD?.events as any[]) || [];
+      const urgentSchool = schoolEvents.filter((e: any) => e.requiresAction && e.actionDeadline >= today);
+      const trips = (tripsD?.trips as any[]) || [];
+      const upcoming = trips.filter((t: any) => t.departureDate > today).sort((a: any, b: any) => a.departureDate.localeCompare(b.departureDate));
+      const nextTrip = upcoming[0];
+      const daysUntil = nextTrip ? Math.ceil((new Date(nextTrip.departureDate).getTime() - Date.now()) / 86400000) : null;
+      const contacts = (circleD?.contacts as any[]) || [];
+      const circleOverdue = contacts.filter((c: any) => {
+        if (!c.lastContact) return true;
+        const days = Math.floor((Date.now() - new Date(c.lastContact).getTime()) / 86400000);
+        const freq = c.frequency === "weekly" ? 7 : c.frequency === "monthly" ? 30 : 90;
+        return days > freq;
+      }).length;
+      setData({ pending: pending.length, overdue: overdue.length, budgetPct, budgetStatus, todayEvents: todayEvents.length, nextEvent: todayEvents[0], urgentSchool: urgentSchool.length, urgentSchoolItem: urgentSchool[0], nextTrip, daysUntil, circleOverdue });
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [user?.uid]);
+
+  const budgetColor = data.budgetStatus === "critical" ? "#dc2626" : data.budgetStatus === "warning" ? T.gold : T.sage;
+
+  return (
+    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
+      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TODAY'S INTELLIGENCE</p>
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}><Spinner size={20} /></div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+            <div onClick={() => useStore.getState().setActiveTab("plan")} style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
+              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: data.overdue > 0 ? "#dc2626" : T.esp, margin: "0 0 2px" }}>{data.pending || 0}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tasks{data.overdue > 0 ? ` · ${data.overdue} late` : ""}</p>
+            </div>
+            <div onClick={() => useStore.getState().setActiveTab("calendar")} style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
+              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{data.todayEvents || 0}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Events</p>
+            </div>
+            <div onClick={() => useStore.getState().setActiveTab("budget")} style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
+              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: budgetColor, margin: "0 0 2px" }}>{data.budgetPct || 0}%</p>
+              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Budget</p>
+            </div>
+          </div>
+          {data.urgentSchool > 0 && (
+            <div onClick={() => useStore.getState().setActiveTab("plan")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.blush}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>🎒</span>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>{data.urgentSchoolItem?.title || `${data.urgentSchool} school action needed`}</p>
+            </div>
+          )}
+          {data.nextTrip && data.daysUntil !== null && data.daysUntil <= 30 && (
+            <div onClick={() => useStore.getState().setActiveTab("trips")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.gold}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>✈️</span>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>{data.nextTrip.destination} in {data.daysUntil} days</p>
+            </div>
+          )}
+          {data.circleOverdue > 0 && (
+            <div onClick={() => useStore.getState().setActiveTab("circle")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.sky}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>💌</span>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>{data.circleOverdue} check-in{data.circleOverdue > 1 ? "s" : ""} overdue</p>
+            </div>
+          )}
+          {data.nextEvent && (
+            <div onClick={() => useStore.getState().setActiveTab("calendar")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.sage}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>📅</span>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>{data.nextEvent.title}{data.nextEvent.time ? ` · ${data.nextEvent.time}` : ""}</p>
+            </div>
+          )}
+          {!data.urgentSchool && !data.nextTrip && !data.circleOverdue && !data.nextEvent && data.pending === 0 && (
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", padding: "8px 0", fontStyle: "italic" }}>You're all caught up ✦</p>
+          )}
+          <p onClick={() => useStore.getState().setActiveTab("plan")} style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, margin: "8px 0 0", cursor: "pointer", textAlign: "right" }}>See full plan →</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Family HQ Card (unchanged) ────────────────────────────────────
+function FamilyHQCard() {
+  const { familyMembers } = useStore();
+  if (familyMembers.length === 0) return null;
+  const ROLE_ICONS: Record<string, string> = { partner: "💛", child: "⭐", parent: "🌿", inlaw: "🌸", other: "✦" };
+  return (
+    <div onClick={() => useStore.getState().setActiveTab("family")} style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12, cursor: "pointer" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: 0 }}>FAMILY HQ</p>
+        <span style={{ fontFamily: F.sans, fontSize: 11, color: T.gold }}>View →</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {familyMembers.slice(0, 4).map((m, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${m.color}20`, border: `1.5px solid ${m.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+              {ROLE_ICONS[m.role]}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{m.name}</p>
+              {m.notes && <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>{m.notes}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div onClick={(e) => { e.stopPropagation(); useStore.getState().setActiveTab("nora"); }} style={{ marginTop: 10, padding: "8px 12px", background: `${T.gold}10`, borderRadius: 10, textAlign: "center" }}>
+        <p style={{ fontFamily: F.sans, fontSize: 12, color: T.gold, margin: 0, fontWeight: 600 }}>✦ Ask Nora about your family</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Module Grid (unchanged) ───────────────────────────────────────
+function ModuleGrid() {
+  const { user } = useStore();
+  const setActiveTab = useStore(s => s.setActiveTab);
+  const [badges, setBadges] = useState<Record<string, number | string>>({});
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      loadData(user.uid, "tasks"),
+      loadData(user.uid, "budget_v2").then(d => d || loadData(user.uid, "budget")),
+      loadData(user.uid, "circle"),
+      loadData(user.uid, "trips"),
+      loadData(user.uid, "thrive"),
+      loadData(user.uid, "calendar"),
+    ]).then(([tasksD, budgetD, circleD, tripsD, thriveD, calendarD]) => {
+      const b: Record<string, number | string> = {};
+      const tasks = (tasksD?.tasks as any[]) || [];
+      const overdue = tasks.filter((t: any) => t.status !== "completed" && t.dueDate && t.dueDate < today).length;
+      if (overdue > 0) b.plan = overdue;
+      const cats = (budgetD?.categories as any[]) || [];
+      const overBudget = cats.filter((c: any) => c.budget > 0 && (c.spent / c.budget) >= 0.8).length;
+      if (overBudget > 0) b.budget = overBudget;
+      const contacts = (circleD?.contacts as any[]) || [];
+      const circleOverdue = contacts.filter((c: any) => {
+        if (!c.lastContact) return true;
+        const days = Math.floor((Date.now() - new Date(c.lastContact).getTime()) / 86400000);
+        const freq = c.frequency === "weekly" ? 7 : c.frequency === "monthly" ? 30 : 90;
+        return days > freq;
+      }).length;
+      if (circleOverdue > 0) b.circle = circleOverdue;
+      const trips = (tripsD?.trips as any[]) || [];
+      const soon = trips.filter((t: any) => {
+        const days = Math.ceil((new Date(t.departureDate).getTime() - Date.now()) / 86400000);
+        return days >= 0 && days <= 14;
+      });
+      if (soon.length > 0) {
+        const days = Math.ceil((new Date(soon[0].departureDate).getTime() - Date.now()) / 86400000);
+        b.trips = days === 0 ? "today" : `${days}d`;
+      }
+      const logs = (thriveD?.logs as any[]) || [];
+      const loggedToday = logs.some((l: any) => l.date === today);
+      if (!loggedToday) b.thrive = "!";
+      const events = (calendarD?.events as any[]) || [];
+      const todayEvents = events.filter((e: any) => e.date === today).length;
+      if (todayEvents > 0) b.calendar = todayEvents;
+      setBadges(b);
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  const modules = [
+    { id: "style",    label: "Style",    icon: "✦", sub: "What should I wear?",  color: T.blush },
+    { id: "trips",    label: "Trips",    icon: "→", sub: "Plan your next escape", color: T.orange },
+    { id: "thrive",   label: "Thrive",   icon: "◦", sub: "Log today's mood",     color: T.sage },
+    { id: "circle",   label: "Circle",   icon: "◉", sub: "Your people",          color: T.sky },
+    { id: "budget",   label: "Finances", icon: "◎", sub: "Household CFO",        color: T.yellow },
+    { id: "plan",     label: "Plan",     icon: "◈", sub: "Tasks & meals",        color: T.esp },
+    { id: "calendar", label: "Calendar", icon: "◆", sub: "Your schedule",        color: T.navy },
+    { id: "family",   label: "Family",   icon: "⌂", sub: "Command centre",      color: T.gold },
+  ];
+
+  return (
+    <div>
+      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>YOUR MODULES</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {modules.map((m, i) => (
+          <div key={i} onClick={() => setActiveTab(m.id)}
+            style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, position: "relative", transition: "transform 0.15s ease" }}
+            onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { (e.currentTarget as HTMLDivElement).style.transform = "scale(1)"; }}
+            onTouchStart={(e) => { (e.currentTarget as HTMLDivElement).style.transform = "scale(0.97)"; }}
+            onTouchEnd={(e) => { (e.currentTarget as HTMLDivElement).style.transform = "scale(1)"; }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: `${m.color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, color: m.color, position: "relative" }}>
+              {m.icon}
+              {badges[m.id] !== undefined && (
+                <div style={{ position: "absolute", top: -6, right: -6, background: m.id === "thrive" ? T.gold : T.blush, borderRadius: 20, minWidth: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", border: "2px solid #fff" }}>
+                  <span style={{ fontFamily: F.sans, fontSize: 9, fontWeight: 700, color: "#fff" }}>{badges[m.id]}</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{m.label}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: 0 }}>{m.sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main HomeScreen ───────────────────────────────────────────────
 export function HomeScreen() {
-  const { profile, user } = useStore();
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [context, setContext] = useState<any>(null);
-
+  const { profile } = useStore();
+  const setActiveTab = useStore(s => s.setActiveTab);
   const name = profile?.name || "lovely";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const date = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    loadData(user.uid, "tasks").then(d => { if (d?.tasks) setTasks((d.tasks as any[]).slice(0, 3)); });
-  }, [user?.uid]);
-
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      {/* Greeting */}
-      <div style={{ marginBottom: 24, paddingTop: 8 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>{date}</p>
-        <h1 style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 34, color: T.esp, margin: 0, fontWeight: 500, lineHeight: 1.1 }}>
+      <div style={{ marginBottom: 20, paddingTop: 8 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: T.taupe, margin: "0 0 6px" }}>{date}</p>
+        <h1 style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 34, color: T.esp, margin: "0 0 16px", fontWeight: 500, lineHeight: 1.1 }}>
           {greeting},<br />{name}.
         </h1>
       </div>
 
-      {/* Quick stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+      <BriefingHero onExpand={() => setActiveTab("briefing")} />
+      <HouseholdPulseCard />
+      <IntelligenceCard />
+      <FamilyHQCard />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
         {[
-          { label: "Tasks", value: tasks.length, icon: "☐" },
-          { label: "Focus", value: "Today", icon: "◎" },
-          { label: "Nora", value: "Ready", icon: "✦" },
-        ].map((s, i) => (
-          <div key={i} style={{ background: T.ivory, borderRadius: 16, padding: "14px 12px", border: `1px solid ${T.linen}`, textAlign: "center" }}>
-            <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 600, color: T.esp }}>{s.value}</div>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <NoraCallout message={`Welcome back${name !== "lovely" ? `, ${name}` : ""}. Your briefing is ready — tap Briefing in the nav to see today's priorities.`} />
-
-      {/* Today's tasks */}
-      {tasks.length > 0 && (
-        <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TODAY'S TASKS</p>
-          {tasks.map((t: any, i: number) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < tasks.length-1 ? `1px solid ${T.linen}` : "none" }}>
-              <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${T.linen}`, flexShrink: 0 }} />
-              <span style={{ fontFamily: F.sans, fontSize: 13, color: T.esp }}>{t.text || t.title}</span>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {/* Quick actions */}
-      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "16px 0 10px" }}>QUICK ACCESS</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {[
-          { label: "Chat with Nora", icon: "✦", tab: "nora", color: T.esp },
-          { label: "Morning Briefing", icon: "☀", tab: "briefing", color: T.gold },
-          { label: "Log Expense",   icon: "💰", tab: "budget", color: T.sage },
-          { label: "Plan My Week",  icon: "📅", tab: "plan",   color: T.sky },
+          { label: "Briefing", icon: "☀", tab: "briefing", color: T.gold },
+          { label: "Chat Nora", icon: "✦", tab: "nora", color: T.esp },
+          { label: "Add Task", icon: "+", tab: "plan", color: T.sage },
         ].map((a, i) => (
-          <div key={i} onClick={() => useStore.getState().setActiveTab(a.tab)} style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${a.color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{a.icon}</div>
-            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.esp }}>{a.label}</span>
+          <div key={i} onClick={() => setActiveTab(a.tab)} style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 8px", cursor: "pointer", textAlign: "center" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${a.color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, margin: "0 auto 6px", color: a.color }}>{a.icon}</div>
+            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.esp, margin: 0 }}>{a.label}</p>
           </div>
         ))}
       </div>
+
+      <ModuleGrid />
     </div>
   );
 }
