@@ -63,6 +63,7 @@ export default async function handler(req, res) {
       allDay: !!e.start?.date,
     }));
 
+    console.log("[Google Calendar] returning", events.length, "events");
     res.json({ events });
   } catch (e) {
     console.error("[Google Calendar fetch]", e);

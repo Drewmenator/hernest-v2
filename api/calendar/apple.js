@@ -73,6 +73,7 @@ export default async function handler(req, res) {
     const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
     const events = icsMatches.flatMap(parseICSEvents);
 
+    console.log("[Apple Calendar] returning", events.length, "events");
     res.json({ events });
   } catch (e) {
     console.error("[Apple Calendar fetch]", e);
