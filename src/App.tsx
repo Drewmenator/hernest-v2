@@ -213,6 +213,7 @@ export default function App() {
       case "circle":   return <EB name="Circle"><CircleScreen /></EB>;
       case "calendar": return <EB name="Calendar"><CalendarScreen /></EB>;
       case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
+      case "family":   return <EB name="Family"><FamilyScreen /></EB>;
       case "settings": return <EB name="Settings"><SettingsScreen /></EB>;
       default:         return <EB name="Home"><HomeScreen /></EB>;
     }
