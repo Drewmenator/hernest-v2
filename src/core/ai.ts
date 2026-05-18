@@ -76,7 +76,7 @@ export async function ai(
         feature,
         model,
         messages: history.length > 0 ? history : undefined,
-        max_tokens: feature === "morning_briefing" || feature === "trip_planner" ? 2000 : 1000,
+        max_tokens: ["morning_briefing", "trip_planner", "meal_plan"].includes(feature) ? 2000 : 1000,
       }),
     });
 
