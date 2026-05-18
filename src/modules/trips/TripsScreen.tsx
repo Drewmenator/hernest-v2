@@ -113,7 +113,7 @@ const daysUntil = (d: string) => Math.ceil((safeDate(d).getTime() - Date.now()) 
 
 function computeTripState(trip: Trip): TripState {
   const du = daysUntil(trip.departureDate);
-  if (trip.state === "completed" || trip.state === "recovery") return trip.state;
+  if ((trip.state as string) === "completed" || (trip.state as string) === "recovery") return trip.state;
   if (du < 0) {
     const returnDu = trip.returnDate ? daysUntil(trip.returnDate) : -1;
     if (returnDu > 0) return "in_trip";
@@ -849,7 +849,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           {trip.packingList.length ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <AIBadge label="Packed by Nora" />
+                <AIBadge label="Packed by Nora" title="Packed by Nora" />
                 <button onClick={() => generatePackingList(trip)} disabled={packingLoading}
                   style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer" }}>
                   {packingLoading ? "..." : "↻ Redo"}
