@@ -203,7 +203,7 @@ Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
     const diet = p?.diet || "no restrictions";
     const kids = p?.kids?.length || 0;
     const energy = p?.energyPattern || "morning";
-    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid).catch(() => buildMemoryContext(user.uid)) : "";
+    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { query: "", limit: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
 
     const sys = `You are Nora, a meal planner. Return ONLY valid JSON:
 {

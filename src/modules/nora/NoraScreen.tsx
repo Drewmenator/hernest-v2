@@ -194,7 +194,7 @@ export function NoraScreen() {
       const intent = classifyIntent(msg);
 
       // ── Build enriched context ───────────────────────────────────
-      const memCtx = user?.uid ? await buildMemoryContextV2(user.uid).catch(() => buildMemoryContext(user.uid)) : "";
+      const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { query: "", limit: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
       const familyRoster = familyMembers.length > 0
         ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")
         : "";

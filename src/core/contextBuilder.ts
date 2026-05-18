@@ -187,7 +187,7 @@ export async function buildAppContext(
     tasks: !!tasksData, thrive: !!thriveData
   });
 
-  const memoryCtx = await buildMemoryContextV2(userId).catch(() => buildMemoryContext(userId));
+  const memoryCtx = await buildMemoryContextV2(userId, { query: "", limit: 10 }).catch(() => buildMemoryContext(userId));
 
   // ── Tasks ───────────────────────────────────────────────────────
   const allTasks = (tasksData?.tasks as any[]) || [];

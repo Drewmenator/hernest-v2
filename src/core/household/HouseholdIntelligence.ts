@@ -87,7 +87,7 @@ export async function generateHouseholdInsights(
   appContext?: Parameters<typeof buildIntelligencePromptContext>[1]
 ): Promise<HouseholdInsight[]> {
   const context = buildIntelligencePromptContext(snapshot, appContext);
-  const memory = await buildMemoryContextV2(userId).catch(() => buildMemoryContext(userId));
+  const memory = await buildMemoryContextV2(userId, { query: "", limit: 10 }).catch(() => buildMemoryContext(userId));
 
   const sys = `You are HerNest CFO, an AI financial intelligence assistant for families.
 
