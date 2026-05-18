@@ -54,17 +54,26 @@ export function SettingsScreen() {
   const sendPartnerInvite = async () => {
     if (!partnerEmail.trim() || !user?.uid) return;
     setSendingInvite(true);
-    await saveData(user.uid, "partner_invite", {
-      partnerEmail: partnerEmail.trim(),
-      shareCategories,
-      sentAt: Date.now(),
-      status: "pending",
-      fromName: (profile as any)?.name || "Your partner",
-    });
-    await bus.publish("partner.invite.sent", { email: partnerEmail }, { userId: user.uid, source: "settings" });
-    setInviteSent(true);
+    try {
+      const res = await fetch("/api/invite/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromUid: user.uid,
+          fromName: (profile as any)?.name || "Your partner",
+          toEmail: partnerEmail.trim(),
+          shareCategories,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send");
+      await bus.publish("partner.invite.sent", { email: partnerEmail }, { userId: user.uid, source: "settings" });
+      setInviteSent(true);
+      toast.success(`Invite sent to ${partnerEmail} ✓`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send invite — try again");
+    }
     setSendingInvite(false);
-    toast.success(`Invite sent to ${partnerEmail} ✓`);
   };
 
   const handleDeleteAccount = async () => {
