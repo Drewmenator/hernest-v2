@@ -7,6 +7,7 @@ import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
 import { buildMemoryContext } from "../../core/memory";
+import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import toast from "react-hot-toast";
 
 // ── Types per blueprint ────────────────────────────────────────────
@@ -202,7 +203,7 @@ Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
     const diet = p?.diet || "no restrictions";
     const kids = p?.kids?.length || 0;
     const energy = p?.energyPattern || "morning";
-    const memCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
+    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid).catch(() => buildMemoryContext(user.uid)) : "";
 
     const sys = `You are Nora, a meal planner. Return ONLY valid JSON:
 {

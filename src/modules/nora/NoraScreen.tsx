@@ -7,6 +7,7 @@ import { ai } from "../../core/ai";
 import { askNora } from "../../core/aiOrchestrator";
 import { bus } from "../../core/events";
 import { extractFactsFromConversation, saveMemoryFacts, buildMemoryContext } from "../../core/memory";
+import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import { saveData, loadData } from "../../core/firebase";
 import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
 import toast from "react-hot-toast";
@@ -193,7 +194,7 @@ export function NoraScreen() {
       const intent = classifyIntent(msg);
 
       // ── Build enriched context ───────────────────────────────────
-      const memCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
+      const memCtx = user?.uid ? await buildMemoryContextV2(user.uid).catch(() => buildMemoryContext(user.uid)) : "";
       const familyRoster = familyMembers.length > 0
         ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")
         : "";

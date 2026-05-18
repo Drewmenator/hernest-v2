@@ -5,6 +5,7 @@
 import { aiJSON } from "../ai";
 import { loadData, saveData } from "../firebase";
 import { buildMemoryContext } from "../memory";
+import { buildMemoryContextV2 } from "../memoryServiceV2";
 import { buildSpendingTrends, COMPLIANCE_DISCLAIMER } from "./DecisionEngine";
 import type { HouseholdInsight, HouseholdSnapshot } from "../store";
 
@@ -86,7 +87,7 @@ export async function generateHouseholdInsights(
   appContext?: Parameters<typeof buildIntelligencePromptContext>[1]
 ): Promise<HouseholdInsight[]> {
   const context = buildIntelligencePromptContext(snapshot, appContext);
-  const memory = await buildMemoryContext(userId);
+  const memory = await buildMemoryContextV2(userId).catch(() => buildMemoryContext(userId));
 
   const sys = `You are HerNest CFO, an AI financial intelligence assistant for families.
 

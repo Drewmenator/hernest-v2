@@ -4,6 +4,7 @@
 // Updated: full HerNestCFOResponse schema + compliance guardrails
 
 import { aiJSON } from "../ai";
+import { runDecisionV2 } from "./DecisionEngineV2";
 import { saveData, loadData } from "../firebase";
 import { saveMemoryFacts } from "../memory";
 import type { HouseholdSnapshot } from "../store";
@@ -192,7 +193,29 @@ export async function analyzeScenario(
   userId: string,
   profileName?: string
 ): Promise<{ record: ScenarioRecord; result: HerNestCFOResponse }> {
-  const result = await runScenario(question, snapshot, profileName);
+  // Use V2 engine with DQ methodology, fall back to V1 on error
+  let result: HerNestCFOResponse;
+  try {
+    const v2 = await runDecisionV2({ question, snapshot, userId, profileName, mode: "full" });
+    result = {
+      summary: v2.summary,
+      riskLevel: v2.riskLevel,
+      observation: v2.observation,
+      whyItMatters: v2.whyItMatters,
+      financialImpact: v2.financialImpact,
+      tradeoffs: v2.tradeoffs,
+      options: v2.options,
+      recommendedAction: v2.recommendedAction,
+      nextSteps: v2.nextSteps,
+      confidence: v2.confidence,
+      confidenceLevel: v2.confidenceLevel,
+      assumptions: v2.assumptions,
+      suggestedFollowUpQuestions: v2.suggestedFollowUpQuestions || [],
+      affectedModules: v2.affectedModules || ["budget"],
+    };
+  } catch {
+    result = await runScenario(question, snapshot, profileName);
+  }
   const record = await saveScenario(userId, question, result);
 
   try {

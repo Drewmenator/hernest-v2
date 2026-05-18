@@ -4,6 +4,7 @@
 
 import { loadData } from "./firebase";
 import { buildMemoryContext, loadMemoryFacts } from "./memory";
+import { buildMemoryContextV2 } from "./memoryServiceV2";
 import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
 import type { HouseholdSnapshot } from "./store";
 
@@ -186,7 +187,7 @@ export async function buildAppContext(
     tasks: !!tasksData, thrive: !!thriveData
   });
 
-  const memoryCtx = await buildMemoryContext(userId);
+  const memoryCtx = await buildMemoryContextV2(userId).catch(() => buildMemoryContext(userId));
 
   // ── Tasks ───────────────────────────────────────────────────────
   const allTasks = (tasksData?.tasks as any[]) || [];
