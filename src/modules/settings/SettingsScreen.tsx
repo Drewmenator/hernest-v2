@@ -26,6 +26,8 @@ export function SettingsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showDeleteFlow, setShowDeleteFlow] = useState(false);
+  const [memoryV2List, setMemoryV2List] = useState<any[]>([]);
+  const [showMemoryV2, setShowMemoryV2] = useState(false);
 
   const SHARE_OPTIONS = [
     { id:"tasks",    label:"Tasks & Plan",       icon:"✓" },
