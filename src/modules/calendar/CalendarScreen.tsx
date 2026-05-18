@@ -410,7 +410,7 @@ export function CalendarScreen() {
               </p>
             </div>
             {p.connected
-              ? <span style={{ background:`${T.sage}15`, color:T.sage, borderRadius:10, padding:"4px 10px", fontFamily:F.sans, fontSize:11, fontWeight:600 }}>Connected</span>
+              ? <button onClick={()=>p.key==="apple"?setShowAppleModal(true):null} style={{ background:`${T.sage}15`, color:T.sage, borderRadius:10, padding:"4px 10px", fontFamily:F.sans, fontSize:11, fontWeight:600, border:"none", cursor:p.key==="apple"?"pointer":"default" }}>✓ Connected{p.key==="apple"?" ↻":""}</button>
               : <button onClick={()=>connectCalendar(p.key as any)} style={{ background:p.color, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>Connect</button>
             }
           </div>
