@@ -50,6 +50,11 @@ export function connectIntelligenceLayer(userId: string): () => void {
       proposeMemory(userId, buildSpendingMemoryCandidate(category, percentUsed))
         .catch(() => {}); // non-fatal
     }
+
+    // Auto-trigger insight generation for critical overspend
+    if (percentUsed >= 100) {
+      bus.publish("intelligence.insight.requested", { trigger: "budget_overspend", category, percentUsed }, { userId, source: "intelligence" }).catch(() => {});
+    }
   }));
 
   // ── 3. Trip created → invalidate trips + calendar cache ──────────

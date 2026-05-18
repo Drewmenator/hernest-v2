@@ -57,7 +57,7 @@ function scoreTask(t: Task, energyPattern: string): number {
 }
 
 export function PlanScreen() {
-  const { user, profile } = useStore();
+  const { user, profile, householdSnapshot } = useStore();
   const [tab, setTab] = useState("tasks");
 
   // Tasks

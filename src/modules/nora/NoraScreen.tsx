@@ -117,11 +117,61 @@ export function NoraScreen() {
     if (saved) {
       try { setMsgs(JSON.parse(saved)); return; } catch {}
     }
-    setMsgs([{
-      role: "assistant",
-      content: `Good ${getTimeOfDay()}, ${name} ✦\n\nI'm Nora — your household's AI chief of staff. I can help you plan your day, talk through finances, manage the mental load, or just listen.\n\nWhat's on your mind?`,
-      type: "text",
-    }]);
+    // Build proactive opening based on household state
+    const buildProactiveOpening = async () => {
+      try {
+        const snap = householdSnapshot || await buildHouseholdSnapshot(user?.uid || "");
+        const f = snap?.financial;
+        const observations: string[] = [];
+
+        // Check stress level
+        if (snap?.householdStressLevel === "high") {
+          observations.push("Things look pretty full right now — I want to make sure you're not carrying too much alone.");
+        }
+
+        // Check calendar load
+        if (snap?.calendarLoad === "critical" || snap?.calendarLoad === "heavy") {
+          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritise?`);
+        }
+
+        // Check upcoming trip
+        if (f?.upcomingTripObligation) {
+          const { name: dest, daysUntil } = f.upcomingTripObligation;
+          observations.push(`${dest} is ${daysUntil} day${daysUntil === 1 ? "" : "s"} away — anything left to sort before you go?`);
+        }
+
+        // Check overspend
+        if (f?.topOverspendCategories?.length > 0) {
+          observations.push(`A heads up — you're over budget in ${f.topOverspendCategories[0]}. Worth a quick look when you have a moment.`);
+        }
+
+        // Check goals at risk
+        const atRiskGoal = snap?.activeGoals?.find(g => g.riskStatus === "at_risk" || g.riskStatus === "off_track");
+        if (atRiskGoal) {
+          observations.push(`Your "${atRiskGoal.name}" goal needs some attention — it's ${atRiskGoal.riskStatus.replace("_", " ")}.`);
+        }
+
+        const proactiveNote = observations.length > 0
+          ? `\n\n${observations[0]}`
+          : "";
+
+        const greeting = snap?.householdStressLevel === "high"
+          ? `Hey ${name} 💛 How are you actually doing?${proactiveNote}`
+          : snap?.calendarLoad === "critical"
+          ? `Good ${getTimeOfDay()}, ${name} ✦ Looks like a big week ahead.${proactiveNote}`
+          : `Good ${getTimeOfDay()}, ${name} ✦${proactiveNote || "\n\nWhat's on your mind today?"}`;
+
+        setMsgs([{ role: "assistant", content: greeting, type: "text" }]);
+      } catch {
+        setMsgs([{
+          role: "assistant",
+          content: `Good ${getTimeOfDay()}, ${name} ✦\n\nWhat's on your mind today?`,
+          type: "text",
+        }]);
+      }
+    };
+
+    buildProactiveOpening();
   }, [user?.uid]);
 
   useEffect(() => {

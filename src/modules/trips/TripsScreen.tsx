@@ -482,6 +482,24 @@ Weather: pack for typical ${trip.destination} conditions.`;
 
     return (
       <div style={{ animation: "fadeUp .45s ease both" }}>
+      {/* Household state banner */}
+      {householdSnapshot?.householdStressLevel === "high" && (
+        <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:16 }}>💛</span>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
+            Things look heavy right now. Focus on what matters most — Nora's got the rest.
+          </p>
+        </div>
+      )}
+      {householdSnapshot?.calendarLoad === "critical" && householdSnapshot?.householdStressLevel !== "high" && (
+        <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:16 }}>📅</span>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
+            Busy week ahead — consider what can wait until next week.
+          </p>
+        </div>
+      )}
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <PageTitle title="Trips" />
           <button onClick={() => setShowAdd(!showAdd)}
