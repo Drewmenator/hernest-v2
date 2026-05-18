@@ -6,6 +6,8 @@ import { Card, PageTitle, Spinner } from "../../shared/components";
 import { ai } from "../../core/ai";
 import { askNora } from "../../core/aiOrchestrator";
 import { bus } from "../../core/events";
+import { useAdaptiveUX, getNoraToneProfile } from "../../core/household/adaptiveUX";
+import { useContextGraph } from "../../core/graph";
 import { extractFactsFromConversation, saveMemoryFacts, buildMemoryContext } from "../../core/memory";
 import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import { saveData, loadData } from "../../core/firebase";
@@ -194,6 +196,7 @@ export function NoraScreen() {
       const intent = classifyIntent(msg);
 
       // ── Build enriched context ───────────────────────────────────
+      const graphCtx = noraPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${noraPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
       const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
       const familyRoster = familyMembers.length > 0
         ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")

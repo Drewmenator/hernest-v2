@@ -5,6 +5,7 @@ import { useAdaptiveUX, filterInsightsForDisplay, getStateBannerProps, getAdapti
 import { loadData } from "../../core/firebase";
 import { db } from "../../core/db";
 import { Spinner } from "../../shared/components";
+import { createActionsFromInsight, executeRecommendedAction } from "../../core/recommendationActions";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 
 // ── Briefing Hero Card (unchanged) ────────────────────────────────
