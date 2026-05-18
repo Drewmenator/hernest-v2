@@ -22,7 +22,7 @@ function parseICSEvents(icsText) {
     };
     const dtstart = get("DTSTART");
     const date = dtstart.replace(/T.*/, "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
-    if (!date) return;
+    if (!date) continue;
     events.push({
       id:     `apple_${get("UID") || Math.random()}`,
       title:  get("SUMMARY") || "Event",
@@ -35,51 +35,43 @@ function parseICSEvents(icsText) {
   return events;
 }
 
-async function discoverCalDAVUrl(email, authHeader) {
-  // Step 1: discover principal URL
-  const propfindRes = await fetch("https://caldav.icloud.com/.well-known/caldav", {
+async function getCalendarHomeUrl(authHeader) {
+  // Step 1: Get current-user-principal
+  const r1 = await fetch("https://caldav.icloud.com/.well-known/caldav", {
     method: "PROPFIND",
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/xml",
-      Depth: "0",
-    },
+    headers: { Authorization: authHeader, "Content-Type": "application/xml", Depth: "0" },
     body: `<?xml version="1.0"?><propfind xmlns="DAV:"><prop><current-user-principal/></prop></propfind>`,
     redirect: "follow",
   });
+  const t1 = await r1.text();
+  console.log("[Apple] PROPFIND1 status:", r1.status);
 
-  const text = await propfindRes.text();
-  console.log("[Apple] PROPFIND status:", propfindRes.status, "url:", propfindRes.url);
-
-  // Extract principal URL from response
-  const principalMatch = text.match(/<href>([^<]*\/principals\/[^<]*)<\/href>/);
-  if (principalMatch) {
-    const principalUrl = principalMatch[1].startsWith("http")
-      ? principalMatch[1]
-      : `https://caldav.icloud.com${principalMatch[1]}`;
-    
-    // Step 2: get calendar home
-    const homeRes = await fetch(principalUrl, {
-      method: "PROPFIND",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/xml",
-        Depth: "0",
-      },
-      body: `<?xml version="1.0"?><propfind xmlns="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><prop><c:calendar-home-set/></prop></propfind>`,
-    });
-    const homeText = await homeRes.text();
-    const homeMatch = homeText.match(/<href>([^<]*\/calendars\/[^<]*)<\/href>/);
-    if (homeMatch) {
-      return homeMatch[1].startsWith("http")
-        ? homeMatch[1]
-        : `https://caldav.icloud.com${homeMatch[1]}`;
-    }
+  // Extract principal href
+  const m1 = t1.match(/<current-user-principal[^>]*>[\s\S]*?<href[^>]*>([^<]+)<\/href>/);
+  if (!m1) {
+    console.log("[Apple] No principal found in:", t1.slice(0, 500));
+    return null;
   }
+  const principalUrl = m1[1].startsWith("http") ? m1[1] : `https://caldav.icloud.com${m1[1]}`;
+  console.log("[Apple] Principal URL:", principalUrl);
 
-  // Fallback: try direct URL pattern
-  const userPart = email.split("@")[0];
-  return `https://caldav.icloud.com/${userPart}/calendars/`;
+  // Step 2: Get calendar-home-set from principal
+  const r2 = await fetch(principalUrl, {
+    method: "PROPFIND",
+    headers: { Authorization: authHeader, "Content-Type": "application/xml", Depth: "0" },
+    body: `<?xml version="1.0"?><propfind xmlns="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><prop><c:calendar-home-set/></prop></propfind>`,
+  });
+  const t2 = await r2.text();
+  console.log("[Apple] PROPFIND2 status:", r2.status);
+
+  const m2 = t2.match(/<calendar-home-set[^>]*>[\s\S]*?<href[^>]*>([^<]+)<\/href>/);
+  if (!m2) {
+    console.log("[Apple] No calendar-home found in:", t2.slice(0, 500));
+    return null;
+  }
+  const homeUrl = m2[1].startsWith("http") ? m2[1] : `https://caldav.icloud.com${m2[1]}`;
+  console.log("[Apple] Calendar home URL:", homeUrl);
+  return homeUrl;
 }
 
 export default async function handler(req, res) {
@@ -95,21 +87,42 @@ export default async function handler(req, res) {
     const decoded = Buffer.from(password, "base64").toString("utf-8");
     const authHeader = `Basic ${Buffer.from(`${email}:${decoded}`).toString("base64")}`;
 
-    const calendarUrl = await discoverCalDAVUrl(email, authHeader);
-    console.log("[Apple] using calendar URL:", calendarUrl);
+    const homeUrl = await getCalendarHomeUrl(authHeader);
+    if (!homeUrl) return res.status(500).json({ error: "Could not discover calendar URL" });
+
+    // Step 3: List calendars
+    const r3 = await fetch(homeUrl, {
+      method: "PROPFIND",
+      headers: { Authorization: authHeader, "Content-Type": "application/xml", Depth: "1" },
+      body: `<?xml version="1.0"?><propfind xmlns="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><prop><resourcetype/><displayname/><c:supported-calendar-component-set/></prop></propfind>`,
+    });
+    const t3 = await r3.text();
+    console.log("[Apple] PROPFIND3 status:", r3.status);
+
+    // Extract calendar URLs (those with VEVENT support)
+    const calUrls = [];
+    const responses = t3.split("<response>").slice(1);
+    for (const resp of responses) {
+      if (resp.includes("VEVENT") || resp.includes("calendar")) {
+        const hrefMatch = resp.match(/<href[^>]*>([^<]+)<\/href>/);
+        if (hrefMatch) {
+          const url = hrefMatch[1].startsWith("http") ? hrefMatch[1] : `https://caldav.icloud.com${hrefMatch[1]}`;
+          if (!calUrls.includes(url) && url !== homeUrl) calUrls.push(url);
+        }
+      }
+    }
+    console.log("[Apple] Found calendar URLs:", calUrls.length);
+
+    if (calUrls.length === 0) {
+      // Fallback: try homeUrl directly
+      calUrls.push(homeUrl);
+    }
 
     const now = new Date();
     const start = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     const end = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 
-    const reportRes = await fetch(calendarUrl, {
-      method: "REPORT",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/xml",
-        Depth: "1",
-      },
-      body: `<?xml version="1.0" encoding="utf-8"?>
+    const reportBody = `<?xml version="1.0" encoding="utf-8"?>
 <calendar-query xmlns="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:">
   <d:prop><d:getetag/><calendar-data/></d:prop>
   <filter><comp-filter name="VCALENDAR">
@@ -117,17 +130,28 @@ export default async function handler(req, res) {
       <time-range start="${start}" end="${end}"/>
     </comp-filter>
   </comp-filter></filter>
-</calendar-query>`,
-    });
+</calendar-query>`;
 
-    const xml = await reportRes.text();
-    console.log("[Apple] REPORT status:", reportRes.status, "response length:", xml.length);
-    
-    const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
-    const events = icsMatches.flatMap(parseICSEvents).filter(Boolean);
+    let allEvents = [];
+    for (const calUrl of calUrls.slice(0, 5)) {
+      try {
+        const r = await fetch(calUrl, {
+          method: "REPORT",
+          headers: { Authorization: authHeader, "Content-Type": "application/xml", Depth: "1" },
+          body: reportBody,
+        });
+        const xml = await r.text();
+        console.log("[Apple] REPORT status:", r.status, "for:", calUrl, "length:", xml.length);
+        const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
+        const events = icsMatches.flatMap(parseICSEvents).filter(Boolean);
+        allEvents = allEvents.concat(events);
+      } catch (e) {
+        console.error("[Apple] REPORT error for", calUrl, e.message);
+      }
+    }
 
-    console.log("[Apple Calendar] returning", events.length, "events");
-    res.json({ events });
+    console.log("[Apple Calendar] returning", allEvents.length, "events");
+    res.json({ events: allEvents });
   } catch (e) {
     console.error("[Apple Calendar fetch]", e);
     res.status(500).json({ error: "Failed to fetch events", detail: e.message });
