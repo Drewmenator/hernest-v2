@@ -483,7 +483,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
     return (
       <div style={{ animation: "fadeUp .45s ease both" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <PageTitle>Trips</PageTitle>
+          <PageTitle title="Trips">Trips</PageTitle>
           <button onClick={() => setShowAdd(!showAdd)}
             style={{ background: showAdd ? T.linen : T.esp, color: showAdd ? T.bark : "#fff", border: "none", borderRadius: 12, padding: "8px 16px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             {showAdd ? "Cancel" : "+ Plan Trip"}
@@ -849,7 +849,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           {trip.packingList.length ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <AIBadge label="Packed by Nora" title="Packed by Nora" />
+                <AIBadge label="Packed by Nora" />
                 <button onClick={() => generatePackingList(trip)} disabled={packingLoading}
                   style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer" }}>
                   {packingLoading ? "..." : "↻ Redo"}
