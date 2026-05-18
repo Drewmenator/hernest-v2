@@ -245,7 +245,7 @@ Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}
     if (!noraInput.trim() || noraLoading) return;
     setNoraLoading(true);
     const roster = familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})`).join("; ");
-    const taskList = tasks.filter(t => t.status !== "completed").slice(0, 5).map(t => `- ${t.title} (${t.priority})`).join("\n") || "No tasks";
+    const taskList = tasks.filter((t: any) => !t.done).slice(0, 5).map((t: any) => `- ${t.title}${t.assignedTo ? " → " + t.assignedTo : ""}`).join("\n") || "No tasks";
     const mealList = meals.slice(0, 3).map((m: any) => `${m.dayName}: ${m.dinner}`).join(", ") || "No meals planned";
     const sys = `You are Nora, family AI chief of staff for ${(profile as any)?.name || "this household"}.
 
