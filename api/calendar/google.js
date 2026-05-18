@@ -13,7 +13,8 @@ const adminDb = getFirestore();
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  const { uid } = req.query;
+  const { uid, tz } = req.query;
+  const timezone = tz || "America/Chicago";
   if (!uid) return res.status(400).json({ error: "Missing uid" });
 
   try {
@@ -69,8 +70,8 @@ export default async function handler(req, res) {
         const events = (evData.items || []).map(e => ({
           id:     `google_${e.id}`,
           title:  e.summary || "Event",
-          date:   (e.start?.date || e.start?.dateTime || "").split("T")[0],
-          time:   e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
+          date:   e.start?.date || (e.start?.dateTime ? new Date(e.start.dateTime).toLocaleDateString("en-CA", { timeZone: timezone }) : ""),
+          time:   e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone }) : undefined,
           source: "google",
           color:  cal.backgroundColor || "#4285F4",
           allDay: !!e.start?.date,
