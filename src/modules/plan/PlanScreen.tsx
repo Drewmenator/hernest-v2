@@ -340,7 +340,11 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
 
         {/* Task list sorted by priority score per blueprint */}
         {filteredTasks.length===0 ? (
-          <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0" }}>{filter==="done"?"No completed tasks yet":"No tasks here"}</p></Card>
+          <div style={{ textAlign:"center", padding:"32px 16px" }}>
+            <p style={{ fontSize:40, marginBottom:12 }}>✓</p>
+            <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>{filter==="done" ? "Nothing completed yet" : "Your list is clear"}</p>
+            <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px", lineHeight:1.6 }}>{filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Nora to extract tasks from a message."}</p>
+          </div>
         ) : filteredTasks.map(t=>(
           <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:t.status==="completed"?"#fff":t.priority==="must"?`${T.esp}06`:`${T.sage}06`, borderRadius:16, border:`1.5px solid ${t.status==="completed"?T.linen:t.priority==="must"?`${T.esp}20`:`${T.sage}20`}`, marginBottom:8 }}>
             <button onClick={()=>toggleTask(t.id)} style={{ width:24, height:24, borderRadius:7, border:`2px solid ${t.status==="completed"?T.sage:PRIORITY_COLORS[t.priority]||T.linen}`, background:t.status==="completed"?T.sage:"transparent", flexShrink:0, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, minHeight:24, touchAction:"manipulation" }}>

@@ -351,6 +351,18 @@ function HouseholdPulseCard() {
         })
       }
 
+      {/* Empty state when no insights */}
+      {householdInsights.filter(i => !i.dismissed).length === 0 && !insightLoading && (householdSnapshot?.financial?.monthlyIncome || 0) === 0 && (
+        <div style={{ background:T.sand, borderRadius:16, padding:"20px", marginBottom:12, textAlign:"center" }}>
+          <p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Nora is ready when you are</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>Add your income and budget to unlock household insights, financial health scores, and Nora's full intelligence.</p>
+          <button onClick={() => useStore.getState().setActiveTab("budget")}
+            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"10px 20px", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+            Set up Budget →
+          </button>
+        </div>
+      )}
+
       {/* Generate / refresh insights — hidden in relief mode */}
       {adaptiveConfig.showOptimizationNudges && (
       <div style={{ display: "flex", gap: 8 }}>

@@ -1151,7 +1151,7 @@ Maximum 50 transactions.`;
               </>
             )}
 
-            {debts.length === 0 && !showAddDebt && (
+            {debts.length === 0 && !showAddDebt && (<div style={{ textAlign:"center", padding:"24px 16px" }}><p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>No debt tracked yet</p><p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px" }}>Add any loans, credit cards, or lines of credit to unlock debt strategy insights.</p></div>) } {false && (
               <div style={{ padding: "20px", textAlign: "center", background: T.sand, borderRadius: 16, border: `1px dashed ${T.linen}` }}>
                 <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>No debts tracked. Add one to get payoff strategy and interest analysis.</p>
               </div>
