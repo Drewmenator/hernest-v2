@@ -317,6 +317,7 @@ Personalise quantities to ${trip.nights} nights. Include weather-appropriate ite
           }));
         const updated = trips.map(t => t.id===trip.id ? { ...t, packingList:sections } : t);
         await persist(updated);
+        console.log('[Trips] packing sections:', sections.length, sections.map(s=>s.name));
         setActiveTrip(normTrip({ ...trip, packingList:sections }));
         toast.success(`${(sections||[]).reduce((a,s)=>a+(s.items||[]).length,0)} items packed ✦`);
       } catch { toast.error("Couldn't generate packing list"); }
