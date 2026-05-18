@@ -245,10 +245,19 @@ Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}
     if (!noraInput.trim() || noraLoading) return;
     setNoraLoading(true);
     const roster = familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})`).join("; ");
-    const sys = `You are Nora, family AI chief of staff. Family: ${roster || "not set up yet"}.
-CRITICAL: Never invent specific facts — names, events, dates, tasks, appointments. Only reference what is explicitly provided. If data is missing, say so warmly and suggest how to add it.
-Profile: ${(profile as any)?.name}, ${(profile as any)?.role || ""}.
-Answer in 3-4 warm, specific, actionable sentences. Use family members names.`;
+    const taskList = tasks.filter(t => t.status !== "completed").slice(0, 5).map(t => `- ${t.title} (${t.priority})`).join("\n") || "No tasks";
+    const mealList = meals.slice(0, 3).map((m: any) => `${m.dayName}: ${m.dinner}`).join(", ") || "No meals planned";
+    const sys = `You are Nora, family AI chief of staff for ${(profile as any)?.name || "this household"}.
+
+FAMILY: ${roster || "not set up yet"}
+
+THIS WEEK'S TASKS:
+${taskList}
+
+MEALS PLANNED: ${mealList}
+
+CRITICAL: Only reference the information above — never invent events, names, dates, or facts not listed here. If asked about something not in the data above, say warmly "I don't have that info yet — want to add it?"
+Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentences.`;
     const result = await ai(sys, noraInput, "nora_chat");
     if (!result.error) setNoraResp(result.text);
     setNoraLoading(false);
