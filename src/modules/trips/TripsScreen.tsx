@@ -221,7 +221,7 @@ export function TripsScreen() {
   const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
-  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask">("overview");
+  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask" | "edit">("overview");
   const [showAdd, setShowAdd] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [packingLoading, setPackingLoading] = useState(false);
