@@ -220,6 +220,12 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
 
         {/* Focus Word Hero — per blueprint */}
         <div style={{ background:`linear-gradient(135deg,${toneColor},${T.esp})`, borderRadius:24, padding:"28px 24px", marginBottom:16, position:"relative", overflow:"hidden" }}>
+          {weather && (
+            <div style={{ position:"absolute", top:12, right:16, display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.15)", borderRadius:20, padding:"4px 10px", backdropFilter:"blur(4px)" }}>
+              <span style={{ fontSize:16 }}>{weather.icon}</span>
+              <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color:"#fff" }}>{weather.temp}°{weather.unit}</span>
+            </div>
+          )}
           <div style={{ position:"absolute", top:-20, right:-20, fontSize:120, opacity:0.06, lineHeight:1 }}>{briefing.focusWord?.emoji}</div>
           <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>TODAY'S FOCUS</p>
           <div style={{ display:"flex", alignItems:"baseline", gap:12, marginBottom:8 }}>
