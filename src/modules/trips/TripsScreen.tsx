@@ -483,7 +483,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
     return (
       <div style={{ animation: "fadeUp .45s ease both" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <PageTitle title="Trips">Trips</PageTitle>
+          <PageTitle title="Trips" />
           <button onClick={() => setShowAdd(!showAdd)}
             style={{ background: showAdd ? T.linen : T.esp, color: showAdd ? T.bark : "#fff", border: "none", borderRadius: 12, padding: "8px 16px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             {showAdd ? "Cancel" : "+ Plan Trip"}
