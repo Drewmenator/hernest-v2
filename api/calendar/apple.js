@@ -124,8 +124,8 @@ export default async function handler(req, res) {
     }
 
     const now = new Date();
-    const start = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    const end = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const end = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 
     const reportBody = `<?xml version="1.0" encoding="utf-8"?>
 <calendar-query xmlns="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:">
@@ -146,7 +146,7 @@ export default async function handler(req, res) {
           body: reportBody,
         });
         const xml = await r.text();
-        console.log("[Apple] REPORT status:", r.status, "for:", calUrl, "length:", xml.length);
+        console.log("[Apple] REPORT status:", r.status, "for:", calUrl, "length:", xml.length, "preview:", xml.slice(0, 300));
         const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
         const events = icsMatches.flatMap(parseICSEvents).filter(Boolean);
         allEvents = allEvents.concat(events);
