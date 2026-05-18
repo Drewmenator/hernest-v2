@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { prompt, system, feature, model, messages, max_tokens = 1000 } = req.body || {};
-  const effectiveMaxTokens = ["morning_briefing","trip_planner"].includes(feature) ? Math.max(max_tokens, 2000) : max_tokens;
+  const effectiveMaxTokens = ["morning_briefing","trip_planner","meal_plan"].includes(feature) ? Math.max(max_tokens, 2000) : max_tokens;
 
   if (prompt && prompt.length > 12000) return res.status(400).json({ error: "Message too long" });
   if (feature && !ALLOWED.includes(feature)) return res.status(400).json({ error: "Invalid feature" });
