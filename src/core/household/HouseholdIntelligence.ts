@@ -156,10 +156,11 @@ export async function loadHouseholdInsights(userId: string): Promise<HouseholdIn
 
 // ── Build household snapshot from Firestore ───────────────────────
 export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdSnapshot> {
-  const [budgetData, thriveData, calendarData] = await Promise.all([
+  const [budgetData, thriveData, calendarData, tripsData] = await Promise.all([
     loadData(userId, "budget_v2"),
     loadData(userId, "thrive"),
     loadData(userId, "calendar"),
+    loadData(userId, "trips"),
   ]);
 
   const cats = (budgetData?.categories as any[]) || [];
@@ -187,20 +188,40 @@ export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdS
 
   const events = (calendarData?.events as any[]) || [];
   const todayStr = now.toISOString().split("T")[0];
-  const nextWeekStr = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const upcomingEvents = events.filter((e: any) => e.date >= todayStr && e.date <= nextWeekStr);
-  const busyWeeksAhead = Math.min(3, Math.floor(upcomingEvents.length / 3));
+  const twoWeekStr = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const upcomingEvents = events.filter((e: any) => e.date >= todayStr && e.date <= twoWeekStr);
+  const thisWeekEvents = events.filter((e: any) => e.date >= todayStr && e.date <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+  const busyWeeksAhead = Math.min(3, Math.floor(upcomingEvents.length / 5));
   const calendarLoad: HouseholdSnapshot["calendarLoad"] =
-    upcomingEvents.length >= 10 ? "critical" :
-    upcomingEvents.length >= 6  ? "heavy" :
-    upcomingEvents.length >= 3  ? "normal" : "light";
+    thisWeekEvents.length >= 12 ? "critical" :
+    thisWeekEvents.length >= 7  ? "heavy" :
+    thisWeekEvents.length >= 3  ? "normal" : "light";
 
   const moodLogs = (thriveData?.moodLog as any[]) || [];
-  const recentMood = moodLogs.slice(-3).map((l: any) => l.value || 3);
+  const sleepLogs = (thriveData?.sleepLog as any[]) || [];
+  const recentMood = moodLogs.slice(-5).map((l: any) => l.value || 3);
+  const recentSleep = sleepLogs.slice(-5).map((l: any) => l.hours || 7);
   const avgMood = recentMood.length ? recentMood.reduce((a: number, b: number) => a + b, 0) / recentMood.length : 3;
+  const avgSleep = recentSleep.length ? recentSleep.reduce((a: number, b: number) => a + b, 0) / recentSleep.length : 7;
+  const wellnessScore = (thriveData?.weeklyScore as number) || 0;
+
+  // Trips: find upcoming trip within 14 days
+  const allTrips = (tripsData?.trips as any[]) || [];
+  const upcomingTrip = allTrips.find((t: any) => {
+    const du = Math.ceil((new Date(t.departureDate).getTime() - Date.now()) / 86400000);
+    return du >= 0 && du <= 14;
+  });
+  const tripStress = upcomingTrip ? 1 : 0;
+
+  const stressScore =
+    (avgMood < 2 ? 3 : avgMood < 3 ? 1 : 0) +
+    (avgSleep < 5 ? 3 : avgSleep < 6 ? 1 : 0) +
+    (calendarLoad === "critical" ? 2 : calendarLoad === "heavy" ? 1 : 0) +
+    (savingsRate < 5 && monthlyIncome > 0 ? 2 : 0) +
+    tripStress;
+
   const householdStressLevel: HouseholdSnapshot["householdStressLevel"] =
-    avgMood < 2 || (calendarLoad === "critical" && savingsRate < 5) ? "high" :
-    avgMood < 3 || calendarLoad === "heavy" ? "moderate" : "low";
+    stressScore >= 4 ? "high" : stressScore >= 2 ? "moderate" : "low";
 
   const healthScore = (budgetData?.healthScore as any) || null;
 
@@ -211,6 +232,11 @@ export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdS
       topOverspendCategories: cats.filter((c: any) => c.spent > c.budget).map((c: any) => c.label),
       financialHealthScore: healthScore?.score || 0,
       financialHealthGrade: healthScore?.grade || "—",
+      upcomingTripObligation: upcomingTrip ? {
+        name: upcomingTrip.destination,
+        amount: upcomingTrip.budget?.total || 0,
+        daysUntil: Math.ceil((new Date(upcomingTrip.departureDate).getTime() - Date.now()) / 86400000),
+      } : undefined,
     },
     calendarLoad,
     busyWeeksAhead,
@@ -219,6 +245,11 @@ export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdS
       riskStatus: (g.riskStatus || "on_track") as "on_track" | "at_risk" | "off_track",
     })),
     householdStressLevel,
+    wellness: {
+      avgMood: Math.round(avgMood * 10) / 10,
+      avgSleep: Math.round(avgSleep * 10) / 10,
+      weeklyScore: wellnessScore,
+    },
     lastRefreshed: new Date().toISOString(),
   };
 }

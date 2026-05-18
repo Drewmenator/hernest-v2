@@ -315,27 +315,40 @@ function HouseholdPulseCard() {
       )}
 
       {/* Top AI insight */}
-      {topInsight && !topInsight.dismissed && (
-        <div style={{ padding: "10px 12px", background: `${T.teal}10`, borderRadius: 12, border: `1px solid ${T.teal}25`, marginBottom: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.teal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                ✦ NORA'S INSIGHT
-              </p>
-              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: "0 0 4px", lineHeight: 1.5 }}>
-                {topInsight.observation}
-              </p>
-              <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.teal, margin: 0 }}>
-                → {topInsight.recommendation}
-              </p>
+      {/* Top 3 insights */}
+      {(filteredInsights.length ? filteredInsights : householdInsights)
+        .filter(i => !i.dismissed)
+        .slice(0, 3)
+        .map((insight, idx) => {
+          const CATEGORY_COLORS: Record<string, string> = {
+            spending: T.blush, savings: T.sage, debt: T.gold,
+            cashflow: T.teal, stress: T.lav, scheduling: T.sky,
+            family: T.esp, health: T.sage, decision: T.gold, opportunity: T.teal,
+          };
+          const color = CATEGORY_COLORS[insight.category] || T.teal;
+          return (
+            <div key={insight.id} style={{ padding: "10px 12px", background: `${color}10`, borderRadius: 12, border: `1px solid ${color}25`, marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    ✦ {insight.category?.toUpperCase() || "INSIGHT"} {idx === 0 ? "· TOP PRIORITY" : ""}
+                  </p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: "0 0 4px", lineHeight: 1.5 }}>
+                    {insight.observation}
+                  </p>
+                  <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color, margin: 0 }}>
+                    → {insight.recommendation}
+                  </p>
+                </div>
+                <button onClick={() => dismissInsight(insight.id)}
+                  style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 16, flexShrink: 0, padding: 0 }}>
+                  ×
+                </button>
+              </div>
             </div>
-            <button onClick={() => dismissInsight(topInsight.id)}
-              style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 16, flexShrink: 0, padding: 0 }}>
-              ×
-            </button>
-          </div>
-        </div>
-      )}
+          );
+        })
+      }
 
       {/* Generate / refresh insights — hidden in relief mode */}
       {adaptiveConfig.showOptimizationNudges && (

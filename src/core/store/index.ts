@@ -87,11 +87,14 @@ export interface FinancialSnapshot {
 }
 
 export interface HouseholdSnapshot {
-  financial: FinancialSnapshot;
+  financial: FinancialSnapshot & {
+    upcomingTripObligation?: { name: string; amount: number; daysUntil: number };
+  };
   calendarLoad: "light" | "normal" | "heavy" | "critical";
   busyWeeksAhead: number;
   activeGoals: Array<{ name: string; riskStatus: "on_track" | "at_risk" | "off_track" }>;
   householdStressLevel: "low" | "moderate" | "high";
+  wellness?: { avgMood: number; avgSleep: number; weeklyScore: number };
   lastRefreshed: string;
 }
 

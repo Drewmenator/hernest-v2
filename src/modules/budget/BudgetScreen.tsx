@@ -6,6 +6,7 @@ import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, S
 import { saveData, loadData } from "../../core/firebase";
 import { ai, aiJSON } from "../../core/ai";
 import { askCFO } from "../../core/aiOrchestrator";
+import { loadDecisionsV2, buildDecisionTimeline } from "../../core/household/DecisionEngineV2";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 
@@ -334,9 +335,18 @@ export function BudgetScreen() {
   const [goalDate, setGoalDate] = useState("");
   const [goalMonthly, setGoalMonthly] = useState("");
 
+  // ── Load decision history ────────────────────────────────────────
+  useEffect(() => {
+    if (tab !== "cfo" || !user?.uid) return;
+    loadDecisionsV2(user.uid).then(decisions => {
+      setDecisionHistory(buildDecisionTimeline(decisions));
+    }).catch(() => {});
+  }, [tab, user?.uid]);
+
   // ── CFO / Scenario UI ───────────────────────────────────────────
   const [scenarioInput, setScenarioInput] = useState("");
   const [scenarioLoading, setScenarioLoading] = useState(false);
+  const [decisionHistory, setDecisionHistory] = useState<any[]>([]);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
 
   // ── Coach chat ───────────────────────────────────────────────────
@@ -1043,6 +1053,22 @@ Maximum 50 transactions.`;
                 {showAddDebt ? "Cancel" : "+ Add Debt"}
               </button>
             </div>
+
+          {/* Decision Timeline */}
+          {decisionHistory.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <SectionLabel>Decision History</SectionLabel>
+              {decisionHistory.slice(0, 5).map((item: any, i: number) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.linen}` }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.gold, flexShrink: 0, marginTop: 5 }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.esp, margin: "0 0 2px" }}>{item.title}</p>
+                    <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>{item.date} · {item.confidence} confidence</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
             {showAddDebt && (
               <Card>

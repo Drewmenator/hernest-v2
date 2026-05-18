@@ -1,3 +1,4 @@
+import { loadMemoriesV2, deleteMemory } from '../../core/memoryServiceV2';
 import React, { useState } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
@@ -34,6 +35,15 @@ export function SettingsScreen() {
     { id:"school",   label:"School Events",       icon:"🏫" },
     { id:"circle",   label:"Circle Check-ins",    icon:"◉" },
   ];
+
+  const loadMemories = async () => {
+    if (!user?.uid) return;
+    try {
+      const mems = await loadMemoriesV2(user.uid);
+      setMemoryV2List(mems);
+      setShowMemoryV2(true);
+    } catch { setMemoryV2List([]); setShowMemoryV2(true); }
+  };
 
   const toggleShare = (id: string) => {
     setShareCategories(p => p.includes(id) ? p.filter(s=>s!==id) : [...p, id]);
@@ -159,6 +169,43 @@ export function SettingsScreen() {
           <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"16px 0 0", textAlign:"center" }}>
             Questions? Email us at privacy@hernest.app
           </p>
+        </Card>
+
+        {/* What Nora Knows — Memory V2 */}
+        <Card>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div>
+              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>What Nora Knows</p>
+              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Facts, preferences and patterns Nora has learned about your household</p>
+            </div>
+            <button onClick={loadMemories}
+              style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              View
+            </button>
+          </div>
+          {showMemoryV2 && (
+            <div>
+              {memoryV2List.length === 0 && (
+                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, textAlign:"center", padding:"16px 0" }}>Nora is still getting to know you. Keep using the app and she'll learn your patterns.</p>
+              )}
+              {memoryV2List.length > 0 && memoryV2List.slice(0, 20).map((mem: any, i: number) => (
+                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
+                  <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>
+                    {mem.type === "preference" ? "◆" : mem.type === "pattern" ? "◈" : mem.type === "financial_context" ? "💰" : "◎"}
+                  </span>
+                  <div style={{ flex:1 }}>
+                    <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:"0 0 2px", lineHeight:1.5 }}>{mem.content}</p>
+                    <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:0, textTransform:"capitalize" }}>{mem.type} · {mem.sourceModule} · {mem.confidence} confidence</p>
+                  </div>
+                  <button onClick={async () => { await deleteMemory(user!.uid, mem.id); setMemoryV2List(p => p.filter((m: any) => m.id !== mem.id)); }}
+                    style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:14, padding:0, flexShrink:0 }}>×</button>
+                </div>
+              ))}
+              {memoryV2List.length > 20 && (
+                <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, textAlign:"center", padding:"8px 0" }}>+{memoryV2List.length - 20} more memories</p>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Data export */}
