@@ -249,17 +249,13 @@ export function NoraScreen() {
 
       // ── Build enriched context ───────────────────────────────────
       // Adaptive tone based on household state
-      const toneInstruction = adaptiveConfig.noraTone === "brief"
-        ? "TONE THIS SESSION: The household is under pressure. Lead with empathy. Keep responses short. One thing at a time."
-        : adaptiveConfig.noraTone === "supportive"
-        ? "TONE THIS SESSION: Provide warm, thorough support. The user needs full guidance."
-        : adaptiveConfig.noraTone === "encouraging"
-        ? "TONE THIS SESSION: Be energizing and forward-focused. Celebrate progress."
-        : adaptiveConfig.noraTone === "focused"
-        ? "TONE THIS SESSION: Be direct and practical. Cut to what matters."
-        : adaptiveConfig.noraTone === "analytical"
-        ? "TONE THIS SESSION: Be thorough and data-driven. The user wants depth."
-        : "TONE THIS SESSION: Warm, direct, practical.";
+      const toneInstruction = adaptiveConfig.noraTone === "validating_brief"
+        ? "TONE THIS SESSION: Household is under pressure. Lead with empathy. Short responses only. One thing at a time."
+        : adaptiveConfig.noraTone === "supportive_simple"
+        ? "TONE THIS SESSION: Warm and supportive. Keep it simple and reassuring."
+        : adaptiveConfig.noraTone === "calm_analytical"
+        ? "TONE THIS SESSION: Be thorough and data-driven. The user wants depth and analysis."
+        : "TONE THIS SESSION: Warm, proactive, direct. Surface what matters.";
 
       const graphCtx = noraPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${noraPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
       const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
