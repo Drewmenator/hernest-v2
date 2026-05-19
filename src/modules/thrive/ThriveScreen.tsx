@@ -244,15 +244,18 @@ Score is ${total.toFixed(1)}/10. Sleep: ${sleepS.toFixed(1)}, Hydration: ${hydra
 ${pattern ? `Pattern detected: ${pattern}` : ""}
 User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}.`;
 
-    const moodAvg = moodLog.slice(-7).reduce((a: number, l: any) => a + (l.value||3), 0) / Math.max(1, Math.min(7, moodLog.length));
-    const sleepAvg = sleepLog.slice(-7).reduce((a: number, l: any) => a + (l.hours||7), 0) / Math.max(1, Math.min(7, sleepLog.length));
-    const habitRate = habits.length > 0 ? Math.round((habits.filter((h: any) => h.completedToday).length / habits.length) * 100) : 0;
+    const moodArr = Array.isArray(moodLog) ? moodLog : [];
+    const sleepArr = Array.isArray(sleepLog) ? sleepLog : [];
+    const moodAvg = moodArr.length > 0 ? moodArr.slice(-7).reduce((a: number, l: any) => a + (l.rating||l.value||3), 0) / Math.min(7, moodArr.length) : 3;
+    const sleepAvg = sleepArr.length > 0 ? sleepArr.slice(-7).reduce((a: number, l: any) => a + (l.hours||7), 0) / Math.min(7, sleepArr.length) : 7;
+    const habitArr = Array.isArray(habits) ? habits : [];
+    const habitRate = habitArr.length > 0 ? Math.round((habitArr.filter((h: any) => h.completedToday).length / habitArr.length) * 100) : 0;
     const result = await ai(sys, `Weekly wellness data for ${(profile as any)?.name||"user"}:
 Mood average (7 days): ${moodAvg.toFixed(1)}/5
 Sleep average (7 days): ${sleepAvg.toFixed(1)} hours
 Habit completion today: ${habitRate}%
-Recent mood entries: ${moodLog.slice(-3).map((l: any) => l.value).join(", ")}
-Recent sleep: ${sleepLog.slice(-3).map((l: any) => l.hours + "h").join(", ")}`, "wellness_score");
+Recent mood: ${moodArr.slice(-3).map((l: any) => l.rating||l.value||3).join(", ")}
+Recent sleep: ${sleepArr.slice(-3).map((l: any) => (l.hours||7) + "h").join(", ")}`, "wellness_score");
 
     if (!result.error) {
       try {

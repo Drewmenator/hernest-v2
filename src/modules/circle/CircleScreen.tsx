@@ -163,7 +163,7 @@ export function CircleScreen() {
 Generate 5 specific, personal gift ideas with prices. Format as numbered list with brief "why" for each.
 Be specific — not generic. Think about their personality and history.`;
 
-    const prompt = `Gift ideas for ${contact.name} (${contact.age||"unknown age"}, ${contact.relationship}). Budget consciousness: moderate. Occasion: ${contact.nextBirthday ? "upcoming birthday" : "general"}. Their interests: ${contact.notes || "not specified"}.
+    const prompt = `Gift ideas for ${contact.name} (${contact.age||"unknown age"}, ${contact.relationship}). Budget consciousness: moderate. Occasion: ${contact.birthday && daysUntilBirthday(contact.birthday) !== null && (daysUntilBirthday(contact.birthday) ?? 999) <= 30 ? "upcoming birthday" : "general"}. Their interests: ${contact.notes || "not specified"}.
 ${interests?"Interests: "+interests+".":""}
 ${history?"Previously loved gifts: "+history+".":""}
 Budget: flexible but thoughtful.`;
