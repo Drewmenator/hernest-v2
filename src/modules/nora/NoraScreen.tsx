@@ -248,6 +248,15 @@ export function NoraScreen() {
       const intent = classifyIntent(msg);
 
       // ── Build enriched context ───────────────────────────────────
+      // Adaptive tone based on household state
+      const toneInstruction = adaptiveConfig.noraTone === "validating_brief"
+        ? "TONE THIS SESSION: The household is under pressure. Lead with empathy. Keep responses short. One thing at a time."
+        : adaptiveConfig.noraTone === "supportive_detailed"
+        ? "TONE THIS SESSION: Provide warm, thorough support. The user needs full guidance."
+        : adaptiveConfig.noraTone === "energizing"
+        ? "TONE THIS SESSION: Be energizing and forward-focused. Celebrate wins."
+        : "TONE THIS SESSION: Warm, direct, practical.";
+
       const graphCtx = noraPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${noraPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
       const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
       const familyRoster = familyMembers.length > 0
@@ -316,6 +325,9 @@ GOOD: "Dining is higher than usual — you still have flexibility, but a few day
 
 BAD: "I don't have information about your schedule."
 GOOD: "I don't see your calendar synced yet — once it is, I can give you much better answers about your week."
+
+${toneInstruction}
+${graphCtx}
 
 Intent detected: ${intent}.`;
 
