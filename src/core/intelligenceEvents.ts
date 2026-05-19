@@ -53,7 +53,7 @@ export function connectIntelligenceLayer(userId: string): () => void {
 
     // Auto-trigger insight generation for critical overspend
     if (percentUsed >= 100) {
-      bus.publish("intelligence.insight.requested", { trigger: "budget_overspend", category, percentUsed }, { userId, source: "intelligence" }).catch(() => {});
+      bus.publish("budget.threshold.hit", { trigger: "budget_overspend", category, percentUsed }, { userId, source: "intelligence" }).catch(() => {});
     }
   }));
 

@@ -37,6 +37,7 @@ export type EventType =
   | "trips.trip.created"
   | "partner.invite.sent"
   | "partner.invite.accepted"
+  | "intelligence.insight.requested"
   | "account.deleted"
   | "settings.updated"
   | "briefing.invalidate"
