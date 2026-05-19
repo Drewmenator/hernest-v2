@@ -77,7 +77,7 @@ export function BriefingScreen() {
             cachedHour >= 12 && cachedHour < 17 ? "afternoon" : "evening";
           const sameDay = cachedAt.toDateString() === now.toDateString();
           if (sameDay && cachedWindow === currentWindow) {
-            setBriefing(cached.data);
+            setBriefing(cached.data as Briefing);
             setLoading(false);
             return;
           }
