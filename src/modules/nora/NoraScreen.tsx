@@ -249,12 +249,16 @@ export function NoraScreen() {
 
       // ── Build enriched context ───────────────────────────────────
       // Adaptive tone based on household state
-      const toneInstruction = adaptiveConfig.noraTone === "validating_brief"
+      const toneInstruction = adaptiveConfig.noraTone === "brief"
         ? "TONE THIS SESSION: The household is under pressure. Lead with empathy. Keep responses short. One thing at a time."
-        : adaptiveConfig.noraTone === "supportive_detailed"
+        : adaptiveConfig.noraTone === "supportive"
         ? "TONE THIS SESSION: Provide warm, thorough support. The user needs full guidance."
-        : adaptiveConfig.noraTone === "energizing"
-        ? "TONE THIS SESSION: Be energizing and forward-focused. Celebrate wins."
+        : adaptiveConfig.noraTone === "encouraging"
+        ? "TONE THIS SESSION: Be energizing and forward-focused. Celebrate progress."
+        : adaptiveConfig.noraTone === "focused"
+        ? "TONE THIS SESSION: Be direct and practical. Cut to what matters."
+        : adaptiveConfig.noraTone === "analytical"
+        ? "TONE THIS SESSION: Be thorough and data-driven. The user wants depth."
         : "TONE THIS SESSION: Warm, direct, practical.";
 
       const graphCtx = noraPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${noraPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
