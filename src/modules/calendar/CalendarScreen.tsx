@@ -239,7 +239,8 @@ export function CalendarScreen() {
         if (!idToken) return;
         const res = await fetch(`${url}?uid=${user?.uid}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, { headers: { Authorization: `Bearer ${idToken}` } });
         const data = await res.json();
-        console.log("[Calendar] fetched from", url, data.count, "events");
+        console.log("[Calendar] fetched from", url, data.events?.length, "events");
+        if (data.events?.length > 0 && user?.uid) bus.publish("calendar.synced", { source: url, count: data.events.length }, { userId: user.uid, source: "calendar" }).catch(() => {});
         if (data.events?.length > 0) {
           setEvents(prev => {
             const existingIds = new Set(prev.map((e: CalEvent) => e.id));

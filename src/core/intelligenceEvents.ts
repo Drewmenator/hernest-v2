@@ -127,10 +127,18 @@ export function connectIntelligenceLayer(userId: string): () => void {
     invalidateCache(userId, ["nora_memory", "nora_memory_v2"]);
   }));
 
-  // ── 8. Profile updated → clear all user cache ────────────────────
+  // ── 8. Profile updated → clear all user cache + invalidate briefing
   unsubs.push(bus.subscribe("profile.updated", async () => {
     clearUserCache(userId);
+    bus.publish("briefing.invalidate", {}, { userId, source: "intelligence" }).catch(() => {});
   }));
+
+  // ── 8b. Key data changes → invalidate briefing ───────────────────
+  ["budget.expense.logged", "plan.task.created", "plan.task.completed", "trips.trip.created"].forEach(evt => {
+    unsubs.push(bus.subscribe(evt as any, async () => {
+      bus.publish("briefing.invalidate", {}, { userId, source: "intelligence" }).catch(() => {});
+    }));
+  });
 
   // ── 9. Thrive logged → invalidate thrive cache ───────────────────
   unsubs.push(bus.subscribe("thrive.sleep.logged", async () => {
@@ -148,6 +156,22 @@ export function connectIntelligenceLayer(userId: string): () => void {
   // ── 10. Goals updated → invalidate budget cache ──────────────────
   unsubs.push(bus.subscribe("budget.savings.goal.created", async () => {
     invalidateCache(userId, ["budget_v2"]);
+  }));
+
+  // ── Style preference → memory ────────────────────────────────────
+  unsubs.push(bus.subscribe("style.preference.updated", async (e: any) => {
+    const { vibe, colorSeason } = e.payload ?? {};
+    if (vibe || colorSeason) {
+      proposeMemory(userId, {
+        type: "preference",
+        title: "Style preferences",
+        content: `Prefers ${vibe || ""}${colorSeason ? " · " + colorSeason + " color season" : ""} style`,
+        sourceModule: "nora",
+        confidence: "high",
+        sensitivity: "low",
+        evidenceDescription: "Set in Style module",
+      }).catch(() => {});
+    }
   }));
 
   // Return cleanup function
