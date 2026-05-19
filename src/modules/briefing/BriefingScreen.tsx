@@ -100,6 +100,7 @@ RULES:
 - Be CONCISE — every word earns its place
 - Be WARM — this is the first thing she reads
 - Be ACTIONABLE — every priority needs a clear next step
+- NEVER mention total debt amounts in the briefing unless a payment is due today or a milestone was reached. Focus on what's going well and what needs action today.
 - NEVER invent facts not in the data. If data is missing, say "I don't have that info yet" — never fill gaps with plausible-sounding details.
 - If tone is tired/struggling: reduce demands, increase compassion
 - If tone is thriving: energise and celebrate
@@ -111,7 +112,7 @@ Return ONLY valid JSON:
   "priorities": [{"rank":1,"text":"specific action","emoji":"emoji","source":"task|calendar|school|budget|trip|circle","urgency":"critical|high|medium|low","whyToday":"why now","estimatedMinutes":5}],
   "calendar": {"highlights":[{"time":"","title":"","icon":""}],"densityNote":"optional note if heavy","conflicts":[]},
   "tasks": {"aiSuggestion":"one specific task suggestion","completionNote":"encouraging note on completion rate"},
-  "budget": {"status":"healthy|watch|warning|critical","keyMessage":"specific message with numbers","forecastMessage":"month end forecast","categoryAlert":"optional","savingsUpdate":"optional"},
+  "budget": {"status":"healthy|watch|warning|critical","keyMessage":"positive or actionable message — focus on cash remaining and savings progress, NOT total debt","forecastMessage":"month end forecast","categoryAlert":"optional — only if overspending","savingsUpdate":"optional — celebrate progress"},
   "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
   "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
   "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"based on X sleep + Y mood","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
