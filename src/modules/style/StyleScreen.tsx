@@ -61,7 +61,7 @@ const BODY_SHAPE_TIPS: Record<string,string> = {
 };
 
 export function StyleScreen() {
-  const { user, profile } = useStore();
+  const { user, profile, householdSnapshot } = useStore();
   const [tab, setTab] = useState("stylist");
 
   // Stylist state
@@ -162,7 +162,8 @@ Return ONLY valid JSON:
   "estimatedCost": {"total": 0, "currency": "GBP"}
 }`;
 
-    const prompt = `Occasion: ${occasion}. Mood: ${mood}. ${context?`Context: ${context}.`:""} ${weather?`Weather: ${weather}.`:""} ${include?`Must include: ${include}.`:""}` ;
+    const stressNote = householdSnapshot?.householdStressLevel === "high" ? " The user is having a high-stress week — prioritise comfort and ease." : "";
+    const prompt = `Occasion: ${occasion}. Mood: ${mood}. ${context?`Context: ${context}.`:""} ${weather?`Weather: ${weather}.`:""} ${include?`Must include: ${include}.`:""}${stressNote}`;
     const result = await ai(sys, prompt, "style_stylist");
 
     if (!result.error) {

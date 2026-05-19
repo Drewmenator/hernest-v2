@@ -244,7 +244,15 @@ Score is ${total.toFixed(1)}/10. Sleep: ${sleepS.toFixed(1)}, Hydration: ${hydra
 ${pattern ? `Pattern detected: ${pattern}` : ""}
 User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}.`;
 
-    const result = await ai(sys, `Weekly score breakdown for ${(profile as any)?.name||"user"}`, "wellness_score");
+    const moodAvg = moodLog.slice(-7).reduce((a: number, l: any) => a + (l.value||3), 0) / Math.max(1, Math.min(7, moodLog.length));
+    const sleepAvg = sleepLog.slice(-7).reduce((a: number, l: any) => a + (l.hours||7), 0) / Math.max(1, Math.min(7, sleepLog.length));
+    const habitRate = habits.length > 0 ? Math.round((habits.filter((h: any) => h.completedToday).length / habits.length) * 100) : 0;
+    const result = await ai(sys, `Weekly wellness data for ${(profile as any)?.name||"user"}:
+Mood average (7 days): ${moodAvg.toFixed(1)}/5
+Sleep average (7 days): ${sleepAvg.toFixed(1)} hours
+Habit completion today: ${habitRate}%
+Recent mood entries: ${moodLog.slice(-3).map((l: any) => l.value).join(", ")}
+Recent sleep: ${sleepLog.slice(-3).map((l: any) => l.hours + "h").join(", ")}`, "wellness_score");
 
     if (!result.error) {
       try {
@@ -276,7 +284,7 @@ User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>
     const avgMood  = moodHistory.slice(-7).reduce((a,l)=>a+l.rating,0)/Math.max(moodHistory.slice(-7).length,1);
     const pattern  = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
 
-    const sys = `You are Nora, a warm empathetic wellness coach inside HerNest.
+    const sys = `You are Nora, a warm empathetic wellness coach inside HerNest. CRITICAL: Never invent symptoms, diagnoses, or medical advice. Only reflect back what the user shares.
 
 WELLNESS DATA:
 - Sleep this week: avg ${avgSleep.toFixed(1)}h. Today: ${sleepLog?.hours||"not logged"}h (${sleepLog?.quality||"unknown"}).

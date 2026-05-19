@@ -159,11 +159,11 @@ export function CircleScreen() {
     const history = contact.giftHistory?.filter(g=>g.reaction==="loved").map(g=>g.gift).join(", ") || "";
     const interests = contact.interests?.join(", ") || "";
 
-    const sys = `You are Nora, a thoughtful gift advisor inside HerNest.
+    const sys = `You are Nora, a thoughtful gift advisor inside HerNest. You know this household well — suggest gifts that feel personal, not generic.
 Generate 5 specific, personal gift ideas with prices. Format as numbered list with brief "why" for each.
 Be specific — not generic. Think about their personality and history.`;
 
-    const prompt = `Gift ideas for ${contact.name} (${contact.age||"unknown age"} ${contact.relationship}).
+    const prompt = `Gift ideas for ${contact.name} (${contact.age||"unknown age"}, ${contact.relationship}). Budget consciousness: moderate. Occasion: ${contact.nextBirthday ? "upcoming birthday" : "general"}. Their interests: ${contact.notes || "not specified"}.
 ${interests?"Interests: "+interests+".":""}
 ${history?"Previously loved gifts: "+history+".":""}
 Budget: flexible but thoughtful.`;

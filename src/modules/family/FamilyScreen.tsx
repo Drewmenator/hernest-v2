@@ -229,7 +229,8 @@ export function FamilyScreen() {
     const sys = `You are Nora. Return ONLY valid JSON array of 7 objects:
 [{"day":"Monday","dinner":"meal name under 6 words"}]
 Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
-    const result = await ai(sys, "Plan this week's family dinners.", "meal_plan");
+    const familyCtx = familyMembers.map((m: any) => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join(", ");
+    const result = await ai(sys, `Plan this week's family dinners. Family: ${familyCtx || "not specified"}. Keep it practical and family-friendly.`, "meal_plan");
     if (!result.error) {
       try {
         const parsed = (() => { const s=result.text.indexOf("{"); const e=result.text.lastIndexOf("}"); if(s===-1||e===-1) throw new Error("No JSON"); return JSON.parse(result.text.slice(s,e+1)); })();
