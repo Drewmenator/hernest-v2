@@ -153,7 +153,7 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
             categories: [],
           };
 
-          setProfile(profile);
+          setProfile(profile as any);
           if (user?.uid) {
             await saveData(user.uid, "profile", profile);
             await saveData(user.uid, "budget_v2", budgetSeed);
