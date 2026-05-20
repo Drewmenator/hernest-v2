@@ -193,22 +193,85 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
   const toneColor = ctx ? ctx.toneConfig.color : T.esp;
 
   // ── Loading skeleton ──────────────────────────────────────────────
-  if (loading && !briefing) return (
-    <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="YOUR DAILY BRIEFING" title={getTimeWindow()==="morning"?"Good Morning":getTimeWindow()==="afternoon"?"Good Afternoon":"Good Evening"}/>
-      <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"24px 20px", marginBottom:16, textAlign:"center" }}>
-        <div style={{ fontFamily:F.serif, fontSize:48, color:T.gold, lineHeight:1, marginBottom:12 }}>✦</div>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.6)", fontStyle:"italic" }}>Nora is reading your week...</p>
-        <div style={{ marginTop:16 }}><Spinner size={20} color="rgba(255,255,255,0.4)"/></div>
-      </div>
-      {[1,2,3].map(i=>(
-        <div key={i} style={{ background:T.ivory, borderRadius:20, padding:"20px", border:`1px solid ${T.linen}`, marginBottom:10, animation:"breathe 2s ease-in-out infinite" }}>
-          <div style={{ background:T.linen, borderRadius:8, height:11, width:`${50+i*15}%`, marginBottom:8 }}/>
-          <div style={{ background:T.linen, borderRadius:8, height:9, width:"75%" }}/>
+  if (loading && !briefing) {
+    const Bone = ({ w = "100%", h = 10, mb = 0, radius = 8 }: { w?: string|number; h?: number; mb?: number; radius?: number }) => (
+      <div style={{ background: T.linen, borderRadius: radius, height: h, width: w, marginBottom: mb, flexShrink: 0, animation: "shimmer 1.8s ease-in-out infinite" }} />
+    );
+    return (
+      <div style={{ animation: "fadeUp .45s ease both" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 16 }}>
+          <Bone w="40%" h={9} mb={6} />
+          <Bone w="55%" h={26} radius={6} />
         </div>
-      ))}
-    </div>
-  );
+        {/* Hero card skeleton */}
+        <div style={{ background: `linear-gradient(135deg,${T.esp}cc,#3D2E22cc)`, borderRadius: 24, padding: "28px 24px", marginBottom: 16 }}>
+          <Bone w="30%" h={9} mb={14} />
+          <Bone w="55%" h={48} mb={10} radius={10} />
+          <Bone w="80%" h={11} mb={6} />
+          <Bone w="65%" h={11} mb={16} />
+          <Bone w="90%" h={13} mb={4} radius={6} />
+          <Bone w="70%" h={13} radius={6} />
+        </div>
+        {/* Priorities card skeleton */}
+        <div style={{ background: T.ivory, borderRadius: 20, padding: 20, border: `1px solid ${T.linen}`, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <Bone w="30%" h={9} />
+            <Bone w={60} h={18} radius={20} />
+          </div>
+          {[1,2,3,4,5].map(i => (
+            <div key={i} style={{ display: "flex", gap: 12, paddingBottom: 14, marginBottom: i < 5 ? 14 : 0, borderBottom: i < 5 ? `1px solid ${T.linen}` : "none" }}>
+              <Bone w={28} h={28} radius={8} />
+              <div style={{ flex: 1 }}>
+                <Bone w={`${55 + i * 7}%`} h={11} mb={7} />
+                <Bone w="45%" h={9} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Calendar card skeleton */}
+        <div style={{ background: T.ivory, borderRadius: 20, padding: 20, border: `1px solid ${T.linen}`, marginBottom: 10 }}>
+          <Bone w="35%" h={9} mb={14} />
+          {[1,2,3].map(i => (
+            <div key={i} style={{ display: "flex", gap: 12, paddingBottom: 12, marginBottom: i < 3 ? 12 : 0, borderBottom: i < 3 ? `1px solid ${T.linen}` : "none" }}>
+              <Bone w={44} h={9} />
+              <Bone w={20} h={20} radius={20} />
+              <Bone w="55%" h={9} />
+            </div>
+          ))}
+        </div>
+        {/* Budget card skeleton */}
+        <div style={{ background: T.ivory, borderRadius: 20, padding: 20, border: `1px solid ${T.linen}`, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <Bone w="30%" h={9} />
+            <Bone w={55} h={18} radius={20} />
+          </div>
+          <Bone w="90%" h={11} mb={7} />
+          <Bone w="70%" h={9} />
+        </div>
+        {/* Energy card skeleton */}
+        <div style={{ background: T.ivory, borderRadius: 20, padding: 20, border: `1px solid ${T.linen}`, marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <Bone w="35%" h={9} />
+            <Bone w={50} h={18} radius={20} />
+          </div>
+          <Bone w="55%" h={9} mb={10} />
+          <Bone w="85%" h={11} mb={7} />
+          <Bone w="65%" h={9} />
+        </div>
+        {/* Affirmation skeleton */}
+        <div style={{ background: `${T.esp}08`, border: `1px solid ${T.esp}20`, borderRadius: 20, padding: "20px", marginBottom: 12 }}>
+          <Bone w="95%" h={13} mb={8} radius={6} />
+          <Bone w="75%" h={13} mb={12} radius={6} />
+          <Bone w="30%" h={9} />
+        </div>
+        {/* Loading label */}
+        <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", margin: "8px 0 24px", fontStyle: "italic" }}>
+          Nora is reading your week...
+        </p>
+      </div>
+    );
+  }
 
   if (!briefing) return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
