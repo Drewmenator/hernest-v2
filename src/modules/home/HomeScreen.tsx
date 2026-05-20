@@ -268,7 +268,7 @@ function HouseholdPulseCard() {
       {/* Three stat pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {/* Financial health */}
-        <div onClick={() => setShowNoraSetup(true)}
+        <div onClick={() => useStore.getState().setActiveTab("budget")}
           style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
           <p style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: gradeColor(f.financialHealthGrade), margin: "0 0 2px" }}>
             {f.financialHealthGrade}
@@ -286,7 +286,8 @@ function HouseholdPulseCard() {
         </div>
 
         {/* Household stress */}
-        <div style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center" }}>
+        <div onClick={() => useStore.getState().setActiveTab("briefing")}
+          style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
           <p style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700,
             color: snap.householdStressLevel === "high" ? T.blush : snap.householdStressLevel === "moderate" ? T.gold : T.sage,
             margin: "0 0 2px", textTransform: "capitalize" }}>
