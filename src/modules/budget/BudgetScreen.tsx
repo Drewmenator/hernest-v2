@@ -284,6 +284,87 @@ function HealthScoreRing({ score, grade }: { score: number; grade: string }) {
   );
 }
 
+// ── Live Health Score Card ─────────────────────────────────────────
+function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, totalBudget, cashRemaining, savingsRate, dti, cats, goals }: {
+  snapshot: any; monthlyIncome: number; totalSpent: number; totalBudget: number;
+  cashRemaining: number; savingsRate: number; dti: number; cats: Category[]; goals: FinancialGoal[];
+}) {
+  // Recalculate same 5 dimensions so breakdown is visible
+  const savingsScore = savingsRate >= 20 ? 25 : savingsRate >= 10 ? 15 : savingsRate >= 5 ? 8 : 0;
+  const overSpendCount = cats.filter(c => c.budget > 0 && c.spent > c.budget).length;
+  const adherencePct = totalBudget > 0 ? Math.max(0, (totalBudget - totalSpent) / totalBudget) : 1;
+  const adherenceScore = Math.max(0, Math.round(adherencePct * 25) - (overSpendCount * 3));
+  const debtScore = monthlyIncome === 0 ? 10 : dti < 15 ? 20 : dti < 25 ? 15 : dti < 35 ? 8 : dti < 50 ? 3 : 0;
+  const daysElapsed = new Date().getDate();
+  const bufferMonths = totalSpent > 0 ? cashRemaining / (totalSpent / (daysElapsed || 1)) : 0;
+  const bufferScore = bufferMonths >= 3 ? 20 : bufferMonths >= 1 ? 14 : bufferMonths >= 0.5 ? 8 : cashRemaining > 0 ? 4 : 0;
+  const onTrack = goals.filter(g => (g.riskStatus || "on_track") === "on_track").length;
+  const goalsScore = goals.length ? Math.round((onTrack / goals.length) * 10) : 5;
+
+  const score = snapshot?.financial?.financialHealthScore || Math.min(100, savingsScore + adherenceScore + debtScore + bufferScore + goalsScore);
+  const grade = snapshot?.financial?.financialHealthGrade || gradeScore(score);
+  const color = gradeColor(grade);
+
+  const dimensions = [
+    { label: "Savings Rate", score: savingsScore, max: 25, tip: savingsRate < 10 ? "Save 10%+ of income to gain points" : "Great savings rate!" },
+    { label: "Budget Discipline", score: adherenceScore, max: 25, tip: overSpendCount > 0 ? `${overSpendCount} categor${overSpendCount > 1 ? "ies" : "y"} over budget` : "Spending within budget ✓" },
+    { label: "Debt Load", score: debtScore, max: 20, tip: dti > 25 ? `DTI at ${dti.toFixed(0)}% — aim for under 25%` : "Healthy debt-to-income ratio" },
+    { label: "Cash Buffer", score: bufferScore, max: 20, tip: bufferMonths < 1 ? "Build up 1+ month cash buffer" : `${bufferMonths.toFixed(1)} months buffer` },
+    { label: "Goals on Track", score: goalsScore, max: 10, tip: goals.length === 0 ? "Set financial goals to unlock" : `${onTrack}/${goals.length} goals on track` },
+  ];
+
+  // Find biggest opportunity (lowest score relative to max)
+  const opportunity = [...dimensions].sort((a, b) => (a.score / a.max) - (b.score / b.max))[0];
+  const pointsToGain = opportunity.max - opportunity.score;
+
+  return (
+    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "20px", marginBottom: 12 }}>
+      {/* Score header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
+        <HealthScoreRing score={score} grade={grade} />
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 4px" }}>FINANCIAL HEALTH SCORE</p>
+          <p style={{ fontFamily: F.serif, fontSize: 15, fontStyle: "italic", color: T.esp, margin: "0 0 6px", lineHeight: 1.4 }}>
+            {grade === "A" ? "Excellent financial health ✦" :
+             grade === "B" ? "Good — a few areas to sharpen" :
+             grade === "C" ? "Making progress, room to grow" :
+             grade === "D" ? "Needs attention across a few areas" :
+             "Let's turn this around together"}
+          </p>
+          <p style={{ fontFamily: F.sans, fontSize: 11, color, fontWeight: 700, margin: 0 }}>
+            {score}/100 · Updated live
+          </p>
+        </div>
+      </div>
+
+      {/* 5 dimension bars */}
+      {dimensions.map(d => (
+        <div key={d.label} style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+            <span style={{ fontFamily: F.sans, fontSize: 11, color: T.esp, fontWeight: 600 }}>{d.label}</span>
+            <span style={{ fontFamily: F.sans, fontSize: 11, color: d.score === d.max ? T.sage : d.score >= d.max * 0.6 ? T.gold : T.blush, fontWeight: 700 }}>{d.score}/{d.max}</span>
+          </div>
+          <div style={{ height: 6, background: T.linen, borderRadius: 6, overflow: "hidden", marginBottom: 2 }}>
+            <div style={{ width: `${(d.score / d.max) * 100}%`, height: "100%", background: d.score === d.max ? T.sage : d.score >= d.max * 0.6 ? T.gold : T.blush, borderRadius: 6, transition: "width 0.8s ease" }} />
+          </div>
+          <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: 0 }}>{d.tip}</p>
+        </div>
+      ))}
+
+      {/* Biggest opportunity */}
+      {pointsToGain > 0 && (
+        <div style={{ marginTop: 12, padding: "10px 14px", background: `${T.gold}12`, borderRadius: 12, border: `1px solid ${T.gold}30` }}>
+          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: T.gold, margin: "0 0 3px" }}>BIGGEST OPPORTUNITY</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0, lineHeight: 1.5 }}>
+            Improve <strong>{opportunity.label}</strong> → gain up to <strong>+{pointsToGain} pts</strong>
+          </p>
+          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "3px 0 0" }}>{opportunity.tip}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════
@@ -1013,37 +1094,18 @@ Maximum 50 transactions.`;
       ════════════════════════════════════════════════════════════ */}
       {tab === "cfo" && (
         <>
-          {/* Financial Health Score */}
-          <Card>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {healthScore ? (
-                <HealthScoreRing score={healthScore.score} grade={healthScore.grade} />
-              ) : (
-                <div style={{ width: 100, height: 100, borderRadius: "50%", background: T.sand, border: `2px dashed ${T.linen}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, textAlign: "center", padding: 8 }}>Score<br/>not run</span>
-                </div>
-              )}
-              <div style={{ flex: 1 }}>
-                <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 6px" }}>FINANCIAL HEALTH</p>
-                <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 10px", lineHeight: 1.6 }}>
-                  {healthScore?.summary || "Run your financial health score to get a complete picture."}
-                </p>
-                {healthScore?.breakdown?.map(b => (
-                  <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, width: 110, flexShrink: 0 }}>{b.label}</span>
-                    <div style={{ flex: 1, height: 4, background: T.linen, borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ width: `${b.score}%`, height: "100%", background: b.color, borderRadius: 4, transition: "width 0.8s ease" }} />
-                    </div>
-                    <span style={{ fontFamily: F.sans, fontSize: 11, color: T.bark, width: 30, textAlign: "right" }}>{b.score}</span>
-                  </div>
-                ))}
-                <button onClick={generateHealthScore} disabled={scoreLoading}
-                  style={{ marginTop: 10, background: "none", border: `1px solid ${T.teal}`, borderRadius: 10, padding: "6px 14px", fontFamily: F.sans, fontSize: 12, color: T.teal, cursor: "pointer" }}>
-                  {scoreLoading ? "Scoring..." : healthScore ? "Refresh Score" : "Run Score ✦"}
-                </button>
-              </div>
-            </div>
-          </Card>
+          {/* Financial Health Score — Live */}
+          <LiveHealthScoreCard
+            snapshot={householdSnapshot}
+            monthlyIncome={monthlyIncome}
+            totalSpent={totalSpent}
+            totalBudget={totalBudget}
+            cashRemaining={cashRemaining}
+            savingsRate={savingsRate}
+            dti={dti}
+            cats={cats}
+            goals={goals}
+          />
 
           {/* Debt Coach */}
           <div style={{ marginTop: 16 }}>
