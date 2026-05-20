@@ -351,16 +351,113 @@ function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, totalBudget,
         </div>
       ))}
 
-      {/* Biggest opportunity */}
-      {pointsToGain > 0 && (
-        <div style={{ marginTop: 12, padding: "10px 14px", background: `${T.gold}12`, borderRadius: 12, border: `1px solid ${T.gold}30` }}>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: T.gold, margin: "0 0 3px" }}>BIGGEST OPPORTUNITY</p>
-          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0, lineHeight: 1.5 }}>
-            Improve <strong>{opportunity.label}</strong> → gain up to <strong>+{pointsToGain} pts</strong>
-          </p>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "3px 0 0" }}>{opportunity.tip}</p>
-        </div>
-      )}
+      {/* Path to next grade */}
+      {(() => {
+        const nextGrade = grade === "F" ? "D" : grade === "D" ? "C" : grade === "C" ? "B" : grade === "B" ? "A" : null;
+        const nextThreshold = grade === "F" ? 40 : grade === "D" ? 55 : grade === "C" ? 70 : grade === "B" ? 85 : 100;
+        const ptsNeeded = Math.max(0, nextThreshold - score);
+        if (!nextGrade || ptsNeeded === 0) return (
+          <div style={{ marginTop: 12, padding: "10px 14px", background: `${T.sage}12`, borderRadius: 12, border: `1px solid ${T.sage}30` }}>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.sage, fontWeight: 700, margin: 0 }}>✦ Outstanding financial health — keep it up!</p>
+          </div>
+        );
+
+        // Rank actions by points available
+        const actions: { action: string; pts: number; detail: string }[] = [];
+
+        // Savings improvement
+        if (savingsScore < 25) {
+          const savingsPts = 25 - savingsScore;
+          const targetRate = savingsRate < 5 ? 10 : savingsRate < 10 ? 15 : 20;
+          const incomeApprox = monthlyIncome || totalBudget;
+          const extraNeeded = incomeApprox > 0 ? Math.round(((targetRate - savingsRate) / 100) * incomeApprox) : 0;
+          actions.push({
+            action: `Increase savings rate to ${targetRate}%`,
+            pts: Math.min(savingsPts, ptsNeeded),
+            detail: extraNeeded > 0 ? `Save an extra $${extraNeeded}/mo` : "Reduce monthly spending"
+          });
+        }
+
+        // Budget discipline
+        if (adherenceScore < 25 && overSpendCount > 0) {
+          const overspentCats = cats.filter(c => c.budget > 0 && c.spent > c.budget);
+          const worstCat = overspentCats.sort((a, b) => (b.spent - b.budget) - (a.spent - a.budget))[0];
+          const pts = Math.min(overSpendCount * 3, ptsNeeded);
+          actions.push({
+            action: `Bring ${worstCat?.label || "overspent categories"} back on budget`,
+            pts,
+            detail: worstCat ? `Over by $${Math.round(worstCat.spent - worstCat.budget)} this month` : `${overSpendCount} categories over budget`
+          });
+        }
+
+        // Debt load
+        if (debtScore < 20 && dti > 15) {
+          const targetDTI = dti > 35 ? 35 : 25;
+          actions.push({
+            action: `Reduce debt-to-income ratio to ${targetDTI}%`,
+            pts: Math.min(20 - debtScore, ptsNeeded),
+            detail: `Currently at ${dti.toFixed(0)}% — pay down highest APR debt first`
+          });
+        }
+
+        // Cash buffer
+        if (bufferScore < 20 && bufferMonths < 1) {
+          actions.push({
+            action: "Build a 1-month cash buffer",
+            pts: Math.min(14 - bufferScore, ptsNeeded),
+            detail: `Currently ${bufferMonths.toFixed(1)} months — aim for 1+ month of expenses`
+          });
+        }
+
+        // Goals
+        if (goalsScore < 10 && goals.length > 0) {
+          const offTrack = goals.filter(g => g.riskStatus !== "on_track").length;
+          if (offTrack > 0) actions.push({
+            action: `Get ${offTrack} goal${offTrack > 1 ? "s" : ""} back on track`,
+            pts: Math.min(10 - goalsScore, ptsNeeded),
+            detail: "Increase monthly contributions or adjust target dates"
+          });
+        } else if (goals.length === 0) {
+          actions.push({
+            action: "Set your first financial goal",
+            pts: 5,
+            detail: "Unlock the full goals scoring dimension"
+          });
+        }
+
+        // Sort by pts descending, take top 3
+        const top = actions.sort((a, b) => b.pts - a.pts).slice(0, 3);
+        const totalPtsAvailable = top.reduce((s, a) => s + a.pts, 0);
+        const projectedScore = Math.min(100, score + totalPtsAvailable);
+        const projectedGrade = projectedScore >= 85 ? "A" : projectedScore >= 70 ? "B" : projectedScore >= 55 ? "C" : projectedScore >= 40 ? "D" : "F";
+
+        return (
+          <div style={{ marginTop: 14, padding: "14px", background: `${T.esp}06`, borderRadius: 14, border: `1px solid ${T.esp}15` }}>
+            <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.esp, margin: "0 0 10px" }}>
+              PATH TO {nextGrade} · {ptsNeeded} PTS NEEDED
+            </p>
+            {top.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                <div style={{ minWidth: 36, height: 22, background: T.gold, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                  <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: "#fff" }}>+{a.pts}</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.esp, margin: "0 0 1px" }}>{a.action}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>{a.detail}</p>
+                </div>
+              </div>
+            ))}
+            {totalPtsAvailable > 0 && projectedGrade !== grade && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.linen}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>Do all three →</p>
+                <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, margin: 0 }}>
+                  {score} → {projectedScore} · {grade} → {projectedGrade} ✦
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
