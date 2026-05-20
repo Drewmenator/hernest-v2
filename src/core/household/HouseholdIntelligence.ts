@@ -223,15 +223,60 @@ export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdS
   const householdStressLevel: HouseholdSnapshot["householdStressLevel"] =
     stressScore >= 4 ? "high" : stressScore >= 2 ? "moderate" : "low";
 
-  const healthScore = (budgetData?.healthScore as any) || null;
+  // ── Live financial health score (5 dimensions) ─────────────────
+  // 1. Savings rate (0-25pts)
+  const savingsScore =
+    savingsRate >= 20 ? 25 :
+    savingsRate >= 10 ? 15 :
+    savingsRate >= 5  ? 8  : 0;
+
+  // 2. Budget adherence (0-25pts)
+  const adherenceScore = (() => {
+    if (totalBudget === 0) return 10;
+    const adherencePct = Math.max(0, (totalBudget - totalSpent) / totalBudget);
+    const overSpendCount = cats.filter((c: any) => c.budget > 0 && c.spent > c.budget).length;
+    const base = Math.round(adherencePct * 25);
+    return Math.max(0, base - (overSpendCount * 3));
+  })();
+
+  // 3. Debt-to-income ratio (0-20pts)
+  const debtScore =
+    monthlyIncome === 0 ? 10 :
+    dti < 15 ? 20 :
+    dti < 25 ? 15 :
+    dti < 35 ? 8  :
+    dti < 50 ? 3  : 0;
+
+  // 4. Cash buffer (0-20pts)
+  const bufferMonths = totalSpent > 0 ? cashRemaining / (totalSpent / (now.getDate() || 1)) : 0;
+  const bufferScore =
+    bufferMonths >= 3 ? 20 :
+    bufferMonths >= 1 ? 14 :
+    bufferMonths >= 0.5 ? 8 :
+    cashRemaining > 0 ? 4 : 0;
+
+  // 5. Goals on track (0-10pts)
+  const goalsScore = (() => {
+    if (!goals.length) return 5;
+    const onTrack = goals.filter((g: any) => (g.riskStatus || "on_track") === "on_track").length;
+    return Math.round((onTrack / goals.length) * 10);
+  })();
+
+  const rawScore = savingsScore + adherenceScore + debtScore + bufferScore + goalsScore;
+  const financialHealthScore = Math.min(100, Math.max(0, rawScore));
+  const financialHealthGrade =
+    financialHealthScore >= 85 ? "A" :
+    financialHealthScore >= 70 ? "B" :
+    financialHealthScore >= 55 ? "C" :
+    financialHealthScore >= 40 ? "D" : "F";
 
   return {
     financial: {
       monthlyIncome, totalBudget, totalSpent, cashRemaining,
       savingsRate, totalDebt, debtToIncomeRatio: dti, projectedMonthEnd,
       topOverspendCategories: cats.filter((c: any) => c.spent > c.budget).map((c: any) => c.label),
-      financialHealthScore: healthScore?.score || 0,
-      financialHealthGrade: healthScore?.grade || "—",
+      financialHealthScore,
+      financialHealthGrade,
       upcomingTripObligation: upcomingTrip ? {
         name: upcomingTrip.destination,
         amount: upcomingTrip.budget?.total || 0,
