@@ -17,7 +17,7 @@ export const HomeIcon = (p: IconProps) => <I {...p}>
   <path d="M9 22V12h6v10"/>
 </I>;
 
-export const NoraIcon = (p: IconProps) => <I {...p}>
+export const CleoIcon = (p: IconProps) => <I {...p}>
   <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
 </I>;
 

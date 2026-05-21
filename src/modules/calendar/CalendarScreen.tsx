@@ -266,7 +266,7 @@ export function CalendarScreen() {
         if (!text.includes("BEGIN:VCALENDAR")) { toast.error("Not a valid .ics file"); return; }
         setPendingIcal({ text, filename: file.name });
       } else if (["pdf","png","jpg","jpeg"].includes(ext)) {
-        // Use Nora to extract events from PDF/image
+        // Use Cleo to extract events from PDF/image
         setUploadingSchool(true);
         const base64 = await new Promise<string>((res,rej) => {
           const r = new FileReader();
@@ -418,7 +418,7 @@ export function CalendarScreen() {
         <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:16 }}>💛</span>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-            Things look heavy right now. Focus on what matters most — Nora's got the rest.
+            Things look heavy right now. Focus on what matters most — Cleo's got the rest.
           </p>
         </div>
       )}
@@ -656,7 +656,7 @@ export function CalendarScreen() {
       {view==="school" && <>
         <div style={{ marginBottom:12 }}>
           <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, lineHeight:1.6, margin:"0 0 12px" }}>
-            Add a school calendar for each child. Paste newsletter text and Nora will extract all events automatically.
+            Add a school calendar for each child. Paste newsletter text and Cleo will extract all events automatically.
           </p>
           {/* Per-child school calendar */}
           {((profile as any)?.kids || (profile as any)?.children || []).length > 0 ? (

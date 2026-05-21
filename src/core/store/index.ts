@@ -44,7 +44,7 @@ export interface UserProfile {
   style?: { bodyShape: string; size: string; height: string; vibe: string; dressCode: string; budget: string };
 }
 
-export type HouseholdModule = "budget" | "calendar" | "family" | "trips" | "thrive" | "style" | "nora" | "home" | "plan" | "circle";
+export type HouseholdModule = "budget" | "calendar" | "family" | "trips" | "thrive" | "style" | "cleo" | "home" | "plan" | "circle";
 export type InsightCategory = "spending" | "savings" | "debt" | "cashflow" | "stress" | "scheduling" | "family" | "health" | "decision" | "opportunity";
 
 export interface HouseholdInsight {

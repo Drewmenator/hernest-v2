@@ -127,7 +127,7 @@ Rules:
 - Never guarantee outcomes or provide investment/legal/tax advice`;
 
   type RawInsight = Omit<HouseholdInsight, "id" | "createdAt">;
-  const results = await aiJSON<RawInsight[]>(sys, "Generate household insights", "nora_chat", []);
+  const results = await aiJSON<RawInsight[]>(sys, "Generate household insights", "cleo_chat", []);
   if (!results.length) return [];
 
   return results.map(ins => ({

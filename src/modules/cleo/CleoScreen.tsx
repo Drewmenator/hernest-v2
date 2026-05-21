@@ -4,9 +4,9 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Spinner } from "../../shared/components";
 import { ai } from "../../core/ai";
-import { askNora } from "../../core/aiOrchestrator";
+import { askCleo } from "../../core/aiOrchestrator";
 import { bus } from "../../core/events";
-import { useAdaptiveUX, getNoraToneProfile } from "../../core/household/adaptiveUX";
+import { useAdaptiveUX, getCleoToneProfile } from "../../core/household/adaptiveUX";
 import { useContextGraph } from "../../core/graph";
 import { extractFactsFromConversation, saveMemoryFacts, buildMemoryContext } from "../../core/memory";
 import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
@@ -73,10 +73,10 @@ const QUICK_REPLIES = [
   "I need to vent",
 ];
 
-export function NoraScreen() {
+export function CleoScreen() {
   const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
   const adaptiveConfig = useAdaptiveUX(householdSnapshot ?? null);
-  const { noraPack } = useContextGraph();
+  const { cleoPack } = useContextGraph();
   const [msgs, setMsgs]       = useState<Msg[]>([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -105,7 +105,7 @@ export function NoraScreen() {
         });
         setHouseholdCtxStr(ctxStr);
       } catch (e) {
-        console.warn("[Nora] household context build failed:", e);
+        console.warn("[Cleo] household context build failed:", e);
       }
     };
     buildCtx();
@@ -113,7 +113,7 @@ export function NoraScreen() {
 
   // ── Session restore ───────────────────────────────────────────────
   useEffect(() => {
-    const saved = sessionStorage.getItem(`nora_session_${user?.uid}`);
+    const saved = sessionStorage.getItem(`cleo_session_${user?.uid}`);
     if (saved) {
       try { setMsgs(JSON.parse(saved)); return; } catch {}
     }
@@ -180,7 +180,7 @@ export function NoraScreen() {
 
   useEffect(() => {
     if (user?.uid && msgs.length > 1) {
-      sessionStorage.setItem(`nora_session_${user.uid}`, JSON.stringify(msgs));
+      sessionStorage.setItem(`cleo_session_${user.uid}`, JSON.stringify(msgs));
     }
   }, [msgs]);
 
@@ -213,10 +213,10 @@ export function NoraScreen() {
     setFeedback(p => ({ ...p, [index]: type }));
     if (!user?.uid) return;
     try {
-      const existing = await loadData(user.uid, "nora_feedback");
+      const existing = await loadData(user.uid, "cleo_feedback");
       const items = (existing?.items as any[]) || [];
       items.unshift({ type, content: content.slice(0, 200), timestamp: Date.now() });
-      await saveData(user.uid, "nora_feedback", { items: items.slice(0, 50) });
+      await saveData(user.uid, "cleo_feedback", { items: items.slice(0, 50) });
     } catch {}
   };
 
@@ -239,8 +239,8 @@ export function NoraScreen() {
           content: `I'm really glad you told me. What you're feeling is real, and you don't have to carry it alone.\n\nI'm not equipped to help in the way you deserve right now, but these people are:\n\n🆘 **Samaritans**: 116 123 (free, 24/7)\n🆘 **Shout**: Text SHOUT to 85258\n🆘 **NHS 111** or **999** if you're in immediate danger\n\nYou matter. Please reach out to one of these services — they want to hear from you.`,
         };
         setMsgs(p => [...p, crisisResp]);
-        trackEvent("nora_crisis_detected");
-        await bus.publish("nora.crisis.detected", { message: msg }, { userId: user!.uid, source: "nora" });
+        trackEvent("cleo_crisis_detected");
+        await bus.publish("cleo.crisis.detected", { message: msg }, { userId: user!.uid, source: "cleo" });
         setLoading(false);
         return;
       }
@@ -249,15 +249,15 @@ export function NoraScreen() {
 
       // ── Build enriched context ───────────────────────────────────
       // Adaptive tone based on household state
-      const toneInstruction = adaptiveConfig.noraTone === "validating_brief"
+      const toneInstruction = adaptiveConfig.cleoTone === "validating_brief"
         ? "TONE THIS SESSION: Household is under pressure. Lead with empathy. Short responses only. One thing at a time."
-        : adaptiveConfig.noraTone === "supportive_simple"
+        : adaptiveConfig.cleoTone === "supportive_simple"
         ? "TONE THIS SESSION: Warm and supportive. Keep it simple and reassuring."
-        : adaptiveConfig.noraTone === "calm_analytical"
+        : adaptiveConfig.cleoTone === "calm_analytical"
         ? "TONE THIS SESSION: Be thorough and data-driven. The user wants depth and analysis."
         : "TONE THIS SESSION: Warm, proactive, direct. Surface what matters.";
 
-      const graphCtx = noraPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${noraPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
+      const graphCtx = cleoPack?.crossModulePatterns?.length ? `\n\nCROSS-MODULE PATTERNS:\n${cleoPack.crossModulePatterns.slice(0,3).map((p: any) => `- ${p.description || p}`).join("\n")}` : "";
       const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
       const familyRoster = familyMembers.length > 0
         ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")
@@ -270,14 +270,14 @@ export function NoraScreen() {
         : "";
 
       // ── System prompt ────────────────────────────────────────────
-      let sys = `You are Nora — the AI chief of staff for ${name}'s household inside HerNest.
+      let sys = `You are Cleo — the AI chief of staff for ${name}'s household inside HerNest.
 
 You are not a chatbot. You are the operating system consciousness of this household.
 
 YOUR IDENTITY:
 Calm under pressure. Deeply organized. Emotionally intelligent. Proactive but never annoying. Highly competent. Trustworthy with family life. Quietly premium. Systems-oriented.
 
-The emotional effect you create: "I feel more in control of my life when Nora is around."
+The emotional effect you create: "I feel more in control of my life when Cleo is around."
 
 ABOUT THIS HOUSEHOLD:
 ${profileCtx}
@@ -354,10 +354,10 @@ Sound like a trusted CFO friend — warm but rigorous.`;
         sys += `\n\nCONVERSATION SO FAR: This is message ${msgs.length} in an ongoing conversation. Stay consistent with what you've already said. Build on previous exchanges rather than starting fresh.`;
       }
       // ── Orchestrator handles context, model routing, memory writeback ──
-      const noraText = await askNora(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
-      const result = { text: noraText, error: null };
+      const cleoText = await askCleo(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
+      const result = { text: cleoText, error: null };
 
-      if (!noraText) throw new Error("empty response");
+      if (!cleoText) throw new Error("empty response");
 
       // ── Parse task extraction (unchanged) ────────────────────────
       let responseText = result.text;
@@ -387,7 +387,7 @@ Sound like a trusted CFO friend — warm but rigorous.`;
       // ── Background fact extraction (unchanged) ───────────────────
       const allMsgs = [...msgs, userMsg, assistantMsg];
       if (user?.uid) {
-        await bus.publish("nora.conversation.ended", { messages: allMsgs }, { userId: user.uid, source: "nora" });
+        await bus.publish("cleo.conversation.ended", { messages: allMsgs }, { userId: user.uid, source: "cleo" });
         extractFactsFromConversation(allMsgs, user.uid).then(facts => {
           if (facts.length > 0 && user.uid) saveMemoryFacts(user.uid, facts);
         }).catch(() => {});
@@ -405,12 +405,12 @@ Sound like a trusted CFO friend — warm but rigorous.`;
     const current = (existing?.tasks as any[]) || [];
     const newTasks = pendingTasks.map(t => ({
       id: t.id, title: t.title, category: t.category,
-      done: false, priority: "medium", source: "nora",
+      done: false, priority: "medium", source: "cleo",
       dueDate: t.dueDate || undefined, createdAt: Date.now(),
     }));
     await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
     for (const task of newTasks) {
-      await bus.publish("plan.task.created", task, { userId: user.uid, source: "nora" });
+      await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }
     setPendingTasks([]);
     toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan ✓`);
@@ -429,12 +429,12 @@ Sound like a trusted CFO friend — warm but rigorous.`;
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
         <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
         <div>
-          <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Nora</p>
+          <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Cleo</p>
           <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>
             ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
           </p>
         </div>
-        <button onClick={()=>{ setMsgs([]); sessionStorage.removeItem(`nora_session_${user?.uid}`); }}
+        <button onClick={()=>{ setMsgs([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
           style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
           New chat
         </button>
@@ -516,7 +516,7 @@ Sound like a trusted CFO friend — warm but rigorous.`;
             value={input}
             onChange={e=>{ setInput(e.target.value); e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"; }}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
-            placeholder="Talk to Nora..."
+            placeholder="Talk to Cleo..."
             rows={1}
             disabled={loading}
             style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:16, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"none", lineHeight:1.5, minHeight:48, WebkitOverflowScrolling:"touch" as any }}

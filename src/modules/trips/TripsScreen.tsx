@@ -359,7 +359,7 @@ export function TripsScreen() {
     const adults = trip.travellers.filter(t => t.type === "adult");
     const days = Math.min(trip.nights, 7);
 
-    const sys = `You are Nora, a family travel planner. Return ONLY valid JSON:
+    const sys = `You are Cleo, a family travel planner. Return ONLY valid JSON:
 {"days":[{"day":1,"date":"YYYY-MM-DD","theme":"string","morning":"activity","afternoon":"activity","evening":"dinner spot","tip":"local tip","mumMoment":"something special just for her — rest, beauty, joy"}]}
 Generate exactly ${days} days. Keep each field under 12 words. Make it feel achievable not exhausting.`;
 
@@ -390,7 +390,7 @@ Make it family-friendly but include a mum moment each day.`;
     const kids = trip.travellers.filter(t => t.type === "child");
     const hasKids = kids.length > 0;
 
-    const sys = `You are Nora. Generate a smart family packing list. Return ONLY valid JSON:
+    const sys = `You are Cleo. Generate a smart family packing list. Return ONLY valid JSON:
 {"sections":[{"name":"Mum","items":[{"name":"Underwear","quantity":7,"essential":true,"weatherDependent":false}]},{"name":"${hasKids ? "Kids" : "Partner"}","items":[]},{"name":"Everyone","items":[]},{"name":"Documents","items":[]},{"name":"Tech","items":[]}]}
 Each item: name, quantity (number), essential (bool), weatherDependent (bool). Max 12 items per section.`;
 
@@ -487,7 +487,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
         <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:16 }}>💛</span>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-            Things look heavy right now. Focus on what matters most — Nora's got the rest.
+            Things look heavy right now. Focus on what matters most — Cleo's got the rest.
           </p>
         </div>
       )}
@@ -662,7 +662,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
             <p style={{ fontSize: 48, marginBottom: 12 }}>✈</p>
             <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Where next?</p>
-            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 20px" }}>Plan a trip and Nora will help reduce the stress of every step.</p>
+            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 20px" }}>Plan a trip and Cleo will help reduce the stress of every step.</p>
             <button onClick={() => setShowAdd(true)}
               style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "12px 24px", fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
               Plan a trip ✦
@@ -855,7 +855,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
             </Card>
           )) : (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>No itinerary yet — let Nora plan your days.</p>
+              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>No itinerary yet — let Cleo plan your days.</p>
               <Button onClick={() => generateItinerary(trip)} disabled={planning} variant="gold">
                 {planning ? "Planning..." : "✦ Generate Itinerary"}
               </Button>
@@ -878,7 +878,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           {trip.packingList.length ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <AIBadge label="Packed by Nora" />
+                <AIBadge label="Packed by Cleo" />
                 <button onClick={() => generatePackingList(trip)} disabled={packingLoading}
                   style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer" }}>
                   {packingLoading ? "..." : "↻ Redo"}
@@ -916,7 +916,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
             </>
           ) : (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>Nora will build a smart packing list for your family.</p>
+              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>Cleo will build a smart packing list for your family.</p>
               <Button onClick={() => generatePackingList(trip)} disabled={packingLoading} variant="gold">
                 {packingLoading ? "Building list..." : "✦ Generate Packing List"}
               </Button>

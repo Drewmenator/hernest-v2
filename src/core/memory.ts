@@ -1,6 +1,6 @@
 // ─── HerNest Memory Service ───────────────────────────────────────
 // Per blueprint: extracts facts from conversations and stores in Firestore
-// Every Nora conversation → fact extraction → memory graph
+// Every Cleo conversation → fact extraction → memory graph
 
 import { saveData, loadData } from "./firebase";
 import { ai } from "./ai";
@@ -37,7 +37,7 @@ Return ONLY valid JSON array, no markdown:
 Only extract clear, specific facts. Ignore vague statements.
 Maximum 5 facts per conversation. Return [] if nothing clear to extract.`;
 
-  const result = await ai(sys, `Extract facts from: ${userMessages}`, "nora_chat");
+  const result = await ai(sys, `Extract facts from: ${userMessages}`, "cleo_chat");
   if (result.error) return [];
 
   try {
@@ -68,7 +68,7 @@ export async function saveMemoryFacts(
   if (!newFacts.length) return;
 
   try {
-    const existing = await loadData(userId, "nora_memory");
+    const existing = await loadData(userId, "cleo_memory");
     const existingFacts: MemoryFact[] = (existing?.facts as MemoryFact[]) || [];
 
     // Deduplicate — don't add if similar statement already exists
@@ -85,10 +85,10 @@ export async function saveMemoryFacts(
     const valid = existingFacts.filter(f => !f.expiresAt || f.expiresAt > now);
 
     const merged = [...filtered, ...valid].slice(0, 100); // Max 100 facts
-    await saveData(userId, "nora_memory", { facts: merged });
+    await saveData(userId, "cleo_memory", { facts: merged });
 
     await bus.publish(
-      "nora.memory.updated",
+      "cleo.memory.updated",
       { added: filtered.length, total: merged.length },
       { userId, source: "memory" }
     );
@@ -100,7 +100,7 @@ export async function saveMemoryFacts(
 // Load all memory facts for a user
 export async function loadMemoryFacts(userId: string): Promise<MemoryFact[]> {
   try {
-    const data = await loadData(userId, "nora_memory");
+    const data = await loadData(userId, "cleo_memory");
     if (!data?.facts) return [];
     const now = Date.now();
     return (data.facts as MemoryFact[]).filter(f => !f.expiresAt || f.expiresAt > now);

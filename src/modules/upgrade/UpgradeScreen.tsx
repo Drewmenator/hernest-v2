@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 
 const PRO_FEATURES = [
   { icon:"✦", label:"Unlimited AI requests" },
-  { icon:"🧠", label:"Nora's full memory & learning" },
+  { icon:"🧠", label:"Cleo's full memory & learning" },
   { icon:"◈", label:"Google + Apple + Outlook calendar sync" },
   { icon:"💰", label:"Household CFO — full scenario planning" },
   { icon:"✈️", label:"Complete trip intelligence" },

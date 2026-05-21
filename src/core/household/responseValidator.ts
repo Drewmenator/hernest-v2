@@ -5,7 +5,7 @@
 // Responsibilities:
 // 1. Schema validation    — is the JSON structure valid?
 // 2. Safety guardrails    — does it contain forbidden advice?
-// 3. Tone validation      — is it consistent with Nora's voice?
+// 3. Tone validation      — is it consistent with Cleo's voice?
 // 4. Confidence scoring   — normalize overconfident claims
 // 5. Repair step          — retry malformed JSON once before fallback
 // 6. Length normalization — adapt to household state
@@ -39,7 +39,7 @@ export interface ValidationWarning {
 
 // ═══════════════════════════════════════════════════════════════════
 // SAFETY GUARDRAILS
-// Patterns that must NEVER appear in Nora responses
+// Patterns that must NEVER appear in Cleo responses
 // ═══════════════════════════════════════════════════════════════════
 
 const FORBIDDEN_PATTERNS: { pattern: RegExp; code: string; reason: string }[] = [
@@ -78,7 +78,7 @@ const WARNING_PATTERNS: { pattern: RegExp; code: string; message: string }[] = [
 
 // ═══════════════════════════════════════════════════════════════════
 // TONE VALIDATOR
-// Ensures response matches Nora's voice
+// Ensures response matches Cleo's voice
 // ═══════════════════════════════════════════════════════════════════
 
 const NORA_TONE_MARKERS = {
@@ -95,7 +95,7 @@ function validateTone(text: string): ValidationWarning[] {
   if (!isWarm && !isPractical && text.length > 200) {
     warnings.push({
       code: "tone_mismatch",
-      message: "Response may not match Nora's warm, practical voice",
+      message: "Response may not match Cleo's warm, practical voice",
       severity: "info",
     });
   }
@@ -142,7 +142,7 @@ function adaptLength(
   if (!householdState) return { text, adjusted: false };
 
   const state = householdState.primary.state;
-  const tone  = householdState.noraTone;
+  const tone  = householdState.cleoTone;
 
   // Overloaded state: truncate long responses
   if (tone === "validating_brief" && text.length > 800) {

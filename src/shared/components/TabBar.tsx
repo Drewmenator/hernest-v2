@@ -1,12 +1,12 @@
 // ─── HerNest V2 Tab Bar ───────────────────────────────────────────
 import React from "react";
 import { T, F } from "../../config/theme";
-import { HomeIcon, NoraIcon, PlanIcon, BudgetIcon, BriefIcon, FamilyIcon, ThriveIcon, StyleIcon, TripsIcon, CircleIcon, CalendarIcon, ProfileIcon, SettingsIcon, UpgradeIcon, MoreIcon } from "./Icons";
+import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, BriefIcon, FamilyIcon, ThriveIcon, StyleIcon, TripsIcon, CircleIcon, CalendarIcon, ProfileIcon, SettingsIcon, UpgradeIcon, MoreIcon } from "./Icons";
 import { useStore } from "../../core/store";
 
 const TABS = [
   { id: "home",     label: "Home",    IC: HomeIcon },
-  { id: "nora",     label: "Nora",    IC: NoraIcon },
+  { id: "cleo",     label: "Cleo",    IC: CleoIcon },
   { id: "plan",     label: "Plan",    IC: PlanIcon },
   { id: "budget",   label: "Budget",  IC: BudgetIcon },
   { id: "briefing", label: "Brief",   IC: BriefIcon },

@@ -3,7 +3,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData } from "../../core/firebase";
 
-interface Msg { role: "nora" | "user"; text: string; }
+interface Msg { role: "cleo" | "user"; text: string; }
 
 interface SetupData {
   name?: string;
@@ -40,7 +40,7 @@ function parseKids(input: string): Array<{name: string; age: number}> {
   }).filter(k => k.name.length > 0);
 }
 
-export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
+export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
   const { user, setProfile } = useStore();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -53,10 +53,10 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
   // Opening message
   useEffect(() => {
-    const intro = `Hi ✦ I'm Nora — your household's AI chief of staff.\n\nI'm going to ask you a few quick questions so I can set up your household properly. The more you tell me, the more useful I'll be from day one.\n\nThis takes about 2 minutes.`;
-    setMsgs([{ role: "nora", text: intro }]);
+    const intro = `Hi ✦ I'm Cleo — your household's AI chief of staff.\n\nI'm going to ask you a few quick questions so I can set up your household properly. The more you tell me, the more useful I'll be from day one.\n\nThis takes about 2 minutes.`;
+    setMsgs([{ role: "cleo", text: intro }]);
     setTimeout(() => {
-      setMsgs(prev => [...prev, { role: "nora", text: NORA_QUESTIONS.name(data) }]);
+      setMsgs(prev => [...prev, { role: "cleo", text: NORA_QUESTIONS.name(data) }]);
       inputRef.current?.focus();
     }, 1200);
   }, []);
@@ -105,10 +105,10 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
     setData(newData);
     setStep(nextStep);
 
-    // Show Nora response after brief delay
+    // Show Cleo response after brief delay
     setTimeout(async () => {
-      const noraResponse = NORA_QUESTIONS[nextStep](newData);
-      setMsgs(prev => [...prev, { role: "nora", text: noraResponse }]);
+      const cleoResponse = NORA_QUESTIONS[nextStep](newData);
+      setMsgs(prev => [...prev, { role: "cleo", text: cleoResponse }]);
 
       if (nextStep === "done") {
         setDone(true);
@@ -175,7 +175,7 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
     <div style={{ minHeight: "100vh", background: T.cream, display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ padding: "52px 24px 16px", borderBottom: `1px solid ${T.linen}` }}>
-        <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Nora ✦</p>
+        <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
         <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
       </div>
 
@@ -183,7 +183,7 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
         {msgs.map((msg, i) => (
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-            {msg.role === "nora" && (
+            {msg.role === "cleo" && (
               <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.esp, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 10, marginTop: 4 }}>
                 <span style={{ fontSize: 14 }}>✦</span>
               </div>
@@ -197,7 +197,7 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
               fontFamily: F.sans,
               fontSize: 14,
               lineHeight: 1.6,
-              border: msg.role === "nora" ? `1px solid ${T.linen}` : "none",
+              border: msg.role === "cleo" ? `1px solid ${T.linen}` : "none",
               whiteSpace: "pre-wrap",
             }}>
               {msg.text}
@@ -258,5 +258,5 @@ export function NoraSetupScreen({ onComplete }: { onComplete?: () => void }) {
 // Default export wraps with store navigation
 export function OnboardingScreen() {
   const { setScreen } = useStore();
-  return <NoraSetupScreen onComplete={() => setScreen("app")} />;
+  return <CleoSetupScreen onComplete={() => setScreen("app")} />;
 }

@@ -929,7 +929,7 @@ Scoring guidelines:
     setCoachInput("");
     setCoachLoading(true);
 
-    const sys = `You are Nora, HerNest's Household CFO — a warm, brilliant financial advisor for modern families. You combine emotional intelligence with rigorous financial analysis using Decision Quality methodology.
+    const sys = `You are Cleo, HerNest's Household CFO — a warm, brilliant financial advisor for modern families. You combine emotional intelligence with rigorous financial analysis using Decision Quality methodology.
 
 ${buildFinancialContext()}
 
@@ -963,7 +963,7 @@ Your response style:
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    toast("Nora is reading your transactions...", { icon: "✦" });
+    toast("Cleo is reading your transactions...", { icon: "✦" });
     const sys = `Categorize these bank transactions. Return ONLY valid JSON array:
 [{"merchant":"string","amount":0.00,"category":"groceries|kids|fitness|dining|shopping|transport|health|bills|entertainment|subscriptions|childcare|medical|other","date":"YYYY-MM-DD"}]
 Maximum 50 transactions.`;
@@ -1153,7 +1153,7 @@ Maximum 50 transactions.`;
             <span style={{ fontSize: 20 }}>📄</span>
             <div style={{ flex: 1 }}>
               <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>Import bank statement</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>Upload CSV — Nora categorizes automatically</p>
+              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>Upload CSV — Cleo categorizes automatically</p>
             </div>
             <label style={{ background: T.esp, color: "#fff", borderRadius: 10, padding: "6px 14px", fontFamily: F.sans, fontSize: 12, cursor: "pointer" }}>
               Upload
@@ -1588,7 +1588,7 @@ Maximum 50 transactions.`;
             {insightsLoading && (
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px", background: T.sand, borderRadius: 16 }}>
                 <Spinner size={18} />
-                <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Nora is analyzing your household finances...</p>
+                <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Cleo is analyzing your household finances...</p>
               </div>
             )}
 
@@ -1600,7 +1600,7 @@ Maximum 50 transactions.`;
               <div style={{ padding: "32px 20px", textAlign: "center", background: T.sand, borderRadius: 20, border: `1px dashed ${T.linen}` }}>
                 <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>No insights yet</p>
                 <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px" }}>
-                  Nora will analyze your spending patterns, flag anomalies, and surface opportunities.
+                  Cleo will analyze your spending patterns, flag anomalies, and surface opportunities.
                 </p>
                 <button onClick={generateInsights}
                   style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "10px 24px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>

@@ -149,14 +149,14 @@ export function ProfileScreen() {
     setMemories(updated);
     setNewFact("");
     await saveMemoryFacts(user.uid, [fact]);
-    await bus.publish("nora.memory.updated", { fact }, { userId: user.uid, source: "profile" });
-    toast.success("Nora will remember that ✦");
+    await bus.publish("cleo.memory.updated", { fact }, { userId: user.uid, source: "profile" });
+    toast.success("Cleo will remember that ✦");
   };
 
   const deleteFact = async (id: string) => {
     const updated = memories.filter(f=>f.id!==id);
     setMemories(updated);
-    if (user?.uid) await saveData(user.uid, "nora_memory", { facts: updated });
+    if (user?.uid) await saveData(user.uid, "cleo_memory", { facts: updated });
   };
 
   // ── Family helpers ────────────────────────────────────────────────
@@ -225,7 +225,7 @@ export function ProfileScreen() {
         {/* Focus word theme per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>FOCUS WORD THEME</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Nora uses this to personalise your morning focus word</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalise your morning focus word</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {FOCUS_THEMES.map(t=>(
               <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:"#fff", color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
@@ -238,7 +238,7 @@ export function ProfileScreen() {
         {/* Priorities per blueprint with ranking */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 6px" }}>LIFE PRIORITIES (up to 5)</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Nora uses this to understand what matters most to you</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to understand what matters most to you</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
             {PRIORITY_AREAS.map(area=>{
               const isSelected = priorities.some(p=>p.area===area);
@@ -408,7 +408,7 @@ export function ProfileScreen() {
 
       {/* ── MEMORY per blueprint ───────────────────────────────────── */}
       {section==="memory" && <>
-        <HeroCard eyebrow="NORA'S BRAIN" title="What Nora knows" subtitle={`${memories.length} facts · Updated from conversations`} color={T.esp}/>
+        <HeroCard eyebrow="NORA'S BRAIN" title="What Cleo knows" subtitle={`${memories.length} facts · Updated from conversations`} color={T.esp}/>
 
         {/* Memory type breakdown per blueprint */}
         {memories.length > 0 && (
@@ -434,7 +434,7 @@ export function ProfileScreen() {
               </button>
             ))}
           </div>
-          <Button onClick={addFact} disabled={!newFact.trim()} variant="secondary">Tell Nora ✦</Button>
+          <Button onClick={addFact} disabled={!newFact.trim()} variant="secondary">Tell Cleo ✦</Button>
         </Card>
 
         {filteredMemories.length > 0 && (
@@ -462,7 +462,7 @@ export function ProfileScreen() {
         )}
 
         {memories.length === 0 && (
-          <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0", lineHeight:1.6 }}>Nora's memory is empty.<br/>Chat with Nora or add facts above to help her know you better.</p></Card>
+          <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0", lineHeight:1.6 }}>Cleo's memory is empty.<br/>Chat with Cleo or add facts above to help her know you better.</p></Card>
         )}
       </>}
 

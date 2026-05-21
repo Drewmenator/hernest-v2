@@ -16,7 +16,7 @@ interface Task {
   category: "family"|"work"|"home"|"travel"|"personal"|"School";
   priority: "must"|"nice"|"critical"|"high"|"medium"|"low";
   status: "pending"|"completed";
-  source: "manual"|"nora"|"school"|"trip";
+  source: "manual"|"cleo"|"school"|"trip";
   energyRequired: "high"|"medium"|"low";
   userConfirmed: boolean;
   dueDate?: string; estimatedMinutes?: number;
@@ -146,7 +146,7 @@ export function PlanScreen() {
     if (!newsletterText.trim()) return;
     setExtracting(true);
 
-    const sys = `You are Nora extracting school events. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated. Return ONLY valid JSON array:
+    const sys = `You are Cleo extracting school events. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated. Return ONLY valid JSON array:
 [{
   "title":"string",
   "date":"YYYY-MM-DD",
@@ -205,7 +205,7 @@ Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
     const energy = p?.energyPattern || "morning";
     const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
 
-    const sys = `You are Nora, a meal planner. Return ONLY valid JSON:
+    const sys = `You are Cleo, a meal planner. Return ONLY valid JSON:
 {
   "days": [
     {"dayName":"Monday","date":"YYYY-MM-DD","breakfast":"string","lunch":"string","dinner":"string","snack":"string","prepNotes":"string","prepTime":30}
@@ -280,7 +280,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       {/* Unconfirmed tasks alert per blueprint */}
       {unconfirmedCount > 0 && (
         <div style={{ background:`${T.gold}15`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.gold, margin:0 }}>{unconfirmedCount} task{unconfirmedCount>1?"s":""} from Nora need your confirmation</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.gold, margin:0 }}>{unconfirmedCount} task{unconfirmedCount>1?"s":""} from Cleo need your confirmation</p>
           <button onClick={()=>setFilter("unconfirmed")} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"4px 10px", fontFamily:F.sans, fontSize:11, cursor:"pointer", minHeight:28 }}>Review</button>
         </div>
       )}
@@ -343,7 +343,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
           <div style={{ textAlign:"center", padding:"32px 16px" }}>
             <p style={{ fontSize:40, marginBottom:12 }}>✓</p>
             <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>{filter==="done" ? "Nothing completed yet" : "Your list is clear"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px", lineHeight:1.6 }}>{filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Nora to extract tasks from a message."}</p>
+            <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px", lineHeight:1.6 }}>{filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Cleo to extract tasks from a message."}</p>
           </div>
         ) : filteredTasks.map(t=>(
           <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:t.status==="completed"?"#fff":t.priority==="must"?`${T.esp}06`:`${T.sage}06`, borderRadius:16, border:`1.5px solid ${t.status==="completed"?T.linen:t.priority==="must"?`${T.esp}20`:`${T.sage}20`}`, marginBottom:8 }}>
@@ -372,9 +372,9 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       {tab==="school" && <>
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>PASTE NEWSLETTER TEXT</p>
-          <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Nora will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:13, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
+          <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:13, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
           <Button onClick={extractFromNewsletter} disabled={!newsletterText.trim()||extracting} variant="gold">
-            {extracting?"✦ Nora is reading...":"✦ Extract Events & Actions"}
+            {extracting?"✦ Cleo is reading...":"✦ Extract Events & Actions"}
           </Button>
         </Card>
 
@@ -382,7 +382,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
           <Card>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>SCHOOL EVENTS ({schoolEvents.length})</p>
-              <AIBadge label="Extracted by Nora"/>
+              <AIBadge label="Extracted by Cleo"/>
             </div>
             {schoolEvents.map(e=>{
               const typeColors: Record<string,string> = { "parent-evening":T.blush, trip:T.gold, deadline:"#dc2626", sport:T.sage };
@@ -481,7 +481,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
         {!mealPlan && !generatingMeals && (
           <Card>
             <p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0", lineHeight:1.6 }}>
-              Nora will plan 7 days of meals based on your diet preferences, family size, and energy pattern — with a categorized shopping list.
+              Cleo will plan 7 days of meals based on your diet preferences, family size, and energy pattern — with a categorized shopping list.
             </p>
           </Card>
         )}

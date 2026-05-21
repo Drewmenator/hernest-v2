@@ -10,8 +10,8 @@
 //   5. Memories decay or expire when no longer useful
 //   6. Conflicts are detected and handled explicitly
 //
-// Firestore: users/{userId}/data/nora_memory_v2
-// Backward compatible with nora_memory (v1 facts still load)
+// Firestore: users/{userId}/data/cleo_memory_v2
+// Backward compatible with cleo_memory (v1 facts still load)
 
 import { saveData, loadData } from "./firebase";
 import { invalidateCache } from "./contextRetrieval";
@@ -38,7 +38,7 @@ export type MemoryStatus      = "active" | "needs_confirmation" | "deprecated" |
 export type DecayRate         = "slow" | "medium" | "fast";
 
 export type MemorySourceModule =
-  | "nora" | "finances" | "calendar" | "tasks"
+  | "cleo" | "finances" | "calendar" | "tasks"
   | "trips" | "goals" | "wellness" | "decision_engine"
   | "onboarding" | "system";
 
@@ -325,7 +325,7 @@ function detectConflict(
 
 async function loadAllMemories(userId: string): Promise<HouseholdMemory[]> {
   try {
-    const data = await loadData(userId, "nora_memory_v2");
+    const data = await loadData(userId, "cleo_memory_v2");
     return (data?.memories as HouseholdMemory[]) || [];
   } catch {
     return [];
@@ -333,11 +333,11 @@ async function loadAllMemories(userId: string): Promise<HouseholdMemory[]> {
 }
 
 async function saveAllMemories(userId: string, memories: HouseholdMemory[]): Promise<void> {
-  await saveData(userId, "nora_memory_v2", {
+  await saveData(userId, "cleo_memory_v2", {
     memories,
     updatedAt: new Date().toISOString(),
   });
-  invalidateCache(userId, ["nora_memory_v2"]);
+  invalidateCache(userId, ["cleo_memory_v2"]);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -470,8 +470,8 @@ function buildConfirmationPrompt(
   context: "new_pattern" | "preference_changed"
 ): MemoryConfirmationPrompt {
   const question = context === "preference_changed"
-    ? "Your preferences may have changed. Should Nora update what she remembers?"
-    : "Should Nora remember this to make future suggestions more useful?";
+    ? "Your preferences may have changed. Should Cleo update what she remembers?"
+    : "Should Cleo remember this to make future suggestions more useful?";
 
   return {
     memoryId: memory.id,
@@ -719,14 +719,14 @@ export async function explainMemory(userId: string, memoryId: string): Promise<M
     whatItMeans: m.content,
     whereItCameFrom: `Learned from ${m.sourceModule} on ${m.createdAt.split("T")[0]}. ${m.evidence.length} supporting observations.`,
     whenLastUsed: lastUsed,
-    whyItMatters: `This ${m.type} helps Nora give more relevant ${m.sourceModule} recommendations.`,
-    howToEdit: "Go to Settings → Nora Memory to edit, delete, or mark this incorrect.",
+    whyItMatters: `This ${m.type} helps Cleo give more relevant ${m.sourceModule} recommendations.`,
+    howToEdit: "Go to Settings → Cleo Memory to edit, delete, or mark this incorrect.",
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // SETTINGS VIEW
-// Powers the Settings → Nora Memory screen
+// Powers the Settings → Cleo Memory screen
 // ═══════════════════════════════════════════════════════════════════
 
 export async function getMemorySettingsView(userId: string): Promise<MemorySettingsView> {

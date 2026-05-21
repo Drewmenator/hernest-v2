@@ -4,7 +4,7 @@
 // Every node and edge in the household intelligence graph.
 // Matches the HerNest Context Graph design brief exactly.
 // The graph answers: "What is happening in this household,
-// how is it connected, and what should Nora understand
+// how is it connected, and what should Cleo understand
 // before giving advice?"
 
 // ═══════════════════════════════════════════════════════════════════
@@ -35,7 +35,7 @@ export type NodeType =
   | "trip";
 
 export type HouseholdModule =
-  | "budget" | "calendar" | "nora" | "trips"
+  | "budget" | "calendar" | "cleo" | "trips"
   | "thrive" | "family" | "circle" | "plan" | "home";
 
 export type GoalCategory =
@@ -308,7 +308,7 @@ export interface Goal extends BaseNode {
 // 6. HOUSEHOLD STRESS CONTEXT
 // From brief: stressLevel, stressSources, overloadDays,
 //             emotionalSignals, schedulePressure, financialPressure, taskBacklog
-// The key differentiator — lets Nora say:
+// The key differentiator — lets Cleo say:
 // "This looks less like overspending and more like a capacity problem."
 // ═══════════════════════════════════════════════════════════════════
 
@@ -328,7 +328,7 @@ export interface HouseholdStressContext extends BaseNode {
 
   // ── Combined stress pattern ───────────────────────────────────
   // When calendar overload + high spending + missed routines = stress pattern
-  // This is what Nora uses to reframe financial advice as capacity advice
+  // This is what Cleo uses to reframe financial advice as capacity advice
   isCapacityProblem: boolean;        // true = reframe as load problem, not willpower
   capacityInsight?: string;          // "3 heavy weeks + budget pressure + 4 missed routines"
 
@@ -527,7 +527,7 @@ export type GraphNode =
 // CONTEXT PACK TYPES (AI input structs)
 // ═══════════════════════════════════════════════════════════════════
 
-export interface NoraContextPack {
+export interface CleoContextPack {
   householdProfile: {
     primaryUser: string;
     familyMembers: Array<{ name: string; role: string; age?: string; routines?: string[] }>;

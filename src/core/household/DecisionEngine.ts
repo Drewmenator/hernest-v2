@@ -1,6 +1,6 @@
 // ─── HerNest Decision Engine ──────────────────────────────────────
 // Shared scenario planning + Decision Quality reasoning
-// Callable from any module — Budget, Calendar, Trips, Family, Nora
+// Callable from any module — Budget, Calendar, Trips, Family, Cleo
 // Updated: full HerNestCFOResponse schema + compliance guardrails
 
 import { aiJSON } from "../ai";
@@ -150,7 +150,7 @@ Rules:
   const raw = await aiJSON<HerNestCFOResponse>(
     sys,
     `Analyze this household financial decision: "${question}"`,
-    "nora_chat",
+    "cleo_chat",
     fallback
   );
 

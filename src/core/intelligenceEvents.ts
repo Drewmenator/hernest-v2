@@ -9,8 +9,8 @@
 // Budget threshold hit     → invalidate retrieval cache, flag state
 // Trip created             → invalidate cache, flag travel_prep
 // Task completed           → invalidate cache
-// Nora conversation ended  → memory writeback v2
-// Nora memory updated      → invalidate retrieval cache
+// Cleo conversation ended  → memory writeback v2
+// Cleo memory updated      → invalidate retrieval cache
 // Profile updated          → invalidate all cache
 // Thrive logged            → invalidate cache for wellness
 
@@ -76,8 +76,8 @@ export function connectIntelligenceLayer(userId: string): () => void {
     invalidateCache(userId, ["calendar"]);
   }));
 
-  // ── 6. Nora conversation ended → memory writeback v2 ─────────────
-  unsubs.push(bus.subscribe("nora.conversation.ended", async (e: any) => {
+  // ── 6. Cleo conversation ended → memory writeback v2 ─────────────
+  unsubs.push(bus.subscribe("cleo.conversation.ended", async (e: any) => {
     const { messages } = e.payload ?? {};
     if (!messages?.length) return;
 
@@ -112,10 +112,10 @@ export function connectIntelligenceLayer(userId: string): () => void {
           type:                "preference",
           title,
           content,
-          sourceModule:        "nora",
+          sourceModule:        "cleo",
           confidence:          "medium",
           sensitivity:         "low",
-          evidenceDescription: "Detected in Nora conversation",
+          evidenceDescription: "Detected in Cleo conversation",
         }).catch(() => {});
         break; // one preference per conversation
       }
@@ -123,8 +123,8 @@ export function connectIntelligenceLayer(userId: string): () => void {
   }));
 
   // ── 7. Memory updated → invalidate memory cache ──────────────────
-  unsubs.push(bus.subscribe("nora.memory.updated", async () => {
-    invalidateCache(userId, ["nora_memory", "nora_memory_v2"]);
+  unsubs.push(bus.subscribe("cleo.memory.updated", async () => {
+    invalidateCache(userId, ["cleo_memory", "cleo_memory_v2"]);
   }));
 
   // ── 8. Profile updated → clear all user cache + invalidate briefing
@@ -166,7 +166,7 @@ export function connectIntelligenceLayer(userId: string): () => void {
         type: "preference",
         title: "Style preferences",
         content: `Prefers ${vibe || ""}${colorSeason ? " · " + colorSeason + " color season" : ""} style`,
-        sourceModule: "nora",
+        sourceModule: "cleo",
         confidence: "high",
         sensitivity: "low",
         evidenceDescription: "Set in Style module",

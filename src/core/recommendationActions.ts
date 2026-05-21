@@ -34,10 +34,10 @@ export type ActionType =
   | "update_decision"
   | "create_trip_checklist"
   | "create_memory_confirmation"
-  | "ask_nora_followup";
+  | "ask_cleo_followup";
 
 export type ActionSource =
-  | "nora_chat"
+  | "cleo_chat"
   | "household_cfo"
   | "insight_engine"
   | "decision_engine"
@@ -75,7 +75,7 @@ export interface RecommendedAction {
   completedAt?:        string;
   dismissedAt?:        string;
   failureReason?:      string;
-  explanation:         string;       // "Why Nora suggested this"
+  explanation:         string;       // "Why Cleo suggested this"
 }
 
 export interface ActionExecutionResult {
@@ -103,15 +103,15 @@ export function createActionsFromInsight(insight: {
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Primary: ask Nora to expand
+  // Primary: ask Cleo to expand
   actions.push({
     id:                  crypto.randomUUID(),
-    label:               "Ask Nora about this",
-    description:         `Get Nora's detailed take on: ${insight.observation}`,
-    actionType:          "ask_nora_followup",
+    label:               "Ask Cleo about this",
+    description:         `Get Cleo's detailed take on: ${insight.observation}`,
+    actionType:          "ask_cleo_followup",
     source:              "insight_engine",
     sourceId:            insight.id,
-    targetModule:        "nora",
+    targetModule:        "cleo",
     payload:             { prefillMessage: `Tell me more about this insight: ${insight.recommendation}` },
     priority:            "medium",
     riskLevel:           "low",
@@ -172,7 +172,7 @@ export function createActionsFromInsight(insight: {
       source:              "insight_engine",
       sourceId:            insight.id,
       targetModule:        "plan",
-      payload:             { title: "Today's focus list", priority: "high", note: "Simplified from Nora's insight" },
+      payload:             { title: "Today's focus list", priority: "high", note: "Simplified from Cleo's insight" },
       priority:            "high",
       riskLevel:           "low",
       requiresConfirmation: false,
@@ -229,15 +229,15 @@ export function createActionsFromCFOResponse(cfoResponse: {
     });
   }
 
-  // Always add Ask Nora followup
+  // Always add Ask Cleo followup
   actions.push({
     id:                  crypto.randomUUID(),
-    label:               "Ask Nora a follow-up",
+    label:               "Ask Cleo a follow-up",
     description:         "Dig deeper into this financial analysis",
-    actionType:          "ask_nora_followup",
+    actionType:          "ask_cleo_followup",
     source:              "household_cfo",
     sourceId:            cfoResponse.sourceId,
-    targetModule:        "nora",
+    targetModule:        "cleo",
     payload:             { prefillMessage: `Can you explain more about: ${cfoResponse.recommendation}` },
     priority:            "low",
     riskLevel:           "low",
@@ -245,7 +245,7 @@ export function createActionsFromCFOResponse(cfoResponse: {
     status:              "pending",
     createdAt:           now,
     expiresAt:           expires,
-    explanation:         "Continue the CFO conversation with Nora",
+    explanation:         "Continue the CFO conversation with Cleo",
   });
 
   return actions;
@@ -267,7 +267,7 @@ export function createActionsFromDecision(decision: {
       id:                  crypto.randomUUID(),
       label:               next.label,
       description:         `From decision: "${decision.question}"`,
-      actionType:          (next.actionType as ActionType) ?? "ask_nora_followup",
+      actionType:          (next.actionType as ActionType) ?? "ask_cleo_followup",
       source:              "decision_engine",
       sourceId:            decision.id,
       targetModule:        next.targetModule,
@@ -286,7 +286,7 @@ export function createActionsFromDecision(decision: {
 }
 
 // ── From AI text response ─────────────────────────────────────────
-// Extracts action signals from free-form Nora responses
+// Extracts action signals from free-form Cleo responses
 export function createActionsFromAIResponse(params: {
   responseText: string;
   source: ActionSource;
@@ -308,14 +308,14 @@ export function createActionsFromAIResponse(params: {
       source,
       sourceId,
       targetModule:        "plan",
-      payload:             { fromNora: true },
+      payload:             { fromCleo: true },
       priority:            "medium",
       riskLevel:           "low",
       requiresConfirmation: false,
       status:              "pending",
       createdAt:           now,
       expiresAt:           expires,
-      explanation:         "Nora suggested creating a task",
+      explanation:         "Cleo suggested creating a task",
     });
   }
 
@@ -329,14 +329,14 @@ export function createActionsFromAIResponse(params: {
       source,
       sourceId,
       targetModule:        "budget",
-      payload:             { tab: "goals", fromNora: true },
+      payload:             { tab: "goals", fromCleo: true },
       priority:            "medium",
       riskLevel:           "low",
       requiresConfirmation: true,
       status:              "pending",
       createdAt:           now,
       expiresAt:           expires,
-      explanation:         "Nora suggested creating a savings goal",
+      explanation:         "Cleo suggested creating a savings goal",
     });
   }
 
@@ -357,7 +357,7 @@ export function createActionsFromAIResponse(params: {
       status:              "pending",
       createdAt:           now,
       expiresAt:           expires,
-      explanation:         "Nora suggested reviewing your budget",
+      explanation:         "Cleo suggested reviewing your budget",
     });
   }
 
@@ -378,7 +378,7 @@ export function validateActionPayload(action: RecommendedAction): { valid: boole
   }
 
   // Actions targeting unknown modules
-  const validModules = ["budget", "plan", "calendar", "trips", "nora", "thrive", "circle", "settings", "home"];
+  const validModules = ["budget", "plan", "calendar", "trips", "cleo", "thrive", "circle", "settings", "home"];
   if (action.targetModule && !validModules.includes(action.targetModule)) {
     return { valid: false, reason: `Unknown target module: ${action.targetModule}` };
   }
@@ -414,7 +414,7 @@ export async function executeRecommendedAction(
           dueDate:   action.payload.dueDate,
           note:      action.payload.note || action.explanation,
           createdAt: new Date().toISOString(),
-          source:    "nora_recommendation",
+          source:    "cleo_recommendation",
         };
         await saveData(userId, "tasks", { tasks: [newTask, ...tasks] });
         invalidateCache(userId, ["tasks"]);
@@ -430,15 +430,15 @@ export async function executeRecommendedAction(
         return { success: true, actionId: action.id, message: `Opening ${action.targetModule}` };
       }
 
-      case "ask_nora_followup": {
-        // Prefill Nora input — emit event for NoraScreen to handle
-        window.dispatchEvent(new CustomEvent("hernest:nora_prefill", {
+      case "ask_cleo_followup": {
+        // Prefill Cleo input — emit event for CleoScreen to handle
+        window.dispatchEvent(new CustomEvent("hernest:cleo_prefill", {
           detail: { message: action.payload.prefillMessage }
         }));
         window.dispatchEvent(new CustomEvent("hernest:navigate", {
-          detail: { module: "nora" }
+          detail: { module: "cleo" }
         }));
-        return { success: true, actionId: action.id, message: "Opening Nora with context" };
+        return { success: true, actionId: action.id, message: "Opening Cleo with context" };
       }
 
       case "snooze_insight":
@@ -457,7 +457,7 @@ export async function executeRecommendedAction(
           id:     crypto.randomUUID(),
           title:  action.label,
           date:   action.payload.date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          source: "nora_recommendation",
+          source: "cleo_recommendation",
           note:   action.explanation,
         };
         await saveData(userId, "calendar", { events: [...events, reviewEvent] });
@@ -502,7 +502,7 @@ export async function markActionCompleted(
       type:                "decision",
       title:               `Acted on: ${action.label}`,
       content:             `User completed action "${action.label}" from ${action.source}. ${action.explanation}`,
-      sourceModule:        "nora",
+      sourceModule:        "cleo",
       confidence:          "medium",
       sensitivity:         "low",
       evidenceDescription: `Action completed: ${action.actionType}`,

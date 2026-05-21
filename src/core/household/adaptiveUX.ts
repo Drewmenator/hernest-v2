@@ -37,11 +37,11 @@ export interface AdaptiveConfig {
   maxTasksShown:          number;
   maxEventsShown:         number;
 
-  // Nora behavior
-  noraTone:               HouseholdStateResult["noraTone"];
-  noraGreetingStyle:      "warm_brief" | "warm_full" | "validating" | "energizing";
-  showNoraSuggestions:    boolean;
-  noraResponseMaxLength:  "short" | "medium" | "full";
+  // Cleo behavior
+  cleoTone:               HouseholdStateResult["cleoTone"];
+  cleoGreetingStyle:      "warm_brief" | "warm_full" | "validating" | "energizing";
+  showCleoSuggestions:    boolean;
+  cleoResponseMaxLength:  "short" | "medium" | "full";
 
   // Notifications
   suppressNotifications:  boolean;
@@ -71,7 +71,7 @@ function buildConfig(
   primaryState: HouseholdState,
   stateResult: Partial<HouseholdStateResult>
 ): AdaptiveConfig {
-  const noraTone = stateResult.noraTone ?? "warm_proactive";
+  const cleoTone = stateResult.cleoTone ?? "warm_proactive";
 
   const base: AdaptiveConfig = {
     dashboardMode:          mode,
@@ -84,15 +84,15 @@ function buildConfig(
     maxInsightsShown:       3,
     maxTasksShown:          5,
     maxEventsShown:         5,
-    noraTone,
-    noraGreetingStyle:      "warm_full",
-    showNoraSuggestions:    true,
-    noraResponseMaxLength:  "full",
+    cleoTone,
+    cleoGreetingStyle:      "warm_full",
+    showCleoSuggestions:    true,
+    cleoResponseMaxLength:  "full",
     suppressNotifications:  false,
     notificationFilter:     "all",
     cardDensity:            "normal",
     showSecondaryStats:     true,
-    primaryCTA:             { label: "Ask Nora", module: "nora" },
+    primaryCTA:             { label: "Ask Cleo", module: "cleo" },
     stateLabel:             "Steady",
     stateDescription:       "Your household is in a steady rhythm.",
     stateColor:             "#6B9E7A",
@@ -112,16 +112,16 @@ function buildConfig(
         maxInsightsShown:       1,      // one insight max
         maxTasksShown:          3,      // only top 3 tasks
         maxEventsShown:         3,
-        noraGreetingStyle:      "validating",
-        showNoraSuggestions:    true,
-        noraResponseMaxLength:  "short",
+        cleoGreetingStyle:      "validating",
+        showCleoSuggestions:    true,
+        cleoResponseMaxLength:  "short",
         suppressNotifications:  true,
         notificationFilter:     "critical_only",
         cardDensity:            "compact",
         showSecondaryStats:     false,
-        primaryCTA:             { label: "Talk to Nora", module: "nora" },
+        primaryCTA:             { label: "Talk to Cleo", module: "cleo" },
         stateLabel:             "Heavy week",
-        stateDescription:       "You have a lot on. Nora's keeping it simple.",
+        stateDescription:       "You have a lot on. Cleo's keeping it simple.",
         stateColor:             "#D4826A",
       };
 
@@ -135,13 +135,13 @@ function buildConfig(
         maxInsightsShown:       2,
         maxTasksShown:          4,
         maxEventsShown:         4,
-        noraGreetingStyle:      "warm_brief",
-        noraResponseMaxLength:  "medium",
+        cleoGreetingStyle:      "warm_brief",
+        cleoResponseMaxLength:  "medium",
         notificationFilter:     "important",
         cardDensity:            "compact",
         showSecondaryStats:     false,
         primaryCTA:             { label: "Today's Tasks", module: "plan" },
-        secondaryCTA:           { label: "Ask Nora", module: "nora" },
+        secondaryCTA:           { label: "Ask Cleo", module: "cleo" },
         stateLabel:             "Busy",
         stateDescription:       "Focused on what matters most today.",
         stateColor:             "#C49A3C",
@@ -155,12 +155,12 @@ function buildConfig(
         showOptimizationNudges: true,
         showDecisionPrompts:    true,
         maxInsightsShown:       3,
-        noraGreetingStyle:      "warm_full",
-        noraResponseMaxLength:  "full",
+        cleoGreetingStyle:      "warm_full",
+        cleoResponseMaxLength:  "full",
         primaryCTA:             { label: "Open CFO", module: "budget" },
-        secondaryCTA:           { label: "Ask Nora", module: "nora" },
+        secondaryCTA:           { label: "Ask Cleo", module: "cleo" },
         stateLabel:             "Budget focus",
-        stateDescription:       "Nora's keeping an eye on cash flow.",
+        stateDescription:       "Cleo's keeping an eye on cash flow.",
         stateColor:             "#5E9AB8",
       };
 
@@ -171,7 +171,7 @@ function buildConfig(
         showGoalsSection:       true,
         showDecisionPrompts:    false,
         maxInsightsShown:       2,
-        noraGreetingStyle:      "energizing",
+        cleoGreetingStyle:      "energizing",
         primaryCTA:             { label: "Trip Planner", module: "trips" },
         secondaryCTA:           { label: "Check Budget", module: "budget" },
         stateLabel:             "Trip mode",
@@ -185,11 +185,11 @@ function buildConfig(
         dashboardMode:          "full",
         showGoalsSection:       false,
         maxInsightsShown:       2,
-        noraGreetingStyle:      "warm_full",
+        cleoGreetingStyle:      "warm_full",
         primaryCTA:             { label: "School Calendar", module: "calendar" },
         secondaryCTA:           { label: "Budget Check", module: "budget" },
         stateLabel:             "School season",
-        stateDescription:       "School events and costs are on Nora's radar.",
+        stateDescription:       "School events and costs are on Cleo's radar.",
         stateColor:             "#8B7EC8",
       };
 
@@ -203,8 +203,8 @@ function buildConfig(
         showDecisionPrompts:    true,
         maxInsightsShown:       4,
         maxTasksShown:          6,
-        noraGreetingStyle:      "energizing",
-        noraResponseMaxLength:  "full",
+        cleoGreetingStyle:      "energizing",
+        cleoResponseMaxLength:  "full",
         cardDensity:            "expanded",
         primaryCTA:             { label: "Review Goals", module: "budget" },
         secondaryCTA:           { label: "Plan Ahead", module: "plan" },
@@ -221,9 +221,9 @@ function buildConfig(
         showOptimizationNudges: false,  // not yet — still recovering
         showDecisionPrompts:    false,
         maxInsightsShown:       2,
-        noraGreetingStyle:      "warm_full",
-        noraResponseMaxLength:  "medium",
-        primaryCTA:             { label: "Talk to Nora", module: "nora" },
+        cleoGreetingStyle:      "warm_full",
+        cleoResponseMaxLength:  "medium",
+        primaryCTA:             { label: "Talk to Cleo", module: "cleo" },
         stateLabel:             "Settling in",
         stateDescription:       "Things are easing up. Good time to reset.",
         stateColor:             "#6B9E7A",
@@ -237,11 +237,11 @@ function buildConfig(
         showDecisionPrompts:    true,
         showOptimizationNudges: false,
         maxInsightsShown:       2,
-        noraGreetingStyle:      "warm_full",
-        noraResponseMaxLength:  "full",
-        primaryCTA:             { label: "Ask Nora to help decide", module: "nora" },
+        cleoGreetingStyle:      "warm_full",
+        cleoResponseMaxLength:  "full",
+        primaryCTA:             { label: "Ask Cleo to help decide", module: "cleo" },
         stateLabel:             "Decision mode",
-        stateDescription:       "Nora can help you think through priorities.",
+        stateDescription:       "Cleo can help you think through priorities.",
         stateColor:             "#8B7EC8",
       };
 
@@ -376,7 +376,7 @@ export function getAdaptiveGreeting(
     evening:   "Good evening",
   }[timeOfDay];
 
-  switch (config.noraGreetingStyle) {
+  switch (config.cleoGreetingStyle) {
     case "validating":
       return {
         headline: `${timeGreeting}, ${firstName}.`,
@@ -425,7 +425,7 @@ export function getVisibleCTAs(config: AdaptiveConfig): {
 // Fills gaps vs brief:
 //   - AdaptiveUXProfile (typed object with cognitiveLoadLevel)
 //   - NotificationPolicy (full typed object)
-//   - NoraToneProfile (validationLevel + recommendationStyle)
+//   - CleoToneProfile (validationLevel + recommendationStyle)
 //   - getDashboardLayout (card ordering per state)
 //   - Adaptive empty states
 //   - explainUXAdaptation
@@ -444,7 +444,7 @@ export interface AdaptiveUXProfile {
   dashboardMode:     "standard" | "simplified" | "planning" | "recovery" | "financial_focus" | "travel_focus" | "school_focus";
   insightDensity:    "low" | "medium" | "high";
   notificationMode:  "normal" | "essential_only" | "quiet" | "planning_reminders";
-  noraTone:          "calm" | "focused" | "brief" | "supportive" | "analytical" | "encouraging";
+  cleoTone:          "calm" | "focused" | "brief" | "supportive" | "analytical" | "encouraging";
   responseLength:    "short" | "medium" | "detailed";
   preferredActions:  AdaptiveAction[];
   suppressedContentTypes: string[];
@@ -454,7 +454,7 @@ export interface AdaptiveUXProfile {
 export interface AdaptiveAction {
   id:           string;
   label:        string;
-  actionType:   "open_module" | "create_task" | "ask_nora" | "review_budget" | "review_calendar" | "start_planning" | "simplify_day" | "schedule_review" | "create_goal";
+  actionType:   "open_module" | "create_task" | "ask_cleo" | "review_budget" | "review_calendar" | "start_planning" | "simplify_day" | "schedule_review" | "create_goal";
   targetModule?: string;
   priority:     "low" | "medium" | "high";
   reason:       string;
@@ -525,16 +525,16 @@ export function getNotificationPolicy(state: HouseholdState): NotificationPolicy
   return NOTIFICATION_POLICIES[state] ?? NOTIFICATION_POLICIES.calm;
 }
 
-// ─── NoraToneProfile ──────────────────────────────────────────────
+// ─── CleoToneProfile ──────────────────────────────────────────────
 
-export interface NoraToneProfile {
+export interface CleoToneProfile {
   tone:                "calm" | "focused" | "brief" | "supportive" | "analytical" | "encouraging";
   maxResponseLength:   "short" | "medium" | "detailed";
   validationLevel:     "none" | "light" | "strong";
   recommendationStyle: "single_next_step" | "options" | "tradeoff_analysis" | "checklist" | "reflection";
 }
 
-const TONE_PROFILES: Record<HouseholdState, NoraToneProfile> = {
+const TONE_PROFILES: Record<HouseholdState, CleoToneProfile> = {
   overloaded:         { tone: "supportive",   maxResponseLength: "short",    validationLevel: "strong", recommendationStyle: "single_next_step" },
   busy:               { tone: "focused",      maxResponseLength: "medium",   validationLevel: "light",  recommendationStyle: "single_next_step" },
   financial_pressure: { tone: "calm",         maxResponseLength: "medium",   validationLevel: "light",  recommendationStyle: "options" },
@@ -545,7 +545,7 @@ const TONE_PROFILES: Record<HouseholdState, NoraToneProfile> = {
   decision_heavy:     { tone: "analytical",   maxResponseLength: "detailed", validationLevel: "light",  recommendationStyle: "tradeoff_analysis" },
 };
 
-export function getNoraToneProfile(state: HouseholdState): NoraToneProfile {
+export function getCleoToneProfile(state: HouseholdState): CleoToneProfile {
   return TONE_PROFILES[state] ?? TONE_PROFILES.calm;
 }
 
@@ -564,7 +564,7 @@ const DASHBOARD_LAYOUTS: Record<HouseholdState, DashboardSection[]> = {
     { id: "state_banner",    label: "How you're doing",    priority: 1,  visible: true  },
     { id: "todays_tasks",    label: "Today's Essentials",  priority: 2,  visible: true  },
     { id: "household_pulse", label: "Household Pulse",     priority: 3,  visible: true  },
-    { id: "top_insight",     label: "One thing from Nora", priority: 4,  visible: true  },
+    { id: "top_insight",     label: "One thing from Cleo", priority: 4,  visible: true  },
     { id: "goals",           label: "Goals",               priority: 5,  visible: false },
     { id: "financial_snap",  label: "Finances",            priority: 6,  visible: false },
     { id: "insights_feed",   label: "Insights",            priority: 7,  visible: false },
@@ -607,11 +607,11 @@ const DASHBOARD_LAYOUTS: Record<HouseholdState, DashboardSection[]> = {
     { id: "financial_snap",  label: "Finances",            priority: 3,  visible: true  },
     { id: "insights_feed",   label: "Insights",            priority: 4,  visible: true  },
     { id: "todays_tasks",    label: "This Week",           priority: 5,  visible: true  },
-    { id: "top_insight",     label: "Nora's Pick",         priority: 6,  visible: true  },
+    { id: "top_insight",     label: "Cleo's Pick",         priority: 6,  visible: true  },
   ],
   recovery: [
     { id: "household_pulse", label: "Household Pulse",     priority: 1,  visible: true  },
-    { id: "top_insight",     label: "Nora's Suggestion",   priority: 2,  visible: true  },
+    { id: "top_insight",     label: "Cleo's Suggestion",   priority: 2,  visible: true  },
     { id: "todays_tasks",    label: "Light Tasks",         priority: 3,  visible: true  },
     { id: "goals",           label: "Goals",               priority: 4,  visible: true  },
     { id: "financial_snap",  label: "Finances",            priority: 5,  visible: true  },
@@ -651,7 +651,7 @@ type EmptyStateContext = "tasks" | "insights" | "goals" | "decisions" | "calenda
 const EMPTY_STATES: Record<HouseholdState, Partial<Record<EmptyStateContext, AdaptiveEmptyState>>> = {
   overloaded: {
     tasks:    { headline: "Nothing urgent right now.",    subline: "Come back later — you have enough on your plate." },
-    insights: { headline: "Keeping it simple today.",     subline: "Nora's holding back suggestions while you have a full week." },
+    insights: { headline: "Keeping it simple today.",     subline: "Cleo's holding back suggestions while you have a full week." },
     goals:    { headline: "Goals can wait.",              subline: "Focus on getting through this week first." },
   },
   busy: {
@@ -665,25 +665,25 @@ const EMPTY_STATES: Record<HouseholdState, Partial<Record<EmptyStateContext, Ada
   },
   travel_prep: {
     tasks:    { headline: "Packing list is clear.",       subline: "Everything's checked off — great work!", ctaLabel: "View trip", ctaModule: "trips" },
-    insights: { headline: "Trip is on track.",            subline: "Nora's watching your travel budget." },
+    insights: { headline: "Trip is on track.",            subline: "Cleo's watching your travel budget." },
   },
   calm: {
     tasks:    { headline: "You're in a great place.",     subline: "A good time to plan ahead.", ctaLabel: "Set a goal", ctaModule: "budget" },
-    insights: { headline: "Nothing to flag right now.",   subline: "Nora will surface patterns as they emerge.", ctaLabel: "Generate insights", ctaModule: "home" },
+    insights: { headline: "Nothing to flag right now.",   subline: "Cleo will surface patterns as they emerge.", ctaLabel: "Generate insights", ctaModule: "home" },
     goals:    { headline: "No goals yet.",                subline: "This is a great time to set one.", ctaLabel: "Create a goal", ctaModule: "budget" },
-    decisions: { headline: "No open decisions.",         subline: "Ask Nora to help think through anything on your mind.", ctaLabel: "Ask Nora", ctaModule: "nora" },
+    decisions: { headline: "No open decisions.",         subline: "Ask Cleo to help think through anything on your mind.", ctaLabel: "Ask Cleo", ctaModule: "cleo" },
   },
   recovery: {
     tasks:    { headline: "Taking it easy.",              subline: "No tasks due — a good time to rest and reset." },
-    insights: { headline: "Keeping things light.",        subline: "Nora will start surfacing insights as things settle." },
+    insights: { headline: "Keeping things light.",        subline: "Cleo will start surfacing insights as things settle." },
   },
   school_transition: {
     tasks:    { headline: "School prep is on track.",     subline: "No urgent school tasks right now." },
-    insights: { headline: "School season is underway.",   subline: "Nora's watching school expenses and calendar." },
+    insights: { headline: "School season is underway.",   subline: "Cleo's watching school expenses and calendar." },
   },
   decision_heavy: {
-    decisions: { headline: "No open decisions.",         subline: "Ask Nora to help you think through anything.", ctaLabel: "Ask Nora", ctaModule: "nora" },
-    tasks:     { headline: "Tasks are clear.",            subline: "Good time to focus on a decision.", ctaLabel: "Talk to Nora", ctaModule: "nora" },
+    decisions: { headline: "No open decisions.",         subline: "Ask Cleo to help you think through anything.", ctaLabel: "Ask Cleo", ctaModule: "cleo" },
+    tasks:     { headline: "Tasks are clear.",            subline: "Good time to focus on a decision.", ctaLabel: "Talk to Cleo", ctaModule: "cleo" },
   },
 };
 
@@ -727,7 +727,7 @@ export function generateAdaptiveUXProfile(
     calm: "high", recovery: "medium", decision_heavy: "medium",
   };
 
-  const toneProfile = getNoraToneProfile(primaryState);
+  const toneProfile = getCleoToneProfile(primaryState);
   const notifPolicy = getNotificationPolicy(primaryState);
 
   const suppressedContent: string[] = [];
@@ -754,7 +754,7 @@ export function generateAdaptiveUXProfile(
     dashboardMode:          dashboardModeMap[primaryState] ?? "standard",
     insightDensity:         insightDensityMap[primaryState] ?? "medium",
     notificationMode:       notifPolicy.mode,
-    noraTone:               toneProfile.tone,
+    cleoTone:               toneProfile.tone,
     responseLength:         toneProfile.maxResponseLength,
     preferredActions,
     suppressedContentTypes: suppressedContent,
@@ -788,7 +788,7 @@ export function explainUXAdaptation(
     school_transition:  "HerNest is surfacing school events and expenses this week.",
     calm:               "Your household is in a steady rhythm — a good time for planning and goals.",
     recovery:           "Things are settling down. HerNest is keeping it light while you reset.",
-    decision_heavy:     "You have several priorities competing right now. Nora can help you think through them.",
+    decision_heavy:     "You have several priorities competing right now. Cleo can help you think through them.",
   };
 
   const base = explanations[profile.primaryState] ?? `HerNest is in ${state} mode.`;
@@ -801,14 +801,14 @@ export function explainUXAdaptation(
 export interface AdaptiveUXUserSettings {
   adaptiveExperienceEnabled: boolean;
   insightDensity:            "low" | "medium" | "high" | "auto";
-  noraResponseLength:        "short" | "medium" | "detailed" | "auto";
+  cleoResponseLength:        "short" | "medium" | "detailed" | "auto";
   notificationMode:          "normal" | "quiet" | "essential_only" | "auto";
 }
 
 export const DEFAULT_ADAPTIVE_SETTINGS: AdaptiveUXUserSettings = {
   adaptiveExperienceEnabled: true,
   insightDensity:            "auto",
-  noraResponseLength:        "auto",
+  cleoResponseLength:        "auto",
   notificationMode:          "auto",
 };
 
@@ -823,7 +823,7 @@ export function applyUserSettings(
       dashboardMode:          "standard",
       insightDensity:         "medium",
       notificationMode:       "normal",
-      noraTone:               "calm",
+      cleoTone:               "calm",
       responseLength:         "medium",
       suppressedContentTypes: [],
     };
@@ -832,7 +832,7 @@ export function applyUserSettings(
   return {
     ...profile,
     insightDensity:   settings.insightDensity   !== "auto" ? settings.insightDensity   : profile.insightDensity,
-    responseLength:   settings.noraResponseLength !== "auto" ? settings.noraResponseLength : profile.responseLength,
+    responseLength:   settings.cleoResponseLength !== "auto" ? settings.cleoResponseLength : profile.responseLength,
     notificationMode: settings.notificationMode !== "auto" ? settings.notificationMode : profile.notificationMode,
   };
 }

@@ -20,7 +20,7 @@ import { bus }                       from "./events";
 import { computeHouseholdState, buildStatePromptAddendum } from "./household/householdStateEngine";
 import { validateResponse } from "./household/responseValidator";
 import { retrieve, invalidateCache } from "./contextRetrieval";
-import { createContextGraph, generateContextPackForNora, generateContextPackForCFO, formatNoraContextPackForPrompt, formatCFOContextPackForPrompt } from "./graph/GraphService";
+import { createContextGraph, generateContextPackForCleo, generateContextPackForCFO, formatCleoContextPackForPrompt, formatCFOContextPackForPrompt } from "./graph/GraphService";
 import { useStore }                  from "./store";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -42,7 +42,7 @@ export type AIIntent =
   | "unknown";
 
 export type OrchestratorFeature =
-  | "nora_chat"
+  | "cleo_chat"
   | "household_cfo"
   | "morning_briefing"
   | "cross_module_insight"
@@ -51,7 +51,7 @@ export type OrchestratorFeature =
   | "calendar_extraction";
 
 export type SourceModule =
-  | "home" | "nora" | "finances" | "calendar"
+  | "home" | "cleo" | "finances" | "calendar"
   | "tasks" | "trips" | "goals" | "wellness" | "briefing" | "settings";
 
 export interface OrchestratorRequest {
@@ -96,13 +96,13 @@ interface IntentClassification {
 // ═══════════════════════════════════════════════════════════════════
 
 const FEATURE_MAP: Record<OrchestratorFeature, Feature> = {
-  nora_chat:            "nora_chat",
+  cleo_chat:            "cleo_chat",
   household_cfo:        "household_cfo",
   morning_briefing:     "morning_briefing",
   cross_module_insight: "household_cfo",   // reuse Sonnet
   wellness_coach:       "wellness_coach",
-  task_extraction:      "nora_chat",       // Haiku via budget_coach fallback
-  calendar_extraction:  "nora_chat",
+  task_extraction:      "cleo_chat",       // Haiku via budget_coach fallback
+  calendar_extraction:  "cleo_chat",
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -164,7 +164,7 @@ function classifyIntentLocally(message: string, sourceModule: SourceModule): Int
   if (emotionalScore >= 2) {
     return {
       intent: "emotional_support",
-      feature: "nora_chat",
+      feature: "cleo_chat",
       requiredModules: ["calendar", "tasks", "wellness", "finances"],
       emotionalWeight: "high",
       decisionRequired: false,
@@ -203,7 +203,7 @@ function classifyIntentLocally(message: string, sourceModule: SourceModule): Int
   if (planningScore >= 1) {
     return {
       intent: "planning",
-      feature: "nora_chat",
+      feature: "cleo_chat",
       requiredModules: ["tasks", "calendar", "finances"],
       emotionalWeight: "low",
       decisionRequired: false,
@@ -233,7 +233,7 @@ function classifyIntentLocally(message: string, sourceModule: SourceModule): Int
 // SYSTEM PROMPTS
 // ═══════════════════════════════════════════════════════════════════
 
-const NORA_BASE = `You are Nora, the AI household intelligence assistant inside HerNest.
+const NORA_BASE = `You are Cleo, the AI household intelligence assistant inside HerNest.
 
 You help families reduce mental load, coordinate household life, understand finances, plan ahead, and make better decisions.
 
@@ -354,7 +354,7 @@ async function triggerMemoryWriteback(
     const facts = await extractFactsFromConversation(messages, userId);
     if (facts.length > 0) {
       await saveMemoryFacts(userId, facts);
-      bus.publish("nora.memory.updated", { factsAdded: facts.length }, {
+      bus.publish("cleo.memory.updated", { factsAdded: facts.length }, {
         userId,
         source: "orchestrator",
       });
@@ -408,11 +408,11 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   // ── Step 1: Classify intent ──────────────────────────────────────
   let classification = classifyIntentLocally(userMessage, sourceModule);
 
-  // Fallback: if local classifier can't determine intent, default to nora_chat
+  // Fallback: if local classifier can't determine intent, default to cleo_chat
   if (!classification) {
     classification = {
       intent: "unknown",
-      feature: "nora_chat",
+      feature: "cleo_chat",
       requiredModules: ["tasks", "calendar"],
       emotionalWeight: "low",
       decisionRequired: false,
@@ -554,8 +554,8 @@ ${stateAddendum}`;
 // Drop-in replacements for direct ai() calls in modules
 // ═══════════════════════════════════════════════════════════════════
 
-// For Nora chat screen
-export async function askNora(
+// For Cleo chat screen
+export async function askCleo(
   userId: string,
   profile: Record<string, unknown>,
   message: string,
@@ -564,7 +564,7 @@ export async function askNora(
   const result = await orchestrate({
     userId,
     profile,
-    sourceModule: "nora",
+    sourceModule: "cleo",
     userMessage: message,
     conversationHistory: history,
     options: { allowMemoryWriteback: true, contextDepth: "full" },

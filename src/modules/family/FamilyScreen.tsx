@@ -84,9 +84,9 @@ export function FamilyScreen() {
   const [assignTo, setAssignTo] = useState("");
   const [meals, setMeals] = useState<MealDay[]>([]);
   const [generatingMeals, setGeneratingMeals] = useState(false);
-  const [noraInput, setNoraInput] = useState("");
-  const [noraResp, setNoraResp] = useState("");
-  const [noraLoading, setNoraLoading] = useState(false);
+  const [cleoInput, setCleoInput] = useState("");
+  const [cleoResp, setCleoResp] = useState("");
+  const [cleoLoading, setCleoLoading] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -226,7 +226,7 @@ export function FamilyScreen() {
     setGeneratingMeals(true);
     const kids = familyMembers.filter(m => m.role === "child").map(m => m.name).join(", ") || "none";
     const diet = (profile as any)?.diet || "no restrictions";
-    const sys = `You are Nora. Return ONLY valid JSON array of 7 objects:
+    const sys = `You are Cleo. Return ONLY valid JSON array of 7 objects:
 [{"day":"Monday","dinner":"meal name under 6 words"}]
 Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
     const familyCtx = familyMembers.map((m: any) => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join(", ");
@@ -242,13 +242,13 @@ Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}
     setGeneratingMeals(false);
   };
 
-  const askNora = async () => {
-    if (!noraInput.trim() || noraLoading) return;
-    setNoraLoading(true);
+  const askCleo = async () => {
+    if (!cleoInput.trim() || cleoLoading) return;
+    setCleoLoading(true);
     const roster = familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})`).join("; ");
     const taskList = tasks.filter((t: any) => !t.done).slice(0, 5).map((t: any) => `- ${t.title}${t.assignedTo ? " → " + t.assignedTo : ""}`).join("\n") || "No tasks";
     const mealList = meals.slice(0, 3).map((m: any) => `${m.dayName}: ${m.dinner}`).join(", ") || "No meals planned";
-    const sys = `You are Nora, family AI chief of staff for ${(profile as any)?.name || "this household"}.
+    const sys = `You are Cleo, family AI chief of staff for ${(profile as any)?.name || "this household"}.
 
 FAMILY: ${roster || "not set up yet"}
 
@@ -259,9 +259,9 @@ MEALS PLANNED: ${mealList}
 
 CRITICAL: Only reference the information above — never invent events, names, dates, or facts not listed here. If asked about something not in the data above, say warmly "I don't have that info yet — want to add it?"
 Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentences.`;
-    const result = await ai(sys, noraInput, "nora_chat");
-    if (!result.error) setNoraResp(result.text);
-    setNoraLoading(false);
+    const result = await ai(sys, cleoInput, "cleo_chat");
+    if (!result.error) setCleoResp(result.text);
+    setCleoLoading(false);
   };
 
   const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -275,7 +275,7 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
           { id: "members", label: "👨‍👩‍👧 Members" },
           { id: "tasks",   label: "✓ Chores" },
           { id: "meals",   label: "🍽 Dinners" },
-          { id: "nora",    label: "✦ Ask Nora" },
+          { id: "cleo",    label: "✦ Ask Cleo" },
         ].map(t => <Pill key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />)}
       </div>
 
@@ -283,7 +283,7 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
         {familyMembers.length === 0 && !showAdd && (
           <Card>
             <p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
-              Add your family members so Nora knows who's who across the whole app.
+              Add your family members so Cleo knows who's who across the whole app.
             </p>
           </Card>
         )}
@@ -320,7 +320,7 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
                 {member.name}'s School Calendar
               </p>
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
-                Download the .ics calendar file from your school's website and upload it here. Nora will import all events automatically.
+                Download the .ics calendar file from your school's website and upload it here. Cleo will import all events automatically.
               </p>
 
               {/* Show existing events count */}
@@ -445,11 +445,11 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
             </div>
           );
         }) : !generatingMeals && (
-          <Card><p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>Nora will plan 7 family dinners based on your kids, diet preferences, and budget.</p></Card>
+          <Card><p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>Cleo will plan 7 family dinners based on your kids, diet preferences, and budget.</p></Card>
         )}
       </>}
 
-      {tab === "nora" && <>
+      {tab === "cleo" && <>
         <div style={{ background: `linear-gradient(135deg,${T.esp},#4a2e18)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
           <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>NORA · FAMILY MODE</p>
           <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
@@ -457,11 +457,11 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
           </p>
         </div>
 
-        {noraResp && (
+        {cleoResp && (
           <Card>
             <div style={{ display: "flex", gap: 10 }}>
               <span style={{ color: T.gold, flexShrink: 0, fontSize: 18 }}>✦</span>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.7 }}>{noraResp}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.7 }}>{cleoResp}</p>
             </div>
           </Card>
         )}
@@ -473,14 +473,14 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
             "Help me prep for the weekend",
             "What am I forgetting?",
           ].map(q => (
-            <button key={q} onClick={() => setNoraInput(q)} style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer", touchAction: "manipulation", minHeight: 36 }}>{q}</button>
+            <button key={q} onClick={() => setCleoInput(q)} style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer", touchAction: "manipulation", minHeight: 36 }}>{q}</button>
           ))}
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <input value={noraInput} onChange={e => setNoraInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askNora()} placeholder="Ask Nora about your family..." style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minHeight: 48 }} />
-          <button onClick={askNora} disabled={!noraInput.trim() || noraLoading} style={{ width: 48, height: 48, borderRadius: 16, background: noraInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: noraInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>
-            {noraLoading ? <Spinner size={16} color="#fff" /> : "→"}
+          <input value={cleoInput} onChange={e => setCleoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askCleo()} placeholder="Ask Cleo about your family..." style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minHeight: 48 }} />
+          <button onClick={askCleo} disabled={!cleoInput.trim() || cleoLoading} style={{ width: 48, height: 48, borderRadius: 16, background: cleoInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: cleoInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>
+            {cleoLoading ? <Spinner size={16} color="#fff" /> : "→"}
           </button>
         </div>
       </>}

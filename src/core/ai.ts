@@ -3,7 +3,7 @@ import { auth } from "./firebase";
 import { AI } from "../config";
 
 export type Feature =
-  | "nora_chat" | "morning_briefing" | "style_stylist"
+  | "cleo_chat" | "morning_briefing" | "style_stylist"
   | "budget_coach" | "wellness_coach" | "meal_plan"
   | "trip_planner" | "school_calendar" | "receipt_scanner"
   | "csv_import" | "gift_advisor" | "briefing_ask"
@@ -12,7 +12,7 @@ export type Feature =
 
 const MODEL_MAP: Record<Feature, string> = {
   morning_briefing: AI.SONNET,
-  nora_chat:        AI.SONNET,
+  cleo_chat:        AI.SONNET,
   trip_planner:     AI.SONNET,
   style_stylist:    AI.SONNET,
   school_calendar:  AI.HAIKU,
@@ -55,7 +55,7 @@ export type AIResult = AIResponse | AIError;
 export async function ai(
   system: string,
   prompt: string,
-  feature: Feature = "nora_chat",
+  feature: Feature = "cleo_chat",
   history: Array<{ role: string; content: string }> = []
 ): Promise<AIResult> {
   const idToken = await getIdToken();
@@ -76,7 +76,7 @@ export async function ai(
         feature,
         model,
         messages: history.length > 0 ? history : undefined,
-        max_tokens: ["morning_briefing", "trip_planner", "meal_plan", "style_stylist", "nora_chat", "household_cfo", "wellness_coach", "sunday_reset"].includes(feature) ? 2000 : 1000,
+        max_tokens: ["morning_briefing", "trip_planner", "meal_plan", "style_stylist", "cleo_chat", "household_cfo", "wellness_coach", "sunday_reset"].includes(feature) ? 2000 : 1000,
       }),
     });
 

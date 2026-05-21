@@ -48,7 +48,7 @@ export type InsightAction = {
     | "create_task"
     | "adjust_budget"
     | "create_goal"
-    | "ask_nora"
+    | "ask_cleo"
     | "schedule_review"
     | "dismiss"
     | "snooze";
@@ -155,7 +155,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Budget", actionType: "open_module", targetModule: "finances" },
-          { label: "Ask Nora", actionType: "ask_nora" },
+          { label: "Ask Cleo", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -181,7 +181,7 @@ const RULES: InsightRule[] = [
         observation: `${atRisk.name} is ${atRisk.pct}% funded with the target approaching.`,
         whyItMatters: "Addressing a goal shortfall early gives more options than waiting.",
         recommendation: `Increase monthly contribution or adjust the ${atRisk.name} target slightly.`,
-        options: ["Increase contribution", "Adjust goal target", "Delay goal date", "Ask Nora for scenarios"],
+        options: ["Increase contribution", "Adjust goal target", "Delay goal date", "Ask Cleo for scenarios"],
         confidenceLevel: 75,
         sourceModules: ["budget", "goals"] as any,
         status: "active" as InsightStatus,
@@ -192,7 +192,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Goals", actionType: "open_module", targetModule: "finances" },
-          { label: "Run Scenario", actionType: "ask_nora" },
+          { label: "Run Scenario", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -217,7 +217,7 @@ const RULES: InsightRule[] = [
         observation: `${overdue} tasks are overdue. ${total} total tasks pending.`,
         whyItMatters: "A growing backlog increases mental load even when tasks aren't urgent.",
         recommendation: "Spend 10 minutes sorting tasks: keep 3 for today, defer or delete the rest.",
-        options: ["Do a 10-min task sort", "Ask Nora to prioritize", "Defer everything non-urgent"],
+        options: ["Do a 10-min task sort", "Ask Cleo to prioritize", "Defer everything non-urgent"],
         confidenceLevel: 80,
         sourceModules: ["tasks"] as any,
         status: "active" as InsightStatus,
@@ -228,7 +228,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "Open Tasks", actionType: "open_module", targetModule: "tasks" },
-          { label: "Ask Nora to Prioritize", actionType: "ask_nora" },
+          { label: "Ask Cleo to Prioritize", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -253,7 +253,7 @@ const RULES: InsightRule[] = [
         observation: `${schoolItems} school items this week and spending is at ${ctx.budget.status} level.`,
         whyItMatters: "Planning ahead prevents last-minute spending surprises.",
         recommendation: "Check school event costs now and reserve a small buffer in the budget.",
-        options: ["Review school costs", "Adjust budget temporarily", "Ask Nora for a plan"],
+        options: ["Review school costs", "Adjust budget temporarily", "Ask Cleo for a plan"],
         confidenceLevel: 70,
         sourceModules: ["school", "budget"] as any,
         status: "active" as InsightStatus,
@@ -264,7 +264,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Finances", actionType: "open_module", targetModule: "finances" },
-          { label: "Ask Nora", actionType: "ask_nora" },
+          { label: "Ask Cleo", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -288,7 +288,7 @@ const RULES: InsightRule[] = [
         observation: `${trip.dest} trip in ${trip.daysUntil} days. Packing list is ${trip.packingPct}% complete.`,
         whyItMatters: "Starting packing early reduces pre-trip stress significantly.",
         recommendation: "Set aside 20 minutes to work through the packing list.",
-        options: ["Open packing list", "Ask Nora to generate packing list", "Set a packing reminder"],
+        options: ["Open packing list", "Ask Cleo to generate packing list", "Set a packing reminder"],
         confidenceLevel: 90,
         sourceModules: ["trips"] as any,
         status: "active" as InsightStatus,
@@ -333,7 +333,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Budget", actionType: "open_module", targetModule: "finances" },
-          { label: "Ask CFO", actionType: "ask_nora" },
+          { label: "Ask CFO", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -370,7 +370,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Budget", actionType: "open_module", targetModule: "finances" },
-          { label: "Ask CFO", actionType: "ask_nora" },
+          { label: "Ask CFO", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -396,7 +396,7 @@ const RULES: InsightRule[] = [
         observation: `Subscriptions at ${subCat.pct}% of category budget.`,
         whyItMatters: "The average household has 3–4 unused subscriptions adding $30–60/month.",
         recommendation: "Spend 10 minutes reviewing active subscriptions and cancel any unused ones.",
-        options: ["Review subscription list", "Cancel one unused service", "Ask Nora to audit"],
+        options: ["Review subscription list", "Cancel one unused service", "Ask Cleo to audit"],
         confidenceLevel: 60,
         sourceModules: ["budget"] as any,
         status: "active" as InsightStatus,
@@ -407,7 +407,7 @@ const RULES: InsightRule[] = [
         },
         actions: [
           { label: "View Budget", actionType: "open_module", targetModule: "finances" },
-          { label: "Ask Nora", actionType: "ask_nora" },
+          { label: "Ask Cleo", actionType: "ask_cleo" },
         ],
         createdAt: new Date().toISOString(),
       };
@@ -707,7 +707,7 @@ export function explainInsight(insight: RichInsight): string {
   const assumptions = insight.explanation?.assumptions ?? [];
 
   const lines = [
-    `Nora noticed this because of: ${sources.join(", ")}.`,
+    `Cleo noticed this because of: ${sources.join(", ")}.`,
     insight.explanation?.confidenceReason
       ? `Confidence: ${insight.explanation.confidenceReason}.`
       : "",

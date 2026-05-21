@@ -9,7 +9,7 @@ import { saveMemoryFacts } from "../memory";
 import type {
   HouseholdContextGraph, GraphNode, ContextRelationship,
   ModuleEvent, DetectedPattern, RecommendationExplanation,
-  NoraContextPack, CFOContextPack,
+  CleoContextPack, CFOContextPack,
   Person, FinancialContext, CalendarContext, RoutineContext,
   Goal, HouseholdStressContext, HouseholdDecision, Memory, Insight,
   RelationshipType, NodeType, HouseholdModule, StressSource,
@@ -73,7 +73,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
       loadData(userId, "tasks"),
       loadData(userId, "thrive"),
       loadData(userId, "trips"),
-      loadData(userId, "nora_memory"),
+      loadData(userId, "cleo_memory"),
     ]);
 
   const graph: HouseholdContextGraph = {
@@ -319,7 +319,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
   const memFacts = (memoryData?.facts as any[]) || [];
   memFacts.slice(0, 20).forEach((f: any) => {
     const memNode: Memory = {
-      ...baseNode(`mem_${f.id}`, "memory", "nora", f.confidence || 0.7, [f.type, "nora_fact"]) as any,
+      ...baseNode(`mem_${f.id}`, "memory", "cleo", f.confidence || 0.7, [f.type, "cleo_fact"]) as any,
       memoryType: f.type as any || "fact",
       content: f.statement,
       confidenceScore: f.confidence || 0.7,
@@ -777,10 +777,10 @@ export async function detectCrossModulePatterns(
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 5. generateContextPackForNora()
+// 5. generateContextPackForCleo()
 // ═══════════════════════════════════════════════════════════════════
 
-export function generateContextPackForNora(graph: HouseholdContextGraph): NoraContextPack {
+export function generateContextPackForCleo(graph: HouseholdContextGraph): CleoContextPack {
   const summary = graph.finances.find(f => f.id === "fin_monthly_summary");
   const calLoad = graph.calendar.find(c => c.id === "cal_load_current");
   const primaryUser = graph.people.find(p => p.isUser);
@@ -1000,7 +1000,7 @@ export async function saveMemoryFromInsight(
     isInferred: false,
   });
 
-  // Write to nora_memory for backward compatibility
+  // Write to cleo_memory for backward compatibility
   try {
     await saveMemoryFacts(userId, [{
       id: uuid(),
@@ -1097,7 +1097,7 @@ export async function loadGraphFromFirestore(userId: string): Promise<HouseholdC
 // PROMPT FORMATTERS
 // ═══════════════════════════════════════════════════════════════════
 
-export function formatNoraContextPackForPrompt(pack: NoraContextPack): string {
+export function formatCleoContextPackForPrompt(pack: CleoContextPack): string {
   const lines = [
     `HOUSEHOLD: ${pack.householdProfile.primaryUser}${pack.householdProfile.familyMembers.length ? `, ${pack.householdProfile.familyMembers.map(m => `${m.name} (${m.role})`).join(", ")}` : ""}`,
     pack.householdProfile.stressTriggers.length ? `STRESS TRIGGERS: ${pack.householdProfile.stressTriggers.join(", ")}` : null,

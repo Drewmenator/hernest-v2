@@ -114,7 +114,7 @@ export function BriefingScreen() {
 
       const date = new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" });
 
-      const sys = `You are Nora, ${appCtx?.name || profile?.name || "her"}'s AI chief of staff inside HerNest.
+      const sys = `You are Cleo, ${appCtx?.name || profile?.name || "her"}'s AI chief of staff inside HerNest.
 Generate her Morning Briefing as a warm, intelligent, SPECIFIC summary.
 
 ${familyRoster ? familyRoster + "\n" : ""}TONE: ${appCtx?.tone || "steady"} (${appCtx?.toneConfig?.label || "Steady"})
@@ -173,12 +173,12 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
     setLoading(false);
   };
 
-  // ── Ask Nora ──────────────────────────────────────────────────────
-  const askNora = async () => {
+  // ── Ask Cleo ──────────────────────────────────────────────────────
+  const askCleo = async () => {
     if (!askInput.trim() || asking) return;
     setAsking(true);
     const ctxStr = ctx ? `Today's tone: ${ctx.tone}. Focus: ${briefing?.focusWord?.word}. Tasks: ${ctx.tasks.total} pending. Budget: ${ctx.budget?.status}.` : "";
-    const result = await ai(`You are Nora. ${ctxStr} Answer in 2-3 warm, specific sentences. Never generic. CRITICAL: Only reference facts explicitly provided in the context above — never invent events, names, amounts, or dates.`, askInput, "briefing_ask");
+    const result = await ai(`You are Cleo. ${ctxStr} Answer in 2-3 warm, specific sentences. Never generic. CRITICAL: Only reference facts explicitly provided in the context above — never invent events, names, amounts, or dates.`, askInput, "briefing_ask");
     if (!result.error) setAskResp(result.text);
     setAsking(false);
   };
@@ -267,7 +267,7 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
         </div>
         {/* Loading label */}
         <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", margin: "8px 0 24px", fontStyle: "italic" }}>
-          Nora is reading your week...
+          Cleo is reading your week...
         </p>
       </div>
     );
@@ -280,7 +280,7 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
         <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>
   {getTimeWindow()==="morning"?"Good morning ✦":getTimeWindow()==="afternoon"?"Good afternoon ✦":"Good evening ✦"}
 </p>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px" }}>Nora couldn't prepare your briefing. She's probably still waking up.</p>
+        <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px" }}>Cleo couldn't prepare your briefing. She's probably still waking up.</p>
         <button onClick={generate} style={{ background:T.esp, color:"#fff", border:"none", borderRadius:14, padding:"12px 24px", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", minHeight:48 }}>Try Again</button>
       </div>
     </div>
@@ -467,11 +467,11 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
         {briefing.affirmation && (
           <div style={{ background:`linear-gradient(135deg,${toneColor}20,${T.esp}08)`, border:`1px solid ${toneColor}30`, borderRadius:20, padding:"20px 20px", marginBottom:12 }}>
             <p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px", lineHeight:1.7 }}>{briefing.affirmation.text}</p>
-            <p style={{ fontFamily:F.sans, fontSize:10, color:toneColor, margin:0, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700 }}>— Nora · {briefing.affirmation.theme}</p>
+            <p style={{ fontFamily:F.sans, fontSize:10, color:toneColor, margin:0, textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:700 }}>— Cleo · {briefing.affirmation.theme}</p>
           </div>
         )}
 
-        {/* Ask Nora */}
+        {/* Ask Cleo */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>ASK NORA</p>
           {askResp && (
@@ -485,8 +485,8 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
             ))}
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <input value={askInput} onChange={e=>setAskInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askNora()} placeholder="Ask Nora anything about your day..." style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
-            <button onClick={askNora} disabled={!askInput.trim()||asking} style={{ width:44, height:44, borderRadius:12, background:askInput.trim()?toneColor:T.linen, border:"none", color:"#fff", fontSize:16, cursor:askInput.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
+            <input value={askInput} onChange={e=>setAskInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askCleo()} placeholder="Ask Cleo anything about your day..." style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
+            <button onClick={askCleo} disabled={!askInput.trim()||asking} style={{ width:44, height:44, borderRadius:12, background:askInput.trim()?toneColor:T.linen, border:"none", color:"#fff", fontSize:16, cursor:askInput.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
               {asking?<Spinner size={14} color="#fff"/>:"→"}
             </button>
           </div>

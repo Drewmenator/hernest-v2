@@ -124,7 +124,7 @@ export function StyleScreen() {
 
     const bodyTip = BODY_SHAPE_TIPS[bodyShape] || "";
 
-    const sys = `You are Nora, a personal stylist with 15 years of experience inside HerNest.
+    const sys = `You are Cleo, a personal stylist with 15 years of experience inside HerNest.
 
 HER STYLE PROFILE:
 ${profile_str}
@@ -188,9 +188,9 @@ Return ONLY valid JSON:
         };
         setRec(outfitRec);
         await bus.publish("style.outfit.generated", { occasion, mood }, { userId: user!.uid, source: "style" });
-      } catch(e) { console.error("[Style]", e); setAiError("Nora got confused with the outfit. Try again."); }
+      } catch(e) { console.error("[Style]", e); setAiError("Cleo got confused with the outfit. Try again."); }
     } else {
-      setAiError("Nora couldn't generate an outfit. Check your connection and try again.");
+      setAiError("Cleo couldn't generate an outfit. Check your connection and try again.");
     }
     setLoading(false);
   };
@@ -212,7 +212,7 @@ Return ONLY valid JSON:
     await persist({ bodyShape, size, height, vibe, dressCode, budget, colorSeason, saved, wishlist });
     await bus.publish("style.preference.updated", { vibe, dressCode, bodyShape }, { userId: user!.uid, source: "style" });
     setSavingProfile(false);
-    toast.success("Style profile saved ✓ Nora knows your style");
+    toast.success("Style profile saved ✓ Cleo knows your style");
   };
 
   // ── Wishlist ──────────────────────────────────────────────────────
@@ -230,12 +230,12 @@ Return ONLY valid JSON:
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle eyebrow="PERSONAL STYLIST" title="Style"/>
 
-      {/* Nora knows badge */}
+      {/* Cleo knows badge */}
       {hasProfile && (
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:`linear-gradient(135deg,${T.gold}10,${T.esp}06)`, border:`1px solid ${T.gold}30`, borderRadius:14, marginBottom:12 }}>
           <span style={{ fontSize:18 }}>✦</span>
           <div>
-            <p style={{ fontFamily:F.sans, fontSize:12, fontWeight:700, color:T.gold, margin:0 }}>Nora knows your style</p>
+            <p style={{ fontFamily:F.sans, fontSize:12, fontWeight:700, color:T.gold, margin:0 }}>Cleo knows your style</p>
             <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{bodyShape||"Your shape"} · {vibe||"Classic"} · {dressCode||"Smart casual"} · {budget||"Mid-range"}</p>
           </div>
         </div>
@@ -305,7 +305,7 @@ Return ONLY valid JSON:
         {rec && (
           <>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <AIBadge label="Styled by Nora"/>
+              <AIBadge label="Styled by Cleo"/>
               <button onClick={saveOutfit} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, color:T.gold, cursor:"pointer", minHeight:36 }}>Save ♥</button>
             </div>
 

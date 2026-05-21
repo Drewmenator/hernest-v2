@@ -6,7 +6,7 @@ import { loadData } from "../../core/firebase";
 import { db } from "../../core/db";
 import { Spinner } from "../../shared/components";
 import { createActionsFromInsight, executeRecommendedAction } from "../../core/recommendationActions";
-import { NoraSetupScreen } from "../onboarding/OnboardingScreen";
+import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 
 // ── Briefing Hero Card (unchanged) ────────────────────────────────
@@ -178,7 +178,7 @@ function HouseholdPulseCard() {
   const { user, profile, householdSnapshot, householdInsights, setHouseholdSnapshot, setHouseholdInsights, dismissInsight } = useStore();
   const [loading, setLoading] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
-  const [showNoraSetup, setShowNoraSetup] = useState(false);
+  const [showCleoSetup, setShowCleoSetup] = useState(false);
 
   // Load snapshot + insights on mount
   useEffect(() => {
@@ -213,7 +213,7 @@ function HouseholdPulseCard() {
     setInsightLoading(false);
   };
 
-  if (showNoraSetup) return <NoraSetupScreen onComplete={() => setShowNoraSetup(false)} />;
+  if (showCleoSetup) return <CleoSetupScreen onComplete={() => setShowCleoSetup(false)} />;
 
   const snap = householdSnapshot;
   const adaptiveConfig = useAdaptiveUX(snap);
@@ -359,11 +359,11 @@ function HouseholdPulseCard() {
       {/* Empty state when no insights */}
       {householdInsights.filter(i => !i.dismissed).length === 0 && !insightLoading && (householdSnapshot?.financial?.monthlyIncome || 0) === 0 && (
         <div style={{ background:T.sand, borderRadius:16, padding:"20px", marginBottom:12, textAlign:"center" }}>
-          <p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Nora is ready when you are</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>Add your income and budget to unlock household insights, financial health scores, and Nora's full intelligence.</p>
-          <button onClick={() => setShowNoraSetup(true)}
+          <p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Cleo is ready when you are</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>Add your income and budget to unlock household insights, financial health scores, and Cleo's full intelligence.</p>
+          <button onClick={() => setShowCleoSetup(true)}
             style={{ background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"10px 20px", fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:"pointer" }}>
-            Set up with Nora ✦
+            Set up with Cleo ✦
           </button>
         </div>
       )}
@@ -375,7 +375,7 @@ function HouseholdPulseCard() {
           style={{ flex: 1, padding: "8px", background: "none", border: `1px solid ${T.teal}`, borderRadius: 10, fontFamily: F.sans, fontSize: 11, color: T.teal, cursor: "pointer" }}>
           {insightLoading ? "Analyzing..." : householdInsights.length > 0 ? "↺ Refresh insights" : "✦ Generate insights"}
         </button>
-        <button onClick={() => setShowNoraSetup(true)}
+        <button onClick={() => setShowCleoSetup(true)}
           style={{ flex: 1, padding: "8px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, fontFamily: F.sans, fontSize: 11, color: T.esp, cursor: "pointer" }}>
           View CFO →
         </button>
@@ -511,8 +511,8 @@ function FamilyHQCard() {
           </div>
         ))}
       </div>
-      <div onClick={(e) => { e.stopPropagation(); useStore.getState().setActiveTab("nora"); }} style={{ marginTop: 10, padding: "8px 12px", background: `${T.gold}10`, borderRadius: 10, textAlign: "center" }}>
-        <p style={{ fontFamily: F.sans, fontSize: 12, color: T.gold, margin: 0, fontWeight: 600 }}>✦ Ask Nora about your family</p>
+      <div onClick={(e) => { e.stopPropagation(); useStore.getState().setActiveTab("cleo"); }} style={{ marginTop: 10, padding: "8px 12px", background: `${T.gold}10`, borderRadius: 10, textAlign: "center" }}>
+        <p style={{ fontFamily: F.sans, fontSize: 12, color: T.gold, margin: 0, fontWeight: 600 }}>✦ Ask Cleo about your family</p>
       </div>
     </div>
   );
@@ -636,7 +636,7 @@ export function HomeScreen() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
         {[
           { label: "Briefing", icon: "☀", tab: "briefing", color: T.gold },
-          { label: "Chat Nora", icon: "✦", tab: "nora", color: T.esp },
+          { label: "Chat Cleo", icon: "✦", tab: "cleo", color: T.esp },
           { label: "Add Task", icon: "+", tab: "plan", color: T.sage },
         ].map((a, i) => (
           <div key={i} onClick={() => setActiveTab(a.tab)} style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 8px", cursor: "pointer", textAlign: "center" }}>

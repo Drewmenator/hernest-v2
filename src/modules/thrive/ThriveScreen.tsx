@@ -237,7 +237,7 @@ export function ThriveScreen() {
     const total = sleepS*0.25 + hydraS*0.15 + habitS*0.20 + moodS*0.25 + 5*0.15;
     const pattern = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
 
-    const sys = `You are Nora, a warm wellness coach. Generate a weekly wellness score summary.
+    const sys = `You are Cleo, a warm wellness coach. Generate a weekly wellness score summary.
 Return ONLY valid JSON:
 {"headline":"one punchy sentence","wins":["string","string"],"focus":"one gentle suggestion","affirmation":"one warm personal sentence","trend":"improving|stable|declining"}
 Score is ${total.toFixed(1)}/10. Sleep: ${sleepS.toFixed(1)}, Hydration: ${hydraS.toFixed(1)}, Habits: ${habitS.toFixed(1)}, Mood: ${moodS.toFixed(1)}.
@@ -287,7 +287,7 @@ Recent sleep: ${sleepArr.slice(-3).map((l: any) => (l.hours||7) + "h").join(", "
     const avgMood  = moodHistory.slice(-7).reduce((a,l)=>a+l.rating,0)/Math.max(moodHistory.slice(-7).length,1);
     const pattern  = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
 
-    const sys = `You are Nora, a warm empathetic wellness coach inside HerNest. CRITICAL: Never invent symptoms, diagnoses, or medical advice. Only reflect back what the user shares.
+    const sys = `You are Cleo, a warm empathetic wellness coach inside HerNest. CRITICAL: Never invent symptoms, diagnoses, or medical advice. Only reflect back what the user shares.
 
 WELLNESS DATA:
 - Sleep this week: avg ${avgSleep.toFixed(1)}h. Today: ${sleepLog?.hours||"not logged"}h (${sleepLog?.quality||"unknown"}).
@@ -482,7 +482,7 @@ RULES:
         ) : (
           <Card>
             <p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"16px 0 12px", lineHeight:1.6 }}>
-              Nora calculates your wellness score using a weighted formula:<br/>
+              Cleo calculates your wellness score using a weighted formula:<br/>
               <span style={{ color:T.esp, fontWeight:600 }}>Sleep 25% · Mood 25% · Habits 20% · Hydration 15%</span>
             </p>
             <button onClick={generateScore} disabled={genScore} style={{ width:"100%", padding:"14px", background:`linear-gradient(135deg,${T.esp},#4a2e18)`, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:52, touchAction:"manipulation" }}>

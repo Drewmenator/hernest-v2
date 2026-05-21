@@ -451,7 +451,7 @@ async function retrieveRelationships(
     const graph = await createContextGraph(userId);
     const hasData = graph.relationships.length > 0 || graph.finances.length > 0;
     if (!hasData) return "";
-    const items = getRelevantContextForAI(userMessage, "nora", graph, budget === "full" ? 8 : 4);
+    const items = getRelevantContextForAI(userMessage, "cleo", graph, budget === "full" ? 8 : 4);
     if (!items.length) return "";
     return "\nCROSS-MODULE PATTERNS:\n" + items.join("\n");
   } catch {

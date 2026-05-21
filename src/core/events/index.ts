@@ -53,11 +53,11 @@ export type EventType =
   | "briefing.generated"
   | "briefing.viewed"
   | "briefing.section.stale"
-  // Nora
-  | "nora.conversation.ended"
-  | "nora.task.extracted"
-  | "nora.crisis.detected"
-  | "nora.memory.updated"
+  // Cleo
+  | "cleo.conversation.ended"
+  | "cleo.task.extracted"
+  | "cleo.crisis.detected"
+  | "cleo.memory.updated"
   // System
   | "system.ai.limit.reached"
   | "system.sync.completed"

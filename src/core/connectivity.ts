@@ -17,7 +17,7 @@ export function initConnectivity(userId: string) {
     // Invalidate today's briefing so it regenerates with new tone
     await bus.publish("briefing.invalidate", { reason: "mood_changed", mood: label }, { userId, source: "connectivity" });
 
-    // Update store so Nora knows current mood
+    // Update store so Cleo knows current mood
     const store = useStore.getState();
     if (store.profile) {
       store.updateProfile({ challenge: label === "overwhelmed" || label === "struggling" ? label : store.profile.challenge });
@@ -65,12 +65,12 @@ export function initConnectivity(userId: string) {
     }
   });
 
-  // ── 3. BUDGET THRESHOLD → Home alert + Nora context ───────────
+  // ── 3. BUDGET THRESHOLD → Home alert + Cleo context ───────────
   bus.subscribe("budget.threshold.hit", async (e: any) => {
     const { category, percentUsed, amount } = e.payload;
     console.log("[Connectivity] budget threshold hit:", category, percentUsed);
 
-    // Store budget alert in a way Nora can read
+    // Store budget alert in a way Cleo can read
     const existing = await loadData(userId, "alerts") || {};
     const alerts = (existing.alerts as any[]) || [];
     const newAlert = {
@@ -114,12 +114,12 @@ export function initConnectivity(userId: string) {
     }
   });
 
-  // ── 5. CIRCLE OVERDUE → Nora context updated ──────────────────
+  // ── 5. CIRCLE OVERDUE → Cleo context updated ──────────────────
   bus.subscribe("circle.checkin.due", async (e: any) => {
     const { contact, daysSince } = e.payload;
     console.log("[Connectivity] circle checkin due:", contact, daysSince);
 
-    // Store as alert for Home and Nora
+    // Store as alert for Home and Cleo
     const existing = await loadData(userId, "alerts") || {};
     const alerts = (existing.alerts as any[]) || [];
     const newAlert = {
@@ -178,14 +178,14 @@ export function initConnectivity(userId: string) {
   });
 
   // ── 10. NORA CRISIS DETECTED → Save care flag ─────────────────
-  bus.subscribe("nora.crisis.detected", async (e: any) => {
+  bus.subscribe("cleo.crisis.detected", async (e: any) => {
     console.log("[Connectivity] crisis detected — saving care flag");
     try {
       await saveData(userId, "alerts", {
         alerts: [{
           id: `crisis_${Date.now()}`,
           type: "crisis",
-          message: "Nora detected you may be struggling. Be gentle with yourself today.",
+          message: "Cleo detected you may be struggling. Be gentle with yourself today.",
           severity: "high",
           createdAt: Date.now(),
           read: false,
@@ -208,7 +208,7 @@ export function initConnectivity(userId: string) {
       const alert = {
         id: "sleep_alert",
         type: "thrive",
-        message: `Only ${hours}h sleep — Nora will adjust your day accordingly`,
+        message: `Only ${hours}h sleep — Cleo will adjust your day accordingly`,
         severity: "low",
         createdAt: Date.now(),
         read: false,

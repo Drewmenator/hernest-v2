@@ -6,13 +6,13 @@ import { useStore } from "../store";
 import {
   createContextGraph, loadGraphFromFirestore,
   updateGraphFromModuleEvent, detectCrossModulePatterns,
-  generateContextPackForNora, generateContextPackForCFO,
+  generateContextPackForCleo, generateContextPackForCFO,
 } from "./GraphService";
-import type { HouseholdContextGraph, ModuleEvent, NoraContextPack, CFOContextPack } from "./types";
+import type { HouseholdContextGraph, ModuleEvent, CleoContextPack, CFOContextPack } from "./types";
 
 interface UseContextGraphReturn {
   graph: HouseholdContextGraph | null;
-  noraPack: NoraContextPack | null;
+  cleoPack: CleoContextPack | null;
   cfoPack: CFOContextPack | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -22,12 +22,12 @@ interface UseContextGraphReturn {
 export function useContextGraph(): UseContextGraphReturn {
   const { user } = useStore();
   const [graph, setGraph] = useState<HouseholdContextGraph | null>(null);
-  const [noraPack, setNoraPack] = useState<NoraContextPack | null>(null);
+  const [cleoPack, setCleoPack] = useState<CleoContextPack | null>(null);
   const [cfoPack, setCfoPack] = useState<CFOContextPack | null>(null);
   const [loading, setLoading] = useState(false);
 
   const buildPacks = useCallback((g: HouseholdContextGraph) => {
-    setNoraPack(generateContextPackForNora(g));
+    setCleoPack(generateContextPackForCleo(g));
     setCfoPack(generateContextPackForCFO(g));
   }, []);
 
@@ -61,5 +61,5 @@ export function useContextGraph(): UseContextGraphReturn {
 
   useEffect(() => { refresh(); }, [user?.uid]);
 
-  return { graph, noraPack, cfoPack, loading, refresh, handleEvent };
+  return { graph, cleoPack, cfoPack, loading, refresh, handleEvent };
 }

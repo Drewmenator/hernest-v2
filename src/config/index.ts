@@ -20,7 +20,7 @@ export const AI = {
 
 export const ROUTES = {
   HOME: "/",
-  NORA: "/nora",
+  NORA: "/cleo",
   PLAN: "/plan",
   BUDGET: "/budget",
   THRIVE: "/thrive",

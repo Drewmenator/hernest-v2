@@ -15,13 +15,13 @@ const EB = ({ name, children }: { name: string; children: React.ReactNode }) => 
 import { ROUTES } from "./config";
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
-import { NoraMini } from "./shared/components/NoraMini";
+import { CleoMini } from "./shared/components/CleoMini";
 
 // Screens
 import { LoginScreen }      from "./modules/auth/LoginScreen";
 import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
 import { HomeScreen }       from "./modules/home/HomeScreen";
-import { NoraScreen }       from "./modules/nora/NoraScreen";
+import { CleoScreen }       from "./modules/cleo/CleoScreen";
 import { PlanScreen }       from "./modules/plan/PlanScreen";
 import { BudgetScreen }     from "./modules/budget/BudgetScreen";
 import { BriefingScreen }   from "./modules/briefing/BriefingScreen";
@@ -203,7 +203,7 @@ export default function App() {
   const renderScreen = () => {
     switch (activeTab) {
       case "home":     return <EB name="Home"><HomeScreen /></EB>;
-      case "nora":     return <EB name="Nora"><NoraScreen /></EB>;
+      case "cleo":     return <EB name="Cleo"><CleoScreen /></EB>;
       case "plan":     return <EB name="Plan"><PlanScreen /></EB>;
       case "budget":   return <EB name="Budget"><BudgetScreen /></EB>;
       case "briefing": return <EB name="Briefing"><BriefingScreen /></EB>;
@@ -233,7 +233,7 @@ export default function App() {
             </React.Suspense>
           </div>
           <GraphWirer />
-          <NoraMini />
+          <CleoMini />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
         </div>

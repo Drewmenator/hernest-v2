@@ -123,7 +123,7 @@ export interface AppContext {
   daysUntilMonthEnd: number;
 
   // NEW: Household intelligence snapshot
-  // Available to Home screen, Nora, and any module that needs cross-module context
+  // Available to Home screen, Cleo, and any module that needs cross-module context
   householdSnapshot: HouseholdSnapshot | null;
 }
 

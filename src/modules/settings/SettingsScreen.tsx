@@ -1,6 +1,6 @@
 import { loadMemoriesV2, deleteMemory } from '../../core/memoryServiceV2';
 import React, { useState } from "react";
-import { NoraSetupScreen } from "../onboarding/OnboardingScreen";
+import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Button } from "../../shared/components";
@@ -27,7 +27,7 @@ export function SettingsScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showDeleteFlow, setShowDeleteFlow] = useState(false);
-  const [showNoraSetup, setShowNoraSetup] = useState(false);
+  const [showCleoSetup, setShowCleoSetup] = useState(false);
   const [memoryV2List, setMemoryV2List] = useState<any[]>([]);
   const [showMemoryV2, setShowMemoryV2] = useState(false);
 
@@ -83,7 +83,7 @@ export function SettingsScreen() {
     setDeleting(true);
     try {
       // Clear all user data from Firestore
-      const collections = ["profile","budget","tasks","school","meals","thrive","trips","circle","calendar","nora_memory","style","calendar_tokens","partner_invite"];
+      const collections = ["profile","budget","tasks","school","meals","thrive","trips","circle","calendar","cleo_memory","style","calendar_tokens","partner_invite"];
       await Promise.all(collections.map(c => saveData(user.uid!, c, { deleted: true, deletedAt: Date.now() })));
       // Delete Firebase Auth account
       if (auth.currentUser) await deleteUser(auth.currentUser);
@@ -99,7 +99,7 @@ export function SettingsScreen() {
     setDeleting(false);
   };
 
-  if (showNoraSetup) return <NoraSetupScreen onComplete={() => setShowNoraSetup(false)} />;
+  if (showCleoSetup) return <CleoSetupScreen onComplete={() => setShowCleoSetup(false)} />;
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
@@ -123,10 +123,10 @@ export function SettingsScreen() {
       {section==="partner" && <>
         <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Nora</p>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Update your household info in a conversation with Nora</p>
+            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Cleo</p>
+            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
           </div>
-          <button onClick={() => setShowNoraSetup(true)}
+          <button onClick={() => setShowCleoSetup(true)}
             style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
             Start ✦
           </button>
@@ -169,11 +169,11 @@ export function SettingsScreen() {
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:"0 0 12px" }}>Your Privacy at HerNest</p>
           <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, lineHeight:1.7, margin:"0 0 16px" }}>
-            HerNest is built on a foundation of trust. We take your privacy seriously — especially because you share sensitive family, health, and financial information with Nora.
+            HerNest is built on a foundation of trust. We take your privacy seriously — especially because you share sensitive family, health, and financial information with Cleo.
           </p>
           {[
             { icon:"🔒", title:"Your data is yours", body:"We never sell your personal data to third parties. Ever. Your information is used only to power your HerNest experience." },
-            { icon:"🤖", title:"How Nora uses your data", body:"Nora's memory is stored securely in Firestore under your user ID. AI conversations are processed via Anthropic's Claude API. Anthropic does not use your conversations to train their models." },
+            { icon:"🤖", title:"How Cleo uses your data", body:"Cleo's memory is stored securely in Firestore under your user ID. AI conversations are processed via Anthropic's Claude API. Anthropic does not use your conversations to train their models." },
             { icon:"📍", title:"Location data", body:"We do not collect or store your location. Any location-based features use your device's local data only." },
             { icon:"🏦", title:"Financial data", body:"Budget data is stored securely in your personal Firestore database. We never have access to your actual bank accounts or cards." },
             { icon:"👧", title:"Children's data", body:"Information about your children is stored privately under your account and never shared or used for advertising." },
@@ -196,12 +196,12 @@ export function SettingsScreen() {
           </p>
         </Card>
 
-        {/* What Nora Knows — Memory V2 */}
+        {/* What Cleo Knows — Memory V2 */}
         <Card>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <div>
-              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>What Nora Knows</p>
-              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Facts, preferences and patterns Nora has learned about your household</p>
+              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>What Cleo Knows</p>
+              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Facts, preferences and patterns Cleo has learned about your household</p>
             </div>
             <button onClick={loadMemories}
               style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
@@ -211,7 +211,7 @@ export function SettingsScreen() {
           {showMemoryV2 && (
             <div>
               {memoryV2List.length === 0 && (
-                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, textAlign:"center", padding:"16px 0" }}>Nora is still getting to know you. Keep using the app and she'll learn your patterns.</p>
+                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, textAlign:"center", padding:"16px 0" }}>Cleo is still getting to know you. Keep using the app and she'll learn your patterns.</p>
               )}
               {memoryV2List.length > 0 && memoryV2List.slice(0, 20).map((mem: any, i: number) => (
                 <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
@@ -239,7 +239,7 @@ export function SettingsScreen() {
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px", lineHeight:1.6 }}>You have the right to receive a copy of all data we hold about you (GDPR Article 20).</p>
           <button onClick={async()=>{
             if (!user?.uid) return;
-            const collections = ["profile","budget","tasks","thrive","trips","circle","nora_memory","style"];
+            const collections = ["profile","budget","tasks","thrive","trips","circle","cleo_memory","style"];
             const allData: Record<string,unknown> = {};
             await Promise.all(collections.map(async c => { allData[c] = await loadData(user.uid!, c); }));
             const blob = new Blob([JSON.stringify(allData, null, 2)], { type:"application/json" });
@@ -264,7 +264,7 @@ export function SettingsScreen() {
             { title:"2. The Service", body:"HerNest is an AI-powered personal assistant for mothers and caregivers. We provide tools for planning, budgeting, wellness tracking, and more. The service is provided 'as is' and we may update or modify features at any time." },
             { title:"3. Your Account", body:"You are responsible for maintaining the security of your account. You must be 18 or older to use HerNest. One account per person." },
             { title:"4. Acceptable Use", body:"You may not use HerNest for illegal activities, to harm others, or to attempt to access other users' data. We reserve the right to suspend accounts that violate these terms." },
-            { title:"5. AI Limitations", body:"Nora is an AI assistant and may make mistakes. Do not rely on HerNest for medical, legal, or financial advice. Always consult qualified professionals for important decisions." },
+            { title:"5. AI Limitations", body:"Cleo is an AI assistant and may make mistakes. Do not rely on HerNest for medical, legal, or financial advice. Always consult qualified professionals for important decisions." },
             { title:"6. Subscription & Billing", body:"HerNest offers a free tier with limited AI requests. Premium plans are billed monthly or annually. You may cancel at any time. Refunds are offered within 14 days of purchase." },
             { title:"7. Intellectual Property", body:"HerNest and its content are owned by HerNest Ltd. You retain ownership of all data you create in the app." },
             { title:"8. Limitation of Liability", body:"To the maximum extent permitted by law, HerNest is not liable for indirect, incidental, or consequential damages arising from your use of the service." },
@@ -284,7 +284,7 @@ export function SettingsScreen() {
           {[
             { title:"Data Controller", body:"HerNest Ltd is the data controller for personal data collected through this app. Contact: privacy@hernest.app" },
             { title:"Data We Collect", body:"Account data (email, name), app usage data (tasks, budget, wellness logs), AI conversation summaries, and device information." },
-            { title:"How We Use It", body:"To provide and improve the service, personalise your Nora experience, send important account notifications, and ensure security." },
+            { title:"How We Use It", body:"To provide and improve the service, personalise your Cleo experience, send important account notifications, and ensure security." },
             { title:"Legal Basis (GDPR)", body:"We process your data under: contract performance (providing the service), legitimate interests (improving the service), and consent (marketing communications)." },
             { title:"Data Retention", body:"We retain your data for as long as your account is active. Upon deletion, data is removed within 30 days. Anonymised analytics may be retained longer." },
             { title:"Your Rights (GDPR)", body:"You have the right to: access your data, correct inaccuracies, request deletion, restrict processing, data portability, and object to processing. Contact privacy@hernest.app to exercise these rights." },

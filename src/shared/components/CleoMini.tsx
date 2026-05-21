@@ -7,7 +7,7 @@ import { buildMemoryContext, extractFactsFromConversation, saveMemoryFacts } fro
 
 interface Msg { role: "user" | "assistant"; content: string; }
 
-export function NoraMini() {
+export function CleoMini() {
   const { user, profile, familyMembers, activeTab } = useStore();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -36,10 +36,10 @@ export function NoraMini() {
     if (!user?.uid) return;
     try {
       const { saveData, loadData } = await import("../../core/firebase");
-      const existing = await loadData(user.uid, "nora_feedback");
+      const existing = await loadData(user.uid, "cleo_feedback");
       const items = (existing?.items as any[]) || [];
       items.unshift({ type, content: content.slice(0, 200), timestamp: Date.now() });
-      await saveData(user.uid, "nora_feedback", { items: items.slice(0, 50) });
+      await saveData(user.uid, "cleo_feedback", { items: items.slice(0, 50) });
     } catch {}
   };
 
@@ -67,11 +67,11 @@ export function NoraMini() {
       ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join("; ")
       : "";
     const memCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
-    const sys = `You are Nora, ${name}'s AI chief of staff. ${familyRoster}
+    const sys = `You are Cleo, ${name}'s AI chief of staff. ${familyRoster}
 ${memCtx ? `Context: ${memCtx}` : ""}
 Be concise — 2-3 sentences max. Warm, direct, actionable.`;
     const history = msgs.slice(-6).map(m => ({ role: m.role, content: m.content }));
-    const result = await ai(sys, msg, "nora_chat", history);
+    const result = await ai(sys, msg, "cleo_chat", history);
     const reply = result.error ? "I'm having a moment — try again." : result.text;
     setMsgs(p => {
       const updated = [...p, { role: "assistant" as const, content: reply }];
@@ -116,7 +116,7 @@ Be concise — 2-3 sentences max. Warm, direct, actionable.`;
           <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 16px 12px" }}>
             <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>✦</div>
             <div style={{ flex:1 }}>
-              <p style={{ fontFamily:F.sans, fontSize:14, fontWeight:700, color:T.esp, margin:0 }}>Nora</p>
+              <p style={{ fontFamily:F.sans, fontSize:14, fontWeight:700, color:T.esp, margin:0 }}>Cleo</p>
               <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>● Ready</p>
             </div>
             <button onClick={() => { setOpen(false); setMsgs([]); }} style={{ background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer" }}>Close</button>
@@ -156,7 +156,7 @@ Be concise — 2-3 sentences max. Warm, direct, actionable.`;
 
           {/* Input */}
           <div style={{ display:"flex", gap:8, padding:"12px 16px 8px", borderTop:`1px solid ${T.linen}` }}>
-            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder="Ask Nora anything..."
+            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder="Ask Cleo anything..."
               style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:14, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}
             />
             <button onClick={startVoice} style={{ width:44, height:44, borderRadius:14, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:18, cursor:"pointer", flexShrink:0 }}>
@@ -170,7 +170,7 @@ Be concise — 2-3 sentences max. Warm, direct, actionable.`;
       )}
 
       {/* FAB */}
-      {activeTab !== "nora" && (
+      {activeTab !== "cleo" && (
         <button onClick={() => setOpen(true)}
           style={{
             position:"fixed",

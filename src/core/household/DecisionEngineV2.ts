@@ -118,7 +118,7 @@ export interface DecisionNextAction {
   actionType:
     | "create_task" | "create_goal" | "review_budget"
     | "schedule_conversation" | "collect_info"
-    | "defer_decision" | "ask_nora";
+    | "defer_decision" | "ask_cleo";
   priority: "low" | "medium" | "high";
   targetModule?: string;
 }
@@ -331,7 +331,7 @@ function buildDecisionContext(
 // SYSTEM PROMPTS PER MODE
 // ═══════════════════════════════════════════════════════════════════
 
-const BASE_DECISION_PROMPT = `You are Nora, HerNest's household decision intelligence system.
+const BASE_DECISION_PROMPT = `You are Cleo, HerNest's household decision intelligence system.
 Your role is to help families think clearly before making decisions — not to decide for them.
 
 You use Decision Quality methodology: purpose, options, criteria, tradeoffs, uncertainty, recommendation, confidence.
@@ -458,7 +458,7 @@ Return ONLY valid JSON matching this exact structure:
   "nextActions": [
     {
       "label": "action label",
-      "actionType": "create_task|create_goal|review_budget|schedule_conversation|collect_info|defer_decision|ask_nora",
+      "actionType": "create_task|create_goal|review_budget|schedule_conversation|collect_info|defer_decision|ask_cleo",
       "priority": "low|medium|high",
       "targetModule": "finances|calendar|tasks|trips|wellness"
     }
@@ -476,7 +476,7 @@ Generate ${optionCountMap[mode]} options. Include at least one low-stress option
     uncertainties: [],
     tradeoffs: [],
     assumptions: ["AI analysis unavailable"],
-    nextActions: [{ label: "Ask Nora", actionType: "ask_nora", priority: "medium" }],
+    nextActions: [{ label: "Ask Cleo", actionType: "ask_cleo", priority: "medium" }],
   };
 
   const result = await aiJSON<Partial<HouseholdDecisionV2>>(
@@ -657,7 +657,7 @@ export function explainDecision(decision: HouseholdDecisionV2): string {
   const option = decision.options.find(o => o.id === rec.recommendedOptionId);
   const lines: string[] = [];
 
-  lines.push(`Nora recommended "${option?.name ?? rec.recommendedOptionId}" because:`);
+  lines.push(`Cleo recommended "${option?.name ?? rec.recommendedOptionId}" because:`);
   rec.why.forEach(w => lines.push(`• ${w}`));
 
   if (rec.risks.length) {

@@ -51,8 +51,8 @@ export interface HouseholdStateResult {
   // Raw scores for debugging / explainability
   scores: HouseholdStateScore;
 
-  // How Nora should adjust tone
-  noraTone: "warm_proactive" | "supportive_simple" | "validating_brief" | "calm_analytical";
+  // How Cleo should adjust tone
+  cleoTone: "warm_proactive" | "supportive_simple" | "validating_brief" | "calm_analytical";
 
   // Dashboard content priority
   dashboardMode: "full" | "essentials" | "relief" | "planning";
@@ -60,7 +60,7 @@ export interface HouseholdStateResult {
   // Whether to suppress non-essential notifications
   suppressNotifications: boolean;
 
-  // Plain-language summary for "Why is Nora saying this?"
+  // Plain-language summary for "Why is Cleo saying this?"
   explanation: string;
 
   computedAt: string;
@@ -318,7 +318,7 @@ function buildSignals(ctx: AppContext, state: HouseholdState): string[] {
 // TONE + DASHBOARD ADAPTERS
 // ═══════════════════════════════════════════════════════════════════
 
-function selectNoraTone(primary: HouseholdState): HouseholdStateResult["noraTone"] {
+function selectCleoTone(primary: HouseholdState): HouseholdStateResult["cleoTone"] {
   switch (primary) {
     case "overloaded":        return "validating_brief";
     case "financial_pressure": return "calm_analytical";
@@ -377,7 +377,7 @@ export function computeHouseholdState(ctx: AppContext): HouseholdStateResult {
     topSignals: ["No significant pressure signals detected"],
   };
 
-  const noraTone      = selectNoraTone(primary.state);
+  const cleoTone      = selectCleoTone(primary.state);
   const dashboardMode = selectDashboardMode(primary.state);
   const suppress      = shouldSuppressNotifications(activeStates);
   const explanation   = buildExplanation(primary, activeStates);
@@ -386,7 +386,7 @@ export function computeHouseholdState(ctx: AppContext): HouseholdStateResult {
     primary,
     active: activeStates,
     scores,
-    noraTone,
+    cleoTone,
     dashboardMode,
     suppressNotifications: suppress,
     explanation,
@@ -396,13 +396,13 @@ export function computeHouseholdState(ctx: AppContext): HouseholdStateResult {
 
 // ═══════════════════════════════════════════════════════════════════
 // ORCHESTRATOR INTEGRATION
-// Injects state context into Nora's system prompt
+// Injects state context into Cleo's system prompt
 // ═══════════════════════════════════════════════════════════════════
 
 export function buildStatePromptAddendum(state: HouseholdStateResult): string {
-  const { primary, active, noraTone, suppressNotifications } = state;
+  const { primary, active, cleoTone, suppressNotifications } = state;
 
-  const toneInstructions: Record<HouseholdStateResult["noraTone"], string> = {
+  const toneInstructions: Record<HouseholdStateResult["cleoTone"], string> = {
     warm_proactive:    "Be warm and proactive. Offer forward-looking suggestions. This household has capacity right now.",
     supportive_simple: "Keep responses focused and practical. Avoid overwhelming with too many suggestions.",
     validating_brief:  "Validate first, always. Keep recommendations short — one or two actions maximum. This household is stretched.",
@@ -418,7 +418,7 @@ ${active.length > 1 ? `Also active: ${activeList}` : ""}
 Key signals: ${primary.topSignals.join(", ")}
 ${suppressNotifications ? "Note: Suppress non-essential suggestions — household is stretched." : ""}
 
-Tone instruction: ${toneInstructions[noraTone]}
+Tone instruction: ${toneInstructions[cleoTone]}
 `.trim();
 }
 
@@ -452,7 +452,7 @@ export function computeStateFromSnapshot(snapshot: HouseholdSnapshot): Partial<H
       confidence: combined,
       topSignals: [`Calendar: ${snapshot.calendarLoad}`, `Stress: ${snapshot.householdStressLevel}`],
     },
-    noraTone: selectNoraTone(state),
+    cleoTone: selectCleoTone(state),
     dashboardMode: selectDashboardMode(state),
     suppressNotifications: combined >= 75,
     computedAt: new Date().toISOString(),
