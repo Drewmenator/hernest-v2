@@ -63,6 +63,17 @@ export async function ai(
 
   const model = MODEL_MAP[feature] || AI.HAIKU;
 
+  // Build a valid messages array. It MUST start with a "user" turn and MUST end
+  // with the current message — previously only `history` was sent, so once a
+  // conversation existed the current message was dropped and the model was asked
+  // to answer a transcript ending in its own turn (→ empty/garbled reply). This
+  // is why chat failed but history-less features like the briefing worked.
+  const safeHistory = history.filter(
+    (m) => m && (m.role === "user" || m.role === "assistant") && m.content
+  );
+  while (safeHistory.length && safeHistory[0].role !== "user") safeHistory.shift();
+  const messages = [...safeHistory, { role: "user", content: prompt }];
+
   try {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -75,7 +86,7 @@ export async function ai(
         prompt,
         feature,
         model,
-        messages: history.length > 0 ? history : undefined,
+        messages,
         max_tokens: ["morning_briefing", "trip_planner", "meal_plan", "style_stylist", "cleo_chat", "household_cfo", "wellness_coach", "sunday_reset"].includes(feature) ? 2000 : 1000,
       }),
     });
@@ -91,7 +102,14 @@ export async function ai(
     }
 
     const data = await res.json();
-    const text = data.content?.[0]?.text || "";
+    const text =
+      (Array.isArray(data.content)
+        ? data.content.find((b: any) => b?.type === "text")?.text
+        : undefined) ||
+      data.content?.[0]?.text ||
+      "";
+    // An empty reply becomes a soft fallback rather than a hard "having a moment".
+    if (!text) return { error: "Empty response from model", code: "empty_response" };
     return { text };
   } catch (e) {
     return { error: "Network error", code: "network_error" };
