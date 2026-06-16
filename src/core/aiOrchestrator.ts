@@ -464,6 +464,14 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const appCtx = await getCtx(userId, profile);
       const hState = computeHouseholdState(appCtx);
       stateAddendum = buildStatePromptAddendum(hState);
+      // Phase 4: fold the household intelligence scores + Risk Radar into context
+      // so Cleo can reference resilience/productivity and the ranked priorities.
+      try {
+        const { computeHouseholdScores } = await import("./intelligence/householdScores");
+        const s = computeHouseholdScores(appCtx);
+        const topAttention = s.attention.slice(0, 3).map(a => `${a.title} (${a.severity})`).join("; ");
+        stateAddendum += `\n\nHOUSEHOLD SCORES: Resilience ${s.resilience.score}/100 (${s.resilience.band}) — ${s.resilience.headline} · Productivity ${s.productivity.score}/100 (${s.productivity.band}).${topAttention ? `\nNEEDS ATTENTION (ranked): ${topAttention}` : ""}`;
+      } catch { /* non-fatal */ }
     } catch (e) { /* non-fatal */ }
 
   } catch (e) {
