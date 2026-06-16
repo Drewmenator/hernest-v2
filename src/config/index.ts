@@ -41,6 +41,15 @@ export const FLAGS = {
     (((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CLEO_AGENT) as
       | string
       | undefined) !== "off",
+
+  // ── Cleo streaming (perf / perceived speed) ──
+  // When true, Cleo's reply streams token-by-token instead of arriving all at
+  // once. Falls back to a normal call on any error. Disable via
+  // VITE_CLEO_STREAMING="off".
+  CLEO_STREAMING:
+    (((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CLEO_STREAMING) as
+      | string
+      | undefined) !== "off",
 } as const;
 
 export const ROUTES = {
