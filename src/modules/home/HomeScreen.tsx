@@ -678,6 +678,7 @@ function ModuleGrid() {
     { id: "calendar", label: "Calendar", icon: "◆", sub: "Your schedule",        color: T.navy },
     { id: "family",   label: "Family",   icon: "⌂", sub: "Command centre",      color: T.gold },
     { id: "memory",   label: "Memory",   icon: "✦", sub: "What Cleo knows",      color: T.lav },
+    { id: "connections", label: "Connect", icon: "⚯", sub: "Integrations",        color: T.teal },
   ];
 
   return (
