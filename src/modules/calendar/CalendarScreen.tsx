@@ -177,6 +177,12 @@ export function CalendarScreen() {
     const calData = await loadData(user.uid, "calendar");
     if (calData?.events) all.push(...(calData.events as CalEvent[]));
 
+    // Synced provider events (Google/Apple/Outlook) — persisted copy, so they
+    // appear on first paint and survive reloads (dedup below handles overlap
+    // with the live fetch).
+    const syncedData = await loadData(user.uid, "calendar_synced");
+    if (syncedData?.events) all.push(...(syncedData.events as CalEvent[]));
+
     // School events
     const schoolData = await loadData(user.uid, "school");
     if (schoolData?.events) {
@@ -247,13 +253,28 @@ export function CalendarScreen() {
             const newEvts = data.events.filter((e: any) => !existingIds.has(e.id));
             return [...prev, ...newEvts];
           });
+          // Persist to `calendar_synced` so reloads — and Cleo (the graph reads
+          // this collection) — can see provider events. Without this they live
+          // only in component state and vanish on refresh ("display only").
+          try {
+            const existing = ((await loadData(user.uid, "calendar_synced"))?.events as any[]) || [];
+            const byId = new Map<string, any>();
+            [...existing, ...data.events].forEach((e: any) => { if (e?.id) byId.set(e.id, e); });
+            const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+            const merged = [...byId.values()].filter((e: any) => !e.date || e.date >= cutoff);
+            await saveData(user.uid, "calendar_synced", { events: merged });
+          } catch (err) { console.warn("[Calendar] persist synced failed:", err); }
         }
       } catch(e) { console.warn("[Calendar] fetch failed:", e); }
     };
-    if (googleConnected) fetchExternalCalendar("/api/calendar/google");
-    if (outlookConnected) fetchExternalCalendar("/api/calendar/outlook");
-    if (appleConnected) fetchExternalCalendar("/api/calendar/apple");
-  }, [googleConnected, outlookConnected, user?.uid]);
+    // Run sequentially — all three write the same `calendar_synced` doc, so
+    // serializing avoids a read-modify-write race that would drop events.
+    (async () => {
+      if (googleConnected) await fetchExternalCalendar("/api/calendar/google");
+      if (outlookConnected) await fetchExternalCalendar("/api/calendar/outlook");
+      if (appleConnected) await fetchExternalCalendar("/api/calendar/apple");
+    })();
+  }, [googleConnected, outlookConnected, appleConnected, user?.uid]);
 
   const handleSchoolUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

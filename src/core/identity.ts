@@ -23,6 +23,7 @@ export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "budget_v2",
   "tasks",
   "calendar",
+  "calendar_synced",   // events fetched from connected providers (Google/Apple/Outlook)
   "trips",
   "school",
   "circle",
