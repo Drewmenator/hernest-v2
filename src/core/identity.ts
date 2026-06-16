@@ -27,6 +27,9 @@ export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "trips",
   "school",
   "circle",
+  "family",
+  "alerts",
+  "decisions_v2",
   "household_insights",
   "household_graph",
 ]);
