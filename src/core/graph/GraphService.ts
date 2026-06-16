@@ -65,7 +65,8 @@ function baseNode(
 // ═══════════════════════════════════════════════════════════════════
 
 export async function createContextGraph(userId: string): Promise<HouseholdContextGraph> {
-  const [profileData, budgetData, calendarData, tasksData, thriveData, tripsData, memoryData] =
+  const [profileData, budgetData, calendarData, tasksData, thriveData, tripsData,
+         schoolData, circleData, memoryV2Data, insightsData] =
     await Promise.all([
       loadData(userId, "profile"),
       loadData(userId, "budget_v2"),
@@ -73,7 +74,10 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
       loadData(userId, "tasks"),
       loadData(userId, "thrive"),
       loadData(userId, "trips"),
-      loadData(userId, "cleo_memory"),
+      loadData(userId, "school"),
+      loadData(userId, "circle"),
+      loadData(userId, "cleo_memory_v2"),
+      loadData(userId, "household_insights"),
     ]);
 
   const graph: HouseholdContextGraph = {
@@ -299,6 +303,67 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     }
   });
 
+  // ── School events (calendar nodes) ────────────────────────────
+  const schoolEvents = (schoolData?.events as any[]) || [];
+  schoolEvents
+    .filter((e: any) => e.date >= todayStr)
+    .slice(0, 12)
+    .forEach((e: any) => {
+      const schoolNode: CalendarContext = {
+        ...baseNode(`cal_school_${e.id || e.date + e.title}`, "calendar", "calendar", 0.9, ["school", e.child || ""]) as any,
+        subtype: "school_event",
+        title: e.title,
+        date: e.date,
+        forPersonId: e.child ? `person_child_${e.child}` : undefined,
+        requiresParentAction: !!e.requiresAction,
+        actionType: e.actionType,
+        actionDeadline: e.actionDeadline || e.date,
+      };
+      graph.calendar.push(schoolNode);
+      indexNode(graph, schoolNode);
+    });
+
+  // ── Individual upcoming calendar events / appointments ────────
+  upcoming
+    .filter((e: any) => e.type !== "trip")
+    .slice(0, 12)
+    .forEach((e: any, i: number) => {
+      const evNode: CalendarContext = {
+        ...baseNode(`cal_event_${e.id || e.date + "_" + i}`, "calendar", "calendar", 0.85, ["event"]) as any,
+        subtype: e.type === "appointment" ? "appointment" : "event",
+        title: e.title,
+        date: e.date,
+        time: e.time,
+        location: e.location,
+      };
+      graph.calendar.push(evNode);
+      indexNode(graph, evNode);
+    });
+
+  // ── Circle: upcoming birthdays (as appointments) ──────────────
+  const contacts = (circleData?.contacts as any[]) || [];
+  const yr = new Date().getFullYear();
+  [...contacts, ...kids, ...((profileData?.parents as any[]) || [])]
+    .filter((p: any) => p?.birthday)
+    .map((p: any) => {
+      const [mm, dd] = String(p.birthday).split("-").map(Number);
+      let next = new Date(yr, (mm || 1) - 1, dd || 1);
+      if (next < new Date()) next = new Date(yr + 1, (mm || 1) - 1, dd || 1);
+      return { name: p.name as string, days: Math.ceil((next.getTime() - Date.now()) / 86400000), date: next.toISOString().split("T")[0] };
+    })
+    .filter((b) => b.days >= 0 && b.days <= 21)
+    .slice(0, 6)
+    .forEach((b) => {
+      const bdayNode: CalendarContext = {
+        ...baseNode(`cal_bday_${b.name}`, "calendar", "circle", 0.9, ["birthday"]) as any,
+        subtype: "appointment",
+        title: `${b.name}'s birthday`,
+        date: b.date,
+      };
+      graph.calendar.push(bdayNode);
+      indexNode(graph, bdayNode);
+    });
+
   // ── Index stress node ─────────────────────────────────────────
   indexNode(graph, graph.stress);
 
@@ -315,20 +380,54 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     });
   }
 
-  // ── Memories ──────────────────────────────────────────────────
-  const memFacts = (memoryData?.facts as any[]) || [];
-  memFacts.slice(0, 20).forEach((f: any) => {
-    const memNode: Memory = {
-      ...baseNode(`mem_${f.id}`, "memory", "cleo", f.confidence || 0.7, [f.type, "cleo_fact"]) as any,
-      memoryType: f.type as any || "fact",
-      content: f.statement,
-      confidenceScore: f.confidence || 0.7,
-      reinforcedCount: 1,
-      linkedEntityIds: [],
-    };
-    graph.memories.push(memNode);
-    indexNode(graph, memNode);
-  });
+  // ── Memories (V2 governance store — V1 migrated into V2 in Step 4) ──
+  const v2Memories = (memoryV2Data?.memories as any[]) || [];
+  const confToScore: Record<string, number> = { low: 0.4, medium: 0.7, high: 0.9 };
+  v2Memories
+    .filter((m: any) => m.status === "active")
+    .slice(0, 20)
+    .forEach((m: any) => {
+      const v2Node: Memory = {
+        ...baseNode(`mem_v2_${m.id}`, "memory", "cleo", confToScore[m.confidence] ?? 0.7, [m.type, "cleo_memory_v2"]) as any,
+        memoryType: (m.type as any) || "fact",
+        content: m.content,
+        confidenceScore: confToScore[m.confidence] ?? 0.7,
+        reinforcedCount: (m.evidence?.length as number) || 1,
+        lastConfirmedAt: m.lastConfirmedAt,
+        linkedEntityIds: (m.linkedEntities || []).map((e: any) => e.entityId).filter(Boolean),
+      };
+      graph.memories.push(v2Node);
+      indexNode(graph, v2Node);
+    });
+
+  // ── Insights (from HouseholdIntelligence's saved output) ──────
+  const savedInsights = (insightsData?.insights as any[]) || [];
+  savedInsights
+    .filter((i: any) => !i.dismissed)
+    .slice(0, 6)
+    .forEach((i: any) => {
+      const insightNode: Insight = {
+        ...baseNode(`insight_${i.id}`, "insight", (i.sourceModules?.[0] as HouseholdModule) || "home", (i.confidenceLevel || 70) / 100, ["generated", i.category || "opportunity"]) as any,
+        insightType: mapCategoryToInsightType(i.category),
+        severity: (i.confidenceLevel || 0) >= 80 ? "alert" : "watch",
+        observation: i.observation,
+        whyItMatters: i.whyItMatters || "",
+        options: i.options || [],
+        recommendation: i.recommendation || "",
+        nextSteps: [],
+        followUpQuestions: [],
+        confidenceLevel: i.confidenceLevel || 70,
+        confidenceLabel: (i.confidenceLevel || 0) >= 75 ? "high" : (i.confidenceLevel || 0) >= 50 ? "medium" : "low",
+        relatedNodeIds: [],
+        sourceModules: (i.sourceModules as HouseholdModule[]) || [],
+        crossModulePattern: (i.sourceModules?.length || 0) > 1,
+        dismissed: false,
+        actedOn: false,
+        savedToMemory: false,
+      };
+      graph.insights.push(insightNode);
+      indexNode(graph, insightNode);
+    });
 
   graph.lastUpdated = now();
   await saveGraphToFirestore(userId, graph);
@@ -487,7 +586,7 @@ export async function updateGraphFromModuleEvent(
   }
 
   graph.lastUpdated = t;
-  await saveGraphToFirestore(userId, graph);
+  scheduleGraphSave(userId, graph);
   return graph;
 }
 
@@ -832,7 +931,7 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph): CleoCo
       upcomingEvents: tripNodes.slice(0, 2).map(t => t.title || ""),
       highLoadDays: calLoad?.highLoadDays || [],
       appointmentsThisWeek: graph.calendar
-        .filter(c => c.subtype === "appointment" && c.date && c.date >= new Date().toISOString().split("T")[0])
+        .filter(c => (c.subtype === "appointment" || c.subtype === "school_event") && c.date && c.date >= new Date().toISOString().split("T")[0])
         .map(c => `${c.title} (${c.date})`),
     },
     activeGoals: graph.goals.map(g => ({
@@ -1075,9 +1174,40 @@ export async function explainWhyRecommendationWasMade(
 // PERSISTENCE
 // ═══════════════════════════════════════════════════════════════════
 
+// Debounced cloud save — coalesces rapid event updates into one write
+// (the in-memory graph in the hook stays current; only persistence is deferred).
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingSave: { userId: string; graph: HouseholdContextGraph } | null = null;
+
+function scheduleGraphSave(userId: string, graph: HouseholdContextGraph, delayMs = 4000): void {
+  _pendingSave = { userId, graph };
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    const p = _pendingSave;
+    _saveTimer = null;
+    _pendingSave = null;
+    if (p) saveGraphToFirestore(p.userId, p.graph).catch(() => {});
+  }, delayMs);
+}
+
+// nodeIndex duplicates every node in the doc; rebuild it on load instead of storing it.
+function rebuildNodeIndex(graph: HouseholdContextGraph): Record<string, GraphNode> {
+  const idx: Record<string, GraphNode> = {};
+  const all: GraphNode[] = [
+    ...graph.people, ...graph.finances, ...graph.calendar, ...graph.tasks,
+    ...graph.goals, ...graph.decisions, ...graph.memories, ...graph.insights,
+  ];
+  all.forEach(n => { if (n?.id) idx[n.id] = n; });
+  if (graph.stress?.id) idx[graph.stress.id] = graph.stress;
+  return idx;
+}
+
 export async function saveGraphToFirestore(userId: string, graph: HouseholdContextGraph): Promise<void> {
   try {
-    await saveData(userId, GRAPH_KEY, JSON.parse(JSON.stringify(graph)) as Record<string, unknown>);
+    // Strip nodeIndex before persisting — it's rebuilt on load.
+    const persisted: Partial<HouseholdContextGraph> = { ...graph };
+    delete persisted.nodeIndex;
+    await saveData(userId, GRAPH_KEY, JSON.parse(JSON.stringify(persisted)) as Record<string, unknown>);
   } catch (e) {
     console.error("[Graph] save failed:", e);
   }
@@ -1089,7 +1219,9 @@ export async function loadGraphFromFirestore(userId: string): Promise<HouseholdC
     if (!data) return null;
     const graph = data as unknown as HouseholdContextGraph;
     const isStale = (Date.now() - new Date(graph.lastUpdated).getTime()) > CACHE_TTL_MS;
-    return isStale ? null : graph;
+    if (isStale) return null;
+    graph.nodeIndex = rebuildNodeIndex(graph);
+    return graph;
   } catch { return null; }
 }
 
@@ -1213,4 +1345,14 @@ function insightToMemoryType(insightType: string): Memory["memoryType"] {
     opportunity: "financial_pattern", risk: "warning",
   };
   return map[insightType] || "fact";
+}
+
+// HouseholdInsight.category (store) → graph Insight.insightType
+function mapCategoryToInsightType(category?: string): Insight["insightType"] {
+  const map: Record<string, Insight["insightType"]> = {
+    spending: "financial", savings: "financial", debt: "financial", cashflow: "financial",
+    scheduling: "schedule", stress: "wellness", health: "wellness",
+    family: "planning", decision: "planning", opportunity: "opportunity",
+  };
+  return map[category || ""] || "financial";
 }

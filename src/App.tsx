@@ -10,6 +10,7 @@ import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
 import { bus } from "./core/events";
 import { useContextGraph } from "./core/graph";
+import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { ROUTES } from "./config";
@@ -109,6 +110,9 @@ export default function App() {
   const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab } = useStore();
   // Auth listener
   useEffect(() => {
+    // Capture a pending partner invite before auth redirects (migration Step 1)
+    const inviteToken = new URLSearchParams(window.location.search).get("invite");
+    if (inviteToken) sessionStorage.setItem("hn_invite", inviteToken);
     getRedirectResult(auth).catch(() => {});
     // Safety timeout — never stay on loading screen forever
     const loadingTimeout = setTimeout(() => {
@@ -120,6 +124,22 @@ export default function App() {
       if (u) {
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
         await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
+        // ── Household identity (migration Step 1) ──
+        // Accept any pending invite, then resolve + provision the household so
+        // getHouseholdId() is populated before household-scoped data loads.
+        try {
+          const pendingInvite = sessionStorage.getItem("hn_invite");
+          if (pendingInvite) {
+            await acceptInvite(pendingInvite, u.uid);
+            sessionStorage.removeItem("hn_invite");
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+          await bootstrapHousehold(u.uid);
+          // One-time V1→V2 memory migration (migration Step 4)
+          import("./core/memoryServiceV2").then(m => m.migrateV1MemoriesToV2(u.uid)).catch(() => {});
+        } catch (e) {
+          console.warn("[App] household bootstrap failed (non-fatal):", e);
+        }
         // Load profile from Firebase into store
         try {
           const profileData = await loadData(u.uid, "profile");

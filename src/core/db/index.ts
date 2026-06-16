@@ -38,12 +38,29 @@ export interface ChatSession {
   userId: string;
 }
 
+// migration Step 2: durable, household-scoped event log entry
+export interface LoggedEvent {
+  id: string;
+  householdId: string;
+  type: string;
+  source: string;
+  actorUserId: string;
+  subjectMemberId?: string;
+  payload: Record<string, unknown>;
+  visibility: string;
+  confidence: number;
+  occurredAt: number;
+  recordedAt: number;
+  schemaVersion: number;
+}
+
 // ── Database ───────────────────────────────────────────────────────
 class HerNestDB extends Dexie {
   docs!: Table<LocalDoc>;
   syncQueue!: Table<SyncQueueItem>;
   briefings!: Table<CachedBriefing>;
   chatSessions!: Table<ChatSession>;
+  events!: Table<LoggedEvent>;
 
   constructor() {
     super("HerNestV2");
@@ -52,6 +69,10 @@ class HerNestDB extends Dexie {
       syncQueue: "++id, status, timestamp, nextRetry",
       briefings: "date, generatedAt, stale",
       chatSessions: "sessionId, lastMessageAt, userId",
+    });
+    // migration Step 2: durable household event log (existing tables carry over)
+    this.version(2).stores({
+      events: "id, householdId, type, occurredAt",
     });
   }
 

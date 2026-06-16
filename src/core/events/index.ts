@@ -2,6 +2,10 @@
 // Every module communicates through events.
 // No module imports from another module directly.
 
+import { getHouseholdId } from "../identity";
+import { appendEvent } from "../eventLog";
+import type { LoggedEvent } from "../db";
+
 export type EventType =
   // Auth
   | "auth.user.signed_in"
@@ -64,6 +68,8 @@ export type EventType =
   | "system.offline"
   | "system.online";
 
+export type EventVisibility = "private" | "partners" | "household" | "cleo_only";
+
 export interface HerNestEvent<T = unknown> {
   id: string;
   type: EventType;
@@ -71,6 +77,43 @@ export interface HerNestEvent<T = unknown> {
   userId: string;
   payload: T;
   source: string; // which module fired it
+  // ── migration Step 2: durable, household-scoped envelope (optional = back-compat) ──
+  householdId?: string;
+  actorUserId?: string;
+  subjectMemberId?: string;
+  occurredAt?: number;
+  recordedAt?: number;
+  visibility?: EventVisibility;
+  confidence?: number;
+  schemaVersion?: number;
+}
+
+// High-frequency / transient events we don't persist to the durable log.
+const EPHEMERAL_EVENTS = new Set<EventType>([
+  "system.online",
+  "system.offline",
+  "system.sync.completed",
+  "briefing.viewed",
+  "briefing.section.stale",
+  "briefing.invalidate",
+  "intelligence.insight.requested",
+]);
+
+function toLoggedEvent(e: HerNestEvent): LoggedEvent {
+  return {
+    id: e.id,
+    householdId: e.householdId ?? e.userId,
+    type: e.type,
+    source: e.source,
+    actorUserId: e.actorUserId ?? e.userId,
+    subjectMemberId: e.subjectMemberId,
+    payload: (e.payload ?? {}) as Record<string, unknown>,
+    visibility: e.visibility ?? "household",
+    confidence: e.confidence ?? 1,
+    occurredAt: e.occurredAt ?? e.timestamp,
+    recordedAt: e.recordedAt ?? e.timestamp,
+    schemaVersion: e.schemaVersion ?? 1,
+  };
 }
 
 type Handler<T = unknown> = (event: HerNestEvent<T>) => void | Promise<void>;
@@ -90,16 +133,41 @@ class EventBus {
   async publish<T = unknown>(
     type: EventType,
     payload: T,
-    meta: { userId: string; source: string }
+    meta: {
+      userId: string;
+      source: string;
+      subjectMemberId?: string;
+      visibility?: EventVisibility;
+      occurredAt?: number;
+      confidence?: number;
+    }
   ): Promise<void> {
+    const now = Date.now();
     const event: HerNestEvent<T> = {
       id: crypto.randomUUID(),
       type,
-      timestamp: Date.now(),
+      timestamp: now,
       userId: meta.userId,
       source: meta.source,
       payload,
+      householdId: getHouseholdId() ?? meta.userId,
+      actorUserId: meta.userId,
+      subjectMemberId: meta.subjectMemberId,
+      occurredAt: meta.occurredAt ?? now,
+      recordedAt: now,
+      visibility: meta.visibility ?? "household",
+      confidence: meta.confidence ?? 1,
+      schemaVersion: 1,
     };
+
+    // ── Durable write-through (migration Step 2) — non-fatal, skips noise ──
+    if (!EPHEMERAL_EVENTS.has(type)) {
+      try {
+        await appendEvent(toLoggedEvent(event as HerNestEvent));
+      } catch (e) {
+        console.error(`[EventBus] persist failed for ${type}:`, e);
+      }
+    }
 
     // Specific handlers
     const specific = this.handlers.get(type);

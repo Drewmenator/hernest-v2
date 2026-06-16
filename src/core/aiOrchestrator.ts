@@ -15,13 +15,15 @@
 import { ai, aiJSON, type Feature } from "./ai";
 import { buildAppContext }           from "./contextBuilder";
 import { buildHouseholdSnapshot }    from "./household/HouseholdIntelligence";
-import { extractFactsFromConversation, saveMemoryFacts } from "./memory";
+import { extractFactsFromConversation } from "./memory";
 import { bus }                       from "./events";
 import { computeHouseholdState, buildStatePromptAddendum } from "./household/householdStateEngine";
 import { validateResponse } from "./household/responseValidator";
 import { retrieve, invalidateCache } from "./contextRetrieval";
-import { createContextGraph, generateContextPackForCleo, generateContextPackForCFO, formatCleoContextPackForPrompt, formatCFOContextPackForPrompt } from "./graph/GraphService";
+import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo, generateContextPackForCFO, formatCleoContextPackForPrompt, formatCFOContextPackForPrompt } from "./graph/GraphService";
 import { useStore }                  from "./store";
+import { getHouseholdId }            from "./identity";
+import { FLAGS }                     from "../config";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -353,7 +355,11 @@ async function triggerMemoryWriteback(
   try {
     const facts = await extractFactsFromConversation(messages, userId);
     if (facts.length > 0) {
-      await saveMemoryFacts(userId, facts);
+      // Route writeback through V2 governance (validate/dedup/decay) — Step 4.
+      const { proposeMemory, v1FactToCandidate } = await import("./memoryServiceV2");
+      for (const f of facts) {
+        await proposeMemory(userId, v1FactToCandidate(f)).catch(() => {});
+      }
       bus.publish("cleo.memory.updated", { factsAdded: facts.length }, {
         userId,
         source: "orchestrator",
@@ -428,16 +434,28 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   let stateAddendum = "";
 
   try {
-    const retrieved = await retrieve({
-      userId,
-      userMessage,
-      intent: classification.intent,
-      feature: classification.feature,
-      profile,
-    });
-    context = retrieved.contextString;
-    modules = retrieved.modulesLoaded;
-    assumptions = retrieved.assumptions;
+    if (FLAGS.CANONICAL_CONTEXT === "graph") {
+      // Canonical path (migration Step 3d): context comes SOLELY from the
+      // household graph pack — one source of truth, no snapshot/memory-V1/V2 blend.
+      const hid = getHouseholdId() ?? userId;
+      let graph = await loadGraphFromFirestore(hid);
+      if (!graph) graph = await createContextGraph(hid);
+      context = formatCleoContextPackForPrompt(generateContextPackForCleo(graph));
+      modules = ["graph"];
+      assumptions = [];
+    } else {
+      // Default path: intent-targeted retrieval (snapshot + memory). Unchanged.
+      const retrieved = await retrieve({
+        userId,
+        userMessage,
+        intent: classification.intent,
+        feature: classification.feature,
+        profile,
+      });
+      context = retrieved.contextString;
+      modules = retrieved.modulesLoaded;
+      assumptions = retrieved.assumptions;
+    }
 
     // Build state addendum for tone adaptation (uses cached data)
     try {

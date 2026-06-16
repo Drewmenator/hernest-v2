@@ -3,6 +3,8 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { isHouseholdCollection, getHouseholdId } from "./identity";
+import { FLAGS } from "../config";
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,6 +21,16 @@ export const auth = getAuth(app);
 export const db   = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
+// ── Household scoping (migration Step 1) ──────────────────────────
+// Household-scoped collections resolve to the shared household namespace
+// (the owner's uid); everything else stays personal to the signed-in user.
+// For solo users getHouseholdId() === uid, so this is a no-op for them.
+function ownerFor(uid: string, collection: string): string {
+  if (!FLAGS.HOUSEHOLD_IDENTITY) return uid;
+  if (!isHouseholdCollection(collection)) return uid;
+  return getHouseholdId() || uid;
+}
+
 // ── Data Helpers ──────────────────────────────────────────────────
 export async function saveData(
   uid: string,
@@ -26,7 +38,7 @@ export async function saveData(
   data: Record<string, unknown>
 ): Promise<void> {
   try {
-    await setDoc(doc(db, "users", uid, "data", collection), data, { merge: true });
+    await setDoc(doc(db, "users", ownerFor(uid, collection), "data", collection), data, { merge: true });
   } catch (e) {
     console.error(`[Firebase] saveData failed: ${collection}`, e);
   }
@@ -37,7 +49,7 @@ export async function loadData(
   col: string
 ): Promise<Record<string, unknown> | null> {
   try {
-    const snap = await getDoc(doc(db, "users", uid, "data", col));
+    const snap = await getDoc(doc(db, "users", ownerFor(uid, col), "data", col));
     return snap.exists() ? snap.data() as Record<string, unknown> : null;
   } catch (e) {
     console.error(`[Firebase] loadData failed: ${col}`, e);
