@@ -396,7 +396,96 @@ function HouseholdPulseCard() {
 // ── Phase 4: Household Intelligence scores + Risk Radar ──────────
 const BAND_COLOR: Record<ScoreBand, string> = { fragile: T.blush, stretched: T.gold, steady: T.teal, resilient: T.sage };
 const SEV_COLOR: Record<AttentionSeverity, string> = { alert: T.blush, watch: T.gold, info: T.sky };
-const SEV_LABEL: Record<AttentionSeverity, string> = { alert: "Alert", watch: "Watch", info: "FYI" };
+const SEV_RANK: Record<AttentionSeverity, number> = { alert: 3, watch: 2, info: 1 };
+const SOURCE_TAB: Record<string, string> = { budget: "budget", tasks: "plan", school: "plan", trips: "trips", goals: "budget", thrive: "thrive", circle: "circle", calendar: "calendar" };
+const cc_str = (v: unknown): string => (v == null ? "" : typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+
+// ── Phase 6: Command Center — the unified "what needs you today" ──
+// Pure consumer of the intelligence outputs: merges the Risk Radar, proactive
+// alerts, and any recommended actions into ONE ranked queue at the top of home.
+interface CCItem { id: string; severity: AttentionSeverity; label: string; detail: string; tab: string; }
+
+function CommandCenterCard() {
+  const { user, profile } = useStore();
+  const setActiveTab = useStore(s => s.setActiveTab);
+  const [items, setItems] = useState<CCItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let alive = true;
+    (async () => {
+      const out: CCItem[] = [];
+      try {
+        const { buildAppContext } = await import("../../core/contextBuilder");
+        const appCtx = await buildAppContext(user.uid, (profile ?? {}) as unknown as Record<string, unknown>);
+        for (const a of computeHouseholdScores(appCtx).attention) {
+          out.push({ id: `radar_${a.id}`, severity: a.severity, label: cc_str(a.title), detail: cc_str(a.suggestedAction), tab: SOURCE_TAB[a.source] || "plan" });
+        }
+      } catch (e) { console.warn("[CommandCenter] radar failed:", e); }
+      try {
+        const alerts = ((await loadData(user.uid, "alerts"))?.alerts as any[]) || [];
+        for (const al of alerts.slice(0, 6)) {
+          const sev: AttentionSeverity = al?.severity === "critical" ? "alert" : al?.severity === "warning" ? "watch" : "info";
+          const label = cc_str(al?.message);
+          if (label) out.push({ id: `alert_${cc_str(al?.type)}_${label.slice(0, 12)}`, severity: sev, label, detail: "", tab: SOURCE_TAB[cc_str(al?.type)] || "home" });
+        }
+      } catch { /* non-fatal */ }
+      try {
+        const actions = ((await loadData(user.uid, "recommended_actions"))?.actions as any[]) || [];
+        for (const ac of actions.filter(a => a?.status === "pending" || a?.status === "active").slice(0, 4)) {
+          const sev: AttentionSeverity = ac?.priority === "high" ? "alert" : ac?.priority === "medium" ? "watch" : "info";
+          const label = cc_str(ac?.label);
+          if (label) out.push({ id: `rec_${cc_str(ac?.id)}`, severity: sev, label, detail: cc_str(ac?.description), tab: SOURCE_TAB[cc_str(ac?.targetModule)] || "cleo" });
+        }
+      } catch { /* non-fatal */ }
+
+      // Dedup by label, rank by severity, keep the top few.
+      const seen = new Set<string>();
+      const ranked = out
+        .filter(i => i.label && !seen.has(i.label.toLowerCase()) && seen.add(i.label.toLowerCase()))
+        .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity])
+        .slice(0, 5);
+      if (alive) { setItems(ranked); setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [user?.uid]);
+
+  if (loading) return (
+    <div style={{ background: T.esp, borderRadius: 20, padding: "18px", marginBottom: 12, display: "flex", justifyContent: "center" }}>
+      <Spinner size={20} />
+    </div>
+  );
+
+  const allClear = items.length === 0;
+
+  return (
+    <div style={{ background: T.esp, borderRadius: 20, padding: "18px", marginBottom: 12, color: "#fff" }}>
+      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>COMMAND CENTER</p>
+      <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: "#fff", margin: "0 0 14px", lineHeight: 1.15 }}>
+        {allClear ? "You're all caught up ✦" : `${items.length} thing${items.length > 1 ? "s" : ""} need${items.length > 1 ? "" : "s"} you today`}
+      </p>
+      {allClear ? (
+        <p style={{ fontFamily: F.sans, fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.5 }}>Nothing pressing across your finances, schedule, tasks or people. I'll flag anything that needs a decision.</p>
+      ) : (
+        items.map(it => {
+          const color = SEV_COLOR[it.severity];
+          return (
+            <div key={it.id} onClick={() => setActiveTab(it.tab)}
+              style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "10px 12px", background: "rgba(255,255,255,0.06)", borderRadius: 12, marginBottom: 7, cursor: "pointer", borderLeft: `3px solid ${color}` }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 5 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: F.sans, fontSize: 13.5, fontWeight: 700, color: "#fff", margin: "0 0 1px" }}>{it.label}</p>
+                {it.detail && <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.4 }}>{it.detail}</p>}
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 16, flexShrink: 0 }}>›</span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
 
 function ScoreDial({ label, score, band, headline }: { label: string; score: number; band: ScoreBand; headline: string }) {
   const color = BAND_COLOR[band];
@@ -445,42 +534,15 @@ function HouseholdScoresCard() {
   );
   if (!scores) return null;
 
-  const attention = scores.attention.slice(0, 4);
-
   return (
     <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
       <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>HOUSEHOLD INTELLIGENCE</p>
 
-      {/* Resilience + Productivity dials */}
-      <div style={{ display: "flex", gap: 8, marginBottom: attention.length ? 14 : 0 }}>
+      {/* Resilience + Productivity dials (the Risk Radar lives in the Command Center) */}
+      <div style={{ display: "flex", gap: 8 }}>
         <ScoreDial label="Resilience" score={scores.resilience.score} band={scores.resilience.band} headline={scores.resilience.headline} />
         <ScoreDial label="Productivity" score={scores.productivity.score} band={scores.productivity.band} headline={scores.productivity.headline} />
       </div>
-
-      {/* Risk Radar */}
-      {attention.length > 0 && (
-        <>
-          <p style={{ fontFamily: F.sans, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>Needs attention</p>
-          {attention.map(item => {
-            const color = SEV_COLOR[item.severity];
-            return (
-              <div key={item.id} onClick={() => useStore.getState().setActiveTab(item.source === "budget" ? "budget" : item.source === "school" ? "plan" : item.source === "trips" ? "trips" : item.source === "goals" ? "budget" : item.source === "thrive" ? "thrive" : "plan")}
-                style={{ display: "flex", gap: 10, padding: "9px 10px", background: `${color}10`, borderRadius: 12, marginBottom: 6, cursor: "pointer", borderLeft: `3px solid ${color}` }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                    <span style={{ fontFamily: F.sans, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color, padding: "1px 6px", background: `${color}1e`, borderRadius: 6 }}>{SEV_LABEL[item.severity]}</span>
-                    <span style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp }}>{item.title}</span>
-                  </div>
-                  <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.bark, margin: 0, lineHeight: 1.4 }}>{item.suggestedAction}</p>
-                </div>
-              </div>
-            );
-          })}
-        </>
-      )}
-      {attention.length === 0 && (
-        <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", padding: "4px 0 0", fontStyle: "italic" }}>Nothing needs your attention right now ✦</p>
-      )}
     </div>
   );
 }
@@ -729,6 +791,7 @@ export function HomeScreen() {
         </h1>
       </div>
 
+      <CommandCenterCard />
       <BriefingHero onExpand={() => setActiveTab("briefing")} />
       <HouseholdPulseCard />
       <HouseholdScoresCard />
