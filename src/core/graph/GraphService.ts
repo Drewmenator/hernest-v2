@@ -65,12 +65,13 @@ function baseNode(
 // ═══════════════════════════════════════════════════════════════════
 
 export async function createContextGraph(userId: string): Promise<HouseholdContextGraph> {
-  const [profileData, budgetData, calendarData, tasksData, thriveData, tripsData,
+  const [profileData, budgetData, calendarData, calendarSyncedData, tasksData, thriveData, tripsData,
          schoolData, circleData, memoryV2Data, insightsData] =
     await Promise.all([
       loadData(userId, "profile"),
       loadData(userId, "budget_v2"),
       loadData(userId, "calendar"),
+      loadData(userId, "calendar_synced"),
       loadData(userId, "tasks"),
       loadData(userId, "thrive"),
       loadData(userId, "trips"),
@@ -79,6 +80,17 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
       loadData(userId, "cleo_memory_v2"),
       loadData(userId, "household_insights"),
     ]);
+
+  // Manual events live in `calendar`; events from connected providers (Google/
+  // Apple/Outlook) live in `calendar_synced`. Merge both, deduped by id, so the
+  // graph (and Cleo) see the full picture — not just manually-typed events.
+  const mergedCalEvents = (() => {
+    const byId = new Map<string, any>();
+    [...((calendarData?.events as any[]) || []), ...((calendarSyncedData?.events as any[]) || [])]
+      .forEach((e: any) => { if (e && (e.id || e.title)) byId.set(e.id || `${e.date}_${e.title}`, e); });
+    return [...byId.values()];
+  })();
+  const mergedCalendarData = { ...(calendarData || {}), events: mergedCalEvents };
 
   const graph: HouseholdContextGraph = {
     householdId: userId,
@@ -90,7 +102,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     tasks: [],
     todos: [],
     goals: [],
-    stress: buildStressNode(thriveData, tasksData, calendarData),
+    stress: buildStressNode(thriveData, tasksData, mergedCalendarData),
     decisions: [],
     memories: [],
     insights: [],
@@ -261,7 +273,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
   });
 
   // ── Calendar ──────────────────────────────────────────────────
-  const calEvents = (calendarData?.events as any[]) || [];
+  const calEvents = mergedCalEvents;
   const todayStr = new Date().toISOString().split("T")[0];
   const nextWeekStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const upcoming = calEvents.filter((e: any) => e.date >= todayStr && e.date <= nextWeekStr);
@@ -277,6 +289,26 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
   };
   graph.calendar.push(calLoadNode);
   indexNode(graph, calLoadNode);
+
+  // Individual event nodes — previously calendar events were only counted for
+  // the load level and never turned into nodes, so Cleo's context pack (which
+  // surfaces `event` nodes) had nothing to show. Create one node per upcoming
+  // event so she can actually name what's on the calendar.
+  calEvents
+    .filter((e: any) => e && e.title && e.date && e.date >= todayStr)
+    .sort((a: any, b: any) => (a.date || "").localeCompare(b.date || ""))
+    .slice(0, 20)
+    .forEach((e: any) => {
+      const evNode: CalendarContext = {
+        ...baseNode(`cal_event_${e.id || e.date + e.title}`, "calendar", "calendar", 0.85, ["event", e.source || "manual"]) as any,
+        subtype: "event",
+        title: e.time ? `${e.title} @ ${e.time}` : e.title,
+        date: e.date,
+        endDate: e.endDate || undefined,
+      };
+      graph.calendar.push(evNode);
+      indexNode(graph, evNode);
+    });
 
   if (loadLevel === "heavy" || loadLevel === "critical") {
     addRelationship(graph, {
