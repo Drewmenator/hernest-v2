@@ -440,7 +440,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const hid = getHouseholdId() ?? userId;
       let graph = await loadGraphFromFirestore(hid);
       if (!graph) graph = await createContextGraph(hid);
-      context = formatCleoContextPackForPrompt(generateContextPackForCleo(graph));
+      context = formatCleoContextPackForPrompt(generateContextPackForCleo(graph, userId));
       modules = ["graph"];
       assumptions = [];
     } else {

@@ -13,9 +13,11 @@ import { useStore } from "./store";
 // Anything NOT listed stays personal to each signed-in user (profile, settings,
 // household_link, partner_invite, integrations).
 //
-// NOTE: thrive (wellness) and cleo_memory* are intentionally left OUT for now —
-// they hold sensitive personal data. They graduate to household scope in Step 5,
-// once per-member consent/visibility filtering exists. Do not add them early.
+// NOTE: thrive (wellness) and cleo_memory* are intentionally left OUT — they hold
+// sensitive personal data. The Step 5 visibility primitive (private graph nodes are
+// filtered from the Cleo pack for non-owner viewers) is now in place, but blanket
+// graduation to household scope still needs a per-member consent UI + ownership
+// model. Keep them personal until that exists.
 export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "budget",
   "budget_v2",

@@ -28,7 +28,7 @@ export function useContextGraph(): UseContextGraphReturn {
   const [loading, setLoading] = useState(false);
 
   const buildPacks = useCallback((g: HouseholdContextGraph) => {
-    setCleoPack(generateContextPackForCleo(g));
+    setCleoPack(generateContextPackForCleo(g, useStore.getState().user?.uid));
     setCfoPack(generateContextPackForCFO(g));
   }, []);
 

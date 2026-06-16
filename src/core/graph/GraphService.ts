@@ -389,6 +389,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     .forEach((m: any) => {
       const v2Node: Memory = {
         ...baseNode(`mem_v2_${m.id}`, "memory", "cleo", confToScore[m.confidence] ?? 0.7, [m.type, "cleo_memory_v2"]) as any,
+        visibility: m.sensitivity === "high" ? "private" : "household",
         memoryType: (m.type as any) || "fact",
         content: m.content,
         confidenceScore: confToScore[m.confidence] ?? 0.7,
@@ -879,7 +880,7 @@ export async function detectCrossModulePatterns(
 // 5. generateContextPackForCleo()
 // ═══════════════════════════════════════════════════════════════════
 
-export function generateContextPackForCleo(graph: HouseholdContextGraph): CleoContextPack {
+export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerUid?: string): CleoContextPack {
   const summary = graph.finances.find(f => f.id === "fin_monthly_summary");
   const calLoad = graph.calendar.find(c => c.id === "cal_load_current");
   const primaryUser = graph.people.find(p => p.isUser);
@@ -957,6 +958,8 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph): CleoCo
       outcome: d.outcome,
     })),
     relevantMemories: graph.memories
+      // Step 5 consent: private memories surface only to the household owner.
+      .filter(m => m.visibility !== "private" || viewerUid === graph.householdId)
       .sort((a, b) => b.confidenceScore - a.confidenceScore)
       .slice(0, 8)
       .map(m => m.content),

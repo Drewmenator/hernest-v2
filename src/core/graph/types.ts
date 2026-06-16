@@ -73,6 +73,9 @@ export interface BaseNode {
   confidence: number;      // 0–1: reliability of this node's data
   tags: string[];
   expiresAt?: string;      // optional TTL for temporary context
+  // migration Step 5: "private" nodes are filtered from the Cleo pack for
+  // non-owner viewers. Absent = "household" (visible to all members).
+  visibility?: "household" | "private";
 }
 
 // ═══════════════════════════════════════════════════════════════════
