@@ -13,7 +13,8 @@
 //     → publish event
 
 import { ai, aiJSON, type Feature } from "./ai";
-import { runCleoAgent } from "./cleoAgent";
+import { runCleoAgent, runCleoAgentStreaming } from "./cleoAgent";
+import { AI } from "../config";
 import { buildAppContext }           from "./contextBuilder";
 import { buildHouseholdSnapshot }    from "./household/HouseholdIntelligence";
 import { extractFactsFromConversation } from "./memory";
@@ -67,6 +68,7 @@ export interface OrchestratorRequest {
     requireJson?: boolean;
     allowMemoryWriteback?: boolean;
     contextDepth?: "light" | "full";  // light = fast, full = cross-module
+    onToken?: (t: string) => void;    // when set, Cleo's reply streams token-by-token
   };
 }
 
@@ -410,6 +412,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     requireJson = false,
     allowMemoryWriteback = true,
     contextDepth = "full",
+    onToken,
   } = options;
 
   // ── Step 1: Classify intent ──────────────────────────────────────
@@ -524,12 +527,14 @@ Today is ${todayStr}. You can act in the app using tools: add_task, complete_tas
       const agentHistory = conversationHistory
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      const agentMessages = [...agentHistory, { role: "user" as const, content: userMessage }];
+      // Model routing: heavy reasoning → Sonnet; everyday chat & actions → Haiku (faster).
+      const heavy = classification.intent === "financial_analysis" || classification.intent === "emotional_support";
+      const cleoModel = heavy ? AI.SONNET : AI.HAIKU;
       try {
-        const agentRes = await runCleoAgent({
-          uid: userId,
-          system: agentSystem,
-          messages: [...agentHistory, { role: "user", content: userMessage }],
-        });
+        const agentRes = (onToken && FLAGS.CLEO_STREAMING)
+          ? await runCleoAgentStreaming({ uid: userId, system: agentSystem, messages: agentMessages, model: cleoModel, onToken })
+          : await runCleoAgent({ uid: userId, system: agentSystem, messages: agentMessages, model: cleoModel });
         if (agentRes.text) text = agentRes.text;
         else await singleShotChat();
       } catch (e) {
@@ -546,7 +551,9 @@ Today is ${todayStr}. You can act in the app using tools: add_task, complete_tas
   }
 
   // ── Step 6: Response validation ─────────────────────────────────
-  if (!fallbackUsed) {
+  // Skipped when streaming — the text is already on the user's screen, so we
+  // can't swap it out post-hoc, and it saves a context rebuild on the hot path.
+  if (!fallbackUsed && !onToken) {
     let currentState: import("./household/householdStateEngine").HouseholdStateResult | null = null;
     try {
       const { buildAppContext: getCtx } = await import("./contextBuilder");
@@ -617,6 +624,26 @@ export async function askCleo(
     userMessage: message,
     conversationHistory: history,
     options: { allowMemoryWriteback: true, contextDepth: "full" },
+  });
+  return result.text;
+}
+
+// Streaming variant: tokens arrive via onToken as they generate; the resolved
+// promise is the full final text (for task parsing / memory writeback).
+export async function askCleoStreaming(
+  userId: string,
+  profile: Record<string, unknown>,
+  message: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  onToken: (t: string) => void
+): Promise<string> {
+  const result = await orchestrate({
+    userId,
+    profile,
+    sourceModule: "cleo",
+    userMessage: message,
+    conversationHistory: history,
+    options: { allowMemoryWriteback: true, contextDepth: "full", onToken },
   });
   return result.text;
 }

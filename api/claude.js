@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { prompt, system, feature, model, messages, tools, max_tokens = 1000 } = req.body || {};
+  const { prompt, system, feature, model, messages, tools, stream, max_tokens = 1000 } = req.body || {};
   const effectiveMaxTokens = max_tokens < 2000 ? Math.max(max_tokens, 2000) : max_tokens;
 
   if (prompt && prompt.length > 12000) return res.status(400).json({ error: "Message too long" });
@@ -48,6 +48,19 @@ export default async function handler(req, res) {
     usageRef.set({ count: count + 1, date: today }, { merge: true }).catch(() => {});
   } catch (e) { console.error("[HerNest] Usage check failed:", e?.message); }
 
+  const upstreamBody = {
+    model: model || "claude-haiku-4-5-20251001",
+    max_tokens,
+    // Prompt-cache the system prompt: it carries the large household context
+    // and is re-sent every turn (and every agent-loop iteration), so caching
+    // it cuts latency + cost on repeat calls within the cache window.
+    system: system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined,
+    messages: messages || [{ role: "user", content: prompt }],
+    // Cleo v2 agent: forward tool definitions so the model can request actions.
+    ...(Array.isArray(tools) && tools.length ? { tools } : {}),
+    ...(stream ? { stream: true } : {}),
+  };
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -56,17 +69,7 @@ export default async function handler(req, res) {
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: model || "claude-haiku-4-5-20251001",
-        max_tokens,
-        // Prompt-cache the system prompt: it carries the large household context
-        // and is re-sent every turn (and every agent-loop iteration), so caching
-        // it cuts latency + cost on repeat calls within the cache window.
-        system: system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined,
-        messages: messages || [{ role: "user", content: prompt }],
-        // Cleo v2 agent: forward tool definitions so the model can request actions.
-        ...(Array.isArray(tools) && tools.length ? { tools } : {}),
-      }),
+      body: JSON.stringify(upstreamBody),
     });
 
     if (!response.ok) {
@@ -74,6 +77,23 @@ export default async function handler(req, res) {
       console.error("[HerNest API] Anthropic error:", response.status, JSON.stringify(err));
       return res.status(response.status).json({ error: err });
     }
+
+    // ── Streaming: pipe Anthropic's SSE straight through to the client ──
+    if (stream && response.body) {
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+      try {
+        for await (const chunk of response.body) {
+          res.write(chunk);
+        }
+      } catch (e) {
+        console.error("[HerNest API] stream relay error:", e?.message);
+      }
+      return res.end();
+    }
+
     const data = await response.json();
     return res.status(200).json(data);
   } catch (err) {

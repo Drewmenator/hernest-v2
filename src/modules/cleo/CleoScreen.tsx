@@ -4,7 +4,8 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Spinner } from "../../shared/components";
 import { ai } from "../../core/ai";
-import { askCleo } from "../../core/aiOrchestrator";
+import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
+import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
 import { useAdaptiveUX, getCleoToneProfile } from "../../core/household/adaptiveUX";
 import { useContextGraph } from "../../core/graph";
@@ -354,7 +355,29 @@ Sound like a trusted CFO friend — warm but rigorous.`;
         sys += `\n\nCONVERSATION SO FAR: This is message ${msgs.length} in an ongoing conversation. Stay consistent with what you've already said. Build on previous exchanges rather than starting fresh.`;
       }
       // ── Orchestrator handles context, model routing, memory writeback ──
-      const cleoText = await askCleo(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
+      // Mutate the most recent assistant message in place (used while streaming).
+      const updateLastAssistant = (content: string) => setMsgs(p => {
+        const copy = p.slice();
+        for (let i = copy.length - 1; i >= 0; i--) {
+          if (copy[i].role === "assistant") { copy[i] = { ...copy[i], content }; break; }
+        }
+        return copy;
+      });
+
+      const streaming = FLAGS.CLEO_STREAMING;
+      let cleoText = "";
+      if (streaming) {
+        // Live placeholder the tokens flow into; never show raw TASKS_JSON.
+        setMsgs(p => [...p, { role: "assistant", type: "text", content: "" }]);
+        let buf = "";
+        cleoText = await askCleoStreaming(
+          user.uid, (profile || {}) as Record<string, unknown>, msg, history,
+          (tok) => { buf += tok; updateLastAssistant(buf.split("TASKS_JSON:")[0]); }
+        );
+        if (!cleoText) cleoText = buf;
+      } else {
+        cleoText = await askCleo(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
+      }
       const result = { text: cleoText, error: null };
 
       if (!cleoText) throw new Error("empty response");
@@ -381,7 +404,19 @@ Sound like a trusted CFO friend — warm but rigorous.`;
         tasks: extracted.length > 0 ? extracted : undefined,
       };
 
-      setMsgs(p => [...p, assistantMsg]);
+      // When streaming, swap the live placeholder for the finalized message
+      // (adds task-suggestion formatting / strips the raw TASKS_JSON); else append.
+      if (streaming) {
+        setMsgs(p => {
+          const copy = p.slice();
+          for (let i = copy.length - 1; i >= 0; i--) {
+            if (copy[i].role === "assistant") { copy[i] = assistantMsg; break; }
+          }
+          return copy;
+        });
+      } else {
+        setMsgs(p => [...p, assistantMsg]);
+      }
       if (extracted.length > 0) setPendingTasks(extracted);
 
       // ── Background fact extraction (unchanged) ───────────────────
@@ -394,7 +429,15 @@ Sound like a trusted CFO friend — warm but rigorous.`;
       }
 
     } catch(e) {
-      setMsgs(p => [...p, { role:"assistant", content:"I'm having a moment — please try again." }]);
+      // Replace an empty streaming placeholder if present; otherwise append.
+      setMsgs(p => {
+        const errMsg: Msg = { role: "assistant", content: "I'm having a moment — please try again." };
+        const last = p[p.length - 1];
+        if (last && last.role === "assistant" && !last.content) {
+          const copy = p.slice(); copy[copy.length - 1] = errMsg; return copy;
+        }
+        return [...p, errMsg];
+      });
     }
     setLoading(false);
   };
