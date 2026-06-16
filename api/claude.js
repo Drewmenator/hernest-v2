@@ -59,7 +59,10 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: model || "claude-haiku-4-5-20251001",
         max_tokens,
-        system: system || undefined,
+        // Prompt-cache the system prompt: it carries the large household context
+        // and is re-sent every turn (and every agent-loop iteration), so caching
+        // it cuts latency + cost on repeat calls within the cache window.
+        system: system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined,
         messages: messages || [{ role: "user", content: prompt }],
         // Cleo v2 agent: forward tool definitions so the model can request actions.
         ...(Array.isArray(tools) && tools.length ? { tools } : {}),

@@ -31,28 +31,63 @@ function ownerFor(uid: string, collection: string): string {
   return getHouseholdId() || uid;
 }
 
+// ── Read cache (perf) ─────────────────────────────────────────────
+// Many screens/paths re-read the same docs in a short window (the home screen
+// fans the same collections across several cards; the AI orchestrator rebuilds
+// context per message). Without a cache each is a fresh getDoc. A short TTL +
+// in-flight coalescing collapses that to one network read; writes invalidate.
+type LoadResult = Record<string, unknown> | null;
+const DOC_CACHE_TTL = 20_000; // 20s — bounded staleness, big read reduction
+const _docCache = new Map<string, { data: LoadResult; expires: number }>();
+const _inflight = new Map<string, Promise<LoadResult>>();
+const cacheKey = (uid: string, col: string) => `${ownerFor(uid, col)}::${col}`;
+
+export function invalidateDataCache(uid: string, col: string): void {
+  _docCache.delete(cacheKey(uid, col));
+}
+
 // ── Data Helpers ──────────────────────────────────────────────────
 export async function saveData(
   uid: string,
   collection: string,
   data: Record<string, unknown>
 ): Promise<void> {
+  // Invalidate before AND after the write so a concurrent read can't re-cache
+  // stale data mid-flight. setDoc uses merge, so we drop the entry rather than
+  // cache the partial — the next read re-fetches the full merged doc.
+  invalidateDataCache(uid, collection);
   try {
     await setDoc(doc(db, "users", ownerFor(uid, collection), "data", collection), data, { merge: true });
   } catch (e) {
     console.error(`[Firebase] saveData failed: ${collection}`, e);
+  } finally {
+    invalidateDataCache(uid, collection);
   }
 }
 
 export async function loadData(
   uid: string,
   col: string
-): Promise<Record<string, unknown> | null> {
-  try {
-    const snap = await getDoc(doc(db, "users", ownerFor(uid, col), "data", col));
-    return snap.exists() ? snap.data() as Record<string, unknown> : null;
-  } catch (e) {
-    console.error(`[Firebase] loadData failed: ${col}`, e);
-    return null;
-  }
+): Promise<LoadResult> {
+  const key = cacheKey(uid, col);
+  const hit = _docCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.data;
+  const pending = _inflight.get(key);
+  if (pending) return pending;          // coalesce concurrent identical reads
+
+  const p = (async (): Promise<LoadResult> => {
+    try {
+      const snap = await getDoc(doc(db, "users", ownerFor(uid, col), "data", col));
+      const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+      _docCache.set(key, { data, expires: Date.now() + DOC_CACHE_TTL });
+      return data;
+    } catch (e) {
+      console.error(`[Firebase] loadData failed: ${col}`, e);
+      return null;
+    } finally {
+      _inflight.delete(key);
+    }
+  })();
+  _inflight.set(key, p);
+  return p;
 }
