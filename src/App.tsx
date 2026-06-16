@@ -33,6 +33,7 @@ const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").th
 import { FamilyScreen }    from "./modules/family/FamilyScreen";
 import { ProfileScreen }    from "./modules/profile/ProfileScreen";
 const CalendarScreen = React.lazy(() => import("./modules/calendar/CalendarScreen").then(m => ({ default: m.CalendarScreen })));
+const MemoryScreen = React.lazy(() => import("./modules/memory/MemoryScreen").then(m => ({ default: m.MemoryScreen })));
 import { SettingsScreen }   from "./modules/settings/SettingsScreen";
 import { UpgradeScreen }   from "./modules/upgrade/UpgradeScreen";
 
@@ -232,6 +233,7 @@ export default function App() {
       case "trips":    return <EB name="Trips"><TripsScreen /></EB>;
       case "circle":   return <EB name="Circle"><CircleScreen /></EB>;
       case "calendar": return <EB name="Calendar"><CalendarScreen /></EB>;
+      case "memory":   return <EB name="Memory"><MemoryScreen /></EB>;
       case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
       case "family":   return <EB name="Family"><FamilyScreen /></EB>;
       case "settings": return <EB name="Settings"><SettingsScreen /></EB>;
