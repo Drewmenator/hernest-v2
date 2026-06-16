@@ -929,7 +929,11 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
     calendarSummary: {
       loadLevel: calLoad?.loadLevel || "normal",
       busyWeeksAhead: calLoad?.busyWeeksAhead || 0,
-      upcomingEvents: tripNodes.slice(0, 2).map(t => t.title || ""),
+      upcomingEvents: graph.calendar
+        .filter(c => (c.subtype === "event" || c.subtype === "travel_block") && c.date && c.date >= new Date().toISOString().split("T")[0])
+        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+        .slice(0, 6)
+        .map(c => `${c.title}${c.date ? ` (${c.date})` : ""}`),
       highLoadDays: calLoad?.highLoadDays || [],
       appointmentsThisWeek: graph.calendar
         .filter(c => (c.subtype === "appointment" || c.subtype === "school_event") && c.date && c.date >= new Date().toISOString().split("T")[0])
@@ -1240,6 +1244,7 @@ export function formatCleoContextPackForPrompt(pack: CleoContextPack): string {
     pack.financialSummary.topOverspendCategories.length ? `OVERSPEND: ${pack.financialSummary.topOverspendCategories.join(", ")}` : null,
     pack.financialSummary.upcomingObligations.length ? `UPCOMING COSTS: ${pack.financialSummary.upcomingObligations.map(o => `${o.description} $${o.estimatedCost}`).join(", ")}` : null,
     `CALENDAR: ${pack.calendarSummary.loadLevel} load · ${pack.calendarSummary.busyWeeksAhead} busy week(s) ahead`,
+    pack.calendarSummary.upcomingEvents.length ? `EVENTS: ${pack.calendarSummary.upcomingEvents.join(" · ")}` : null,
     pack.calendarSummary.appointmentsThisWeek.length ? `APPOINTMENTS: ${pack.calendarSummary.appointmentsThisWeek.join(", ")}` : null,
     `STRESS: ${pack.stressContext.level}${pack.stressContext.isCapacityProblem ? " (CAPACITY PROBLEM — not a willpower issue)" : ""}`,
     pack.stressContext.activeSignals.length ? `STRESS SIGNALS: ${pack.stressContext.activeSignals.join("; ")}` : null,
