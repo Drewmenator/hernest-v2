@@ -15,6 +15,7 @@
 
 import { saveData, loadData } from "./firebase";
 import { invalidateCache } from "./contextRetrieval";
+import type { MemoryFact } from "./memory";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -757,4 +758,47 @@ export async function getMemorySettingsView(userId: string): Promise<MemorySetti
 
 export async function loadMemoriesV2(userId: string): Promise<HouseholdMemory[]> {
   return loadAllMemories(userId);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// V1 → V2 MIGRATION (migration Step 4)
+// Maps a legacy cleo_memory fact into a V2 candidate, and runs a one-time
+// migration so V2 becomes the single memory store of record.
+// ═══════════════════════════════════════════════════════════════════
+
+export function v1FactToCandidate(f: MemoryFact): MemoryCandidate {
+  const typeMap: Record<string, MemoryType> = {
+    family: "fact", health: "fact", preference: "preference",
+    goal: "goal_context", schedule: "routine", temporary: "fact",
+  };
+  return {
+    type: typeMap[f.type] || "fact",
+    title: f.statement.slice(0, 60),
+    content: f.statement,
+    sourceModule: "cleo",
+    // Already accepted in V1 → migrate at medium confidence so it auto-saves.
+    confidence: f.confidence >= 0.8 ? "high" : "medium",
+    sensitivity: "low",
+    evidenceDescription: `Migrated from V1 memory (${f.source})`,
+    expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : undefined,
+  };
+}
+
+// One-time, idempotent (guarded by a marker). Safe to call on every bootstrap.
+export async function migrateV1MemoriesToV2(userId: string): Promise<{ migrated: number }> {
+  try {
+    const v1 = await loadData(userId, "cleo_memory");
+    if (!v1 || (v1 as any)._migratedToV2) return { migrated: 0 };
+    const facts = ((v1.facts as MemoryFact[]) || []);
+    let migrated = 0;
+    for (const f of facts) {
+      const res = await proposeMemory(userId, v1FactToCandidate(f));
+      if (res.action === "saved") migrated++;
+    }
+    await saveData(userId, "cleo_memory", { _migratedToV2: true }); // merge — keeps facts
+    return { migrated };
+  } catch (e) {
+    console.warn("[Memory] V1→V2 migration failed (non-fatal):", e);
+    return { migrated: 0 };
+  }
 }

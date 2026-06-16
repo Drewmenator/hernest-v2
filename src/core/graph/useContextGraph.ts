@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "../store";
+import { getHouseholdId } from "../identity";
 import {
   createContextGraph, loadGraphFromFirestore,
   updateGraphFromModuleEvent, detectCrossModulePatterns,
@@ -27,21 +28,22 @@ export function useContextGraph(): UseContextGraphReturn {
   const [loading, setLoading] = useState(false);
 
   const buildPacks = useCallback((g: HouseholdContextGraph) => {
-    setCleoPack(generateContextPackForCleo(g));
+    setCleoPack(generateContextPackForCleo(g, useStore.getState().user?.uid));
     setCfoPack(generateContextPackForCFO(g));
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!user?.uid) return;
+    const hid = getHouseholdId();
+    if (!hid) return;
     setLoading(true);
     try {
-      const cached = await loadGraphFromFirestore(user.uid);
+      const cached = await loadGraphFromFirestore(hid);
       if (cached) {
         setGraph(cached);
         buildPacks(cached);
       } else {
-        const fresh = await createContextGraph(user.uid);
-        await detectCrossModulePatterns(fresh, user.uid);
+        const fresh = await createContextGraph(hid);
+        await detectCrossModulePatterns(fresh, hid);
         setGraph(fresh);
         buildPacks(fresh);
       }
@@ -53,8 +55,9 @@ export function useContextGraph(): UseContextGraphReturn {
   }, [user?.uid, buildPacks]);
 
   const handleEvent = useCallback(async (event: ModuleEvent) => {
-    if (!graph || !user?.uid) return;
-    const updated = await updateGraphFromModuleEvent(user.uid, event, { ...graph });
+    const hid = getHouseholdId();
+    if (!graph || !hid) return;
+    const updated = await updateGraphFromModuleEvent(hid, event, { ...graph });
     setGraph(updated);
     buildPacks(updated);
   }, [graph, user?.uid, buildPacks]);

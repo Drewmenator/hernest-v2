@@ -98,6 +98,15 @@ export interface HouseholdSnapshot {
   lastRefreshed: string;
 }
 
+export type HouseholdRole = "owner" | "partner" | "member";
+export interface HouseholdMember {
+  uid: string;
+  role: HouseholdRole;
+  displayName: string;
+  email?: string;
+  joinedAt: number;
+}
+
 interface AppStore {
   user: { uid: string; email: string; displayName: string | null } | null;
   authChecked: boolean;
@@ -115,6 +124,9 @@ interface AppStore {
   householdInsights: HouseholdInsight[];
   activeScenario: ScenarioResult | null;
   householdRefreshing: boolean;
+  currentHouseholdId: string | null;
+  householdRole: HouseholdRole | null;
+  householdMembers: HouseholdMember[];
   setUser: (user: AppStore["user"]) => void;
   setAuthChecked: (checked: boolean) => void;
   setProfile: (profile: UserProfile | null) => void;
@@ -134,6 +146,7 @@ interface AppStore {
   dismissInsight: (id: string) => void;
   setActiveScenario: (scenario: ScenarioResult | null) => void;
   setHouseholdRefreshing: (refreshing: boolean) => void;
+  setHousehold: (h: { householdId: string; role: HouseholdRole; members?: HouseholdMember[] }) => void;
   updateFinancialSnapshot: (snap: Partial<FinancialSnapshot>) => void;
 }
 
@@ -149,6 +162,7 @@ export const useStore = create<AppStore>()(
     screen: "loading", showMore: false, showSettings: false, showUpgrade: false,
     isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 10,
     householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
+    currentHouseholdId: null, householdRole: null, householdMembers: [],
     setUser: (user) => set((s) => { s.user = user; }),
     setAuthChecked: (checked) => set((s) => { s.authChecked = checked; }),
     setProfile: (profile) => set((s) => { s.profile = profile; }),
@@ -165,6 +179,7 @@ export const useStore = create<AppStore>()(
       s.user = null; s.profile = null; s.screen = "login";
       s.activeTab = "home"; s.dailyUsage = 0;
       s.householdSnapshot = null; s.householdInsights = []; s.activeScenario = null;
+      s.currentHouseholdId = null; s.householdRole = null; s.householdMembers = [];
     }),
     setHouseholdSnapshot: (snap) => set((s) => { s.householdSnapshot = snap; }),
     setHouseholdInsights: (insights) => set((s) => { s.householdInsights = insights; }),
@@ -178,6 +193,11 @@ export const useStore = create<AppStore>()(
     }),
     setActiveScenario: (scenario) => set((s) => { s.activeScenario = scenario; }),
     setHouseholdRefreshing: (refreshing) => set((s) => { s.householdRefreshing = refreshing; }),
+    setHousehold: ({ householdId, role, members }) => set((s) => {
+      s.currentHouseholdId = householdId;
+      s.householdRole = role;
+      if (members) s.householdMembers = members;
+    }),
     updateFinancialSnapshot: (snap) => set((s) => {
       if (!s.householdSnapshot) {
         s.householdSnapshot = {

@@ -381,6 +381,12 @@ function HouseholdPulseCard() {
         </button>
       </div>
       )}
+
+      {showCleoSetup && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: T.cream, overflowY: "auto" }}>
+          <CleoSetupScreen onComplete={() => setShowCleoSetup(false)} />
+        </div>
+      )}
     </div>
   );
 }

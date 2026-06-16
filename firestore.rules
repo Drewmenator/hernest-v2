@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// ─── HerNest Firestore Security Rules ────────────────────────────
+// Source of truth for access control. Created for migration Steps 1–2.
+//
+// Model: a household's id IS the owner's uid. Every user has full access to
+// their OWN namespace (unchanged from before). Household MEMBERS additionally
+// get access to a fixed set of SHARED collections under the owner's namespace,
+// plus the household doc, member roster, and append-only event log.
+//
+// Membership is anchored to users/{uid}/data/household_link, which is written
+// ONLY by the trusted /api/invite/accept admin endpoint — so a client cannot
+// grant itself membership in someone else's household.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Collections under users/{ownerUid}/data that are shared with the whole
+    // household. KEEP IN SYNC with HOUSEHOLD_COLLECTIONS in src/core/identity.ts.
+    // (thrive + cleo_memory* are intentionally NOT here — they stay personal
+    // until per-member consent lands in migration Step 5.)
+    function householdShared() {
+      return [
+        'budget', 'budget_v2', 'tasks', 'calendar', 'trips',
+        'school', 'circle', 'household_insights', 'household_graph'
+      ];
+    }
+
+    // True if the signed-in user belongs to household {ownerUid}: either they
+    // ARE the owner, or the trusted invite flow wrote them a household_link
+    // pointing at it. (get/exists in rules are privileged — they bypass rules.)
+    function isMember(ownerUid) {
+      return isSignedIn() && (
+        request.auth.uid == ownerUid ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/data/household_link) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/data/household_link).data.primaryUid == ownerUid
+        )
+      );
+    }
+
+    // ── User namespace ───────────────────────────────────────────
+    // Full access to your OWN namespace — preserves all existing behavior
+    // (data, integrations/tokens, usage, and anything else under users/{uid}).
+    match /users/{ownerUid}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == ownerUid;
+    }
+
+    // ADDITIVE: other household members may read/write ONLY the shared data
+    // collections under the owner's namespace. Personal collections are not in
+    // householdShared(), so they remain owner-only via the rule above.
+    match /users/{ownerUid}/data/{col} {
+      allow read, write: if householdShared().hasAny([col]) && isMember(ownerUid);
+    }
+
+    // ── Households ───────────────────────────────────────────────
+    match /households/{hid} {
+      allow read: if isMember(hid);
+      // You can only create/update YOUR OWN household doc (hid == your uid).
+      allow create, update: if isSignedIn() && request.auth.uid == hid;
+      allow delete: if false;
+
+      // Member roster — each user writes only their OWN membership, and only
+      // into a household they legitimately belong to (owner, or invited).
+      match /members/{memberUid} {
+        allow read: if isMember(hid);
+        allow create, update: if request.auth.uid == memberUid && isMember(hid);
+        allow delete: if request.auth.uid == memberUid || request.auth.uid == hid;
+      }
+
+      // Shared, append-only household event log (migration Step 2).
+      match /events/{eventId} {
+        allow read: if isMember(hid);
+        allow create: if isMember(hid)
+                      && request.resource.data.actorUserId == request.auth.uid;
+        allow update, delete: if false; // append-only
+      }
+    }
+
+    // ── Invites ──────────────────────────────────────────────────
+    // Read/written only by the admin SDK in /api/invite/*. No client access.
+    match /invites/{token} {
+      allow read, write: if false;
+    }
+
+    // Everything else is denied by Firestore's default (no matching allow).
+  }
+}
