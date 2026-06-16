@@ -32,6 +32,15 @@ export const FLAGS = {
   // When true, household-scoped collections resolve to the shared household namespace
   // so partners read/write the same data. Safe for solo users (householdId === uid).
   HOUSEHOLD_IDENTITY: true,
+
+  // ── Cleo v2 agent (Phase 2) ──
+  // When true, Cleo chat runs a tool-use loop so she can take real actions
+  // (add tasks, schedule events, complete tasks), not just answer. Falls back
+  // to single-shot chat on any error. Disable via VITE_CLEO_AGENT="off".
+  CLEO_AGENT:
+    (((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CLEO_AGENT) as
+      | string
+      | undefined) !== "off",
 } as const;
 
 export const ROUTES = {

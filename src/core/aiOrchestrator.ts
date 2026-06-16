@@ -13,6 +13,7 @@
 //     → publish event
 
 import { ai, aiJSON, type Feature } from "./ai";
+import { runCleoAgent } from "./cleoAgent";
 import { buildAppContext }           from "./contextBuilder";
 import { buildHouseholdSnapshot }    from "./household/HouseholdIntelligence";
 import { extractFactsFromConversation } from "./memory";
@@ -486,6 +487,17 @@ ${stateAddendum}`;
   let parsed: unknown = undefined;
   let fallbackUsed = false;
 
+  // Single-shot chat call, used directly and as the agent's fallback.
+  const singleShotChat = async () => {
+    const result = await ai(systemPrompt, userMessage, feature, conversationHistory);
+    if (result.error) {
+      fallbackUsed = true;
+      text = FALLBACKS[classification.intent];
+    } else {
+      text = result.text;
+    }
+  };
+
   try {
     if (requireJson) {
       parsed = await aiJSON(systemPrompt, userMessage, feature, null);
@@ -494,19 +506,30 @@ ${stateAddendum}`;
         fallbackUsed = true;
         text = FALLBACKS[classification.intent];
       }
-    } else {
-      const result = await ai(
-        systemPrompt,
-        userMessage,
-        feature,
-        conversationHistory
-      );
-      if (result.error) {
-        fallbackUsed = true;
-        text = FALLBACKS[classification.intent];
-      } else {
-        text = result.text;
+    } else if (FLAGS.CLEO_AGENT && classification.feature === "cleo_chat") {
+      // ── Cleo v2 agent (Phase 2): tool loop so she can ACT, not just answer ──
+      const todayStr = new Date().toISOString().split("T")[0];
+      const agentSystem = `${systemPrompt}
+
+=== ACTIONS YOU CAN TAKE ===
+Today is ${todayStr}. You can act in the app using tools: add_task, complete_task, add_calendar_event. When the user asks you to add/note/remind, schedule/book, or mark something done, CALL THE TOOL — don't just say you will. Resolve relative dates like "tomorrow" to YYYY-MM-DD using today's date. After acting, confirm briefly and warmly. For anything that isn't an action request, just answer normally.`;
+      const agentHistory = conversationHistory
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      try {
+        const agentRes = await runCleoAgent({
+          uid: userId,
+          system: agentSystem,
+          messages: [...agentHistory, { role: "user", content: userMessage }],
+        });
+        if (agentRes.text) text = agentRes.text;
+        else await singleShotChat();
+      } catch (e) {
+        console.warn("[Orchestrator] Cleo agent failed, falling back to chat:", e);
+        await singleShotChat();
       }
+    } else {
+      await singleShotChat();
     }
   } catch (e) {
     console.error("[Orchestrator] AI call failed:", e);
