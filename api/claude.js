@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { prompt, system, feature, model, messages, max_tokens = 1000 } = req.body || {};
+  const { prompt, system, feature, model, messages, tools, max_tokens = 1000 } = req.body || {};
   const effectiveMaxTokens = max_tokens < 2000 ? Math.max(max_tokens, 2000) : max_tokens;
 
   if (prompt && prompt.length > 12000) return res.status(400).json({ error: "Message too long" });
@@ -61,6 +61,8 @@ export default async function handler(req, res) {
         max_tokens,
         system: system || undefined,
         messages: messages || [{ role: "user", content: prompt }],
+        // Cleo v2 agent: forward tool definitions so the model can request actions.
+        ...(Array.isArray(tools) && tools.length ? { tools } : {}),
       }),
     });
 
