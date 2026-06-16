@@ -13,7 +13,7 @@ import type {
   Person, FinancialContext, CalendarContext, RoutineContext,
   Goal, HouseholdStressContext, HouseholdDecision, Memory, Insight,
   RelationshipType, NodeType, HouseholdModule, StressSource,
-  GoalStatus,
+  GoalStatus, TodoItem,
 } from "./types";
 
 const GRAPH_KEY = "household_graph";
@@ -88,6 +88,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     finances: [],
     calendar: [],
     tasks: [],
+    todos: [],
     goals: [],
     stress: buildStressNode(thriveData, tasksData, calendarData),
     decisions: [],
@@ -135,6 +136,23 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
     graph.people.push(child);
     indexNode(graph, child);
   });
+
+  // ── To-do items (discrete tasks from the Plan module) ─────────
+  // These are operational, not routines — they give Cleo the actual
+  // to-do list (titles, due dates, priority) instead of just a count.
+  const rawTodos = (tasksData?.tasks as any[]) || [];
+  graph.todos = rawTodos
+    .filter((t: any) => t && t.title)
+    .map((t: any): TodoItem => ({
+      id: t.id || `todo_${t.title}`,
+      title: String(t.title),
+      category: t.category || "personal",
+      priority: t.priority || "medium",
+      // Tolerate both the current `status` field and a legacy `done` boolean.
+      status: t.status || (t.done ? "completed" : "pending"),
+      dueDate: t.dueDate || undefined,
+      owner: t.owner || t.assignee || undefined,
+    }));
 
   // ── Finances ──────────────────────────────────────────────────
   const cats = (budgetData?.categories as any[]) || [];
@@ -908,6 +926,25 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
     .flatMap(r => r.bottlenecks)
     .filter(Boolean);
 
+  // ── Task summary: the actual to-do list, so Cleo can act as a PA ──
+  const todayISO = new Date().toISOString().split("T")[0];
+  const soonISO = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+  const openTodos = graph.todos.filter(t => t.status !== "completed");
+  const isUrgent = (t: TodoItem) => ["critical", "must", "high"].includes(t.priority);
+  const ownerTag = (t: TodoItem) => (t.owner ? `, ${t.owner}` : "");
+  const overdueTodos = openTodos
+    .filter(t => t.dueDate && t.dueDate < todayISO)
+    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+    .map(t => `${t.title} (was due ${t.dueDate}${ownerTag(t)})`);
+  const dueSoonTodos = openTodos
+    .filter(t => t.dueDate && t.dueDate >= todayISO && t.dueDate <= soonISO)
+    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+    .map(t => `${t.title} (due ${t.dueDate}${ownerTag(t)})`);
+  // Important tasks with no near deadline — so nothing critical stays invisible.
+  const priorityOpenTodos = openTodos
+    .filter(t => isUrgent(t) && (!t.dueDate || t.dueDate > soonISO))
+    .map(t => `${t.title}${t.dueDate ? ` (due ${t.dueDate})` : ""}${ownerTag(t)}`);
+
   return {
     householdProfile: {
       primaryUser: primaryUser?.name || "User",
@@ -938,6 +975,12 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
       appointmentsThisWeek: graph.calendar
         .filter(c => (c.subtype === "appointment" || c.subtype === "school_event") && c.date && c.date >= new Date().toISOString().split("T")[0])
         .map(c => `${c.title} (${c.date})`),
+    },
+    taskSummary: {
+      totalOpen: openTodos.length,
+      overdue: overdueTodos.slice(0, 8),
+      dueSoon: dueSoonTodos.slice(0, 8),
+      priorityOpen: priorityOpenTodos.slice(0, 5),
     },
     activeGoals: graph.goals.map(g => ({
       title: g.title,
@@ -1248,7 +1291,10 @@ export function formatCleoContextPackForPrompt(pack: CleoContextPack): string {
     pack.calendarSummary.appointmentsThisWeek.length ? `APPOINTMENTS: ${pack.calendarSummary.appointmentsThisWeek.join(", ")}` : null,
     `STRESS: ${pack.stressContext.level}${pack.stressContext.isCapacityProblem ? " (CAPACITY PROBLEM — not a willpower issue)" : ""}`,
     pack.stressContext.activeSignals.length ? `STRESS SIGNALS: ${pack.stressContext.activeSignals.join("; ")}` : null,
-    pack.stressContext.taskBacklog > 0 ? `TASK BACKLOG: ${pack.stressContext.taskBacklog} overdue` : null,
+    pack.taskSummary.totalOpen > 0 ? `TASKS: ${pack.taskSummary.totalOpen} open` : null,
+    pack.taskSummary.overdue.length ? `OVERDUE: ${pack.taskSummary.overdue.join(" · ")}` : null,
+    pack.taskSummary.dueSoon.length ? `DUE SOON: ${pack.taskSummary.dueSoon.join(" · ")}` : null,
+    pack.taskSummary.priorityOpen.length ? `KEY TASKS: ${pack.taskSummary.priorityOpen.join(" · ")}` : null,
     pack.routineHealth.missedRoutines.length ? `MISSED ROUTINES: ${pack.routineHealth.missedRoutines.join(", ")}` : null,
     pack.activeGoals.length ? `GOALS: ${pack.activeGoals.map(g => `${g.title} (${g.riskStatus})`).join(", ")}` : null,
     pack.recentDecisions.length ? `RECENT DECISIONS: ${pack.recentDecisions.map(d => d.question).join("; ")}` : null,
@@ -1289,7 +1335,11 @@ function buildStressNode(thriveData: any, tasksData: any, calendarData: any): Ho
   const avgMood = recentMoods.length ? recentMoods.reduce((a: number, b: number) => a + b, 0) / recentMoods.length : 3;
 
   const allTasks = (tasksData?.tasks as any[]) || [];
-  const taskBacklog = allTasks.filter((task: any) => !task.done && task.dueDate && task.dueDate < new Date().toISOString().split("T")[0]).length;
+  // Open = not completed. The field is `status` ("pending"|"completed"); the old
+  // `!task.done` check was always true (no `done` field), so completed-but-overdue
+  // tasks were wrongly counted as backlog.
+  const isOpen = (task: any) => (task.status ? task.status !== "completed" : !task.done);
+  const taskBacklog = allTasks.filter((task: any) => isOpen(task) && task.dueDate && task.dueDate < new Date().toISOString().split("T")[0]).length;
 
   const events = (calendarData?.events as any[]) || [];
   const todayStr = new Date().toISOString().split("T")[0];

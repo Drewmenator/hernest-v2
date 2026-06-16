@@ -486,6 +486,22 @@ export interface ContextRelationship {
 // The complete structure. Every module reads from and writes to this.
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════
+// DISCRETE TO-DO ITEM (from the Plan module)
+// Not a graph node — a lightweight operational record so Cleo can see
+// the actual to-do list (titles, due dates, priority), not just a count.
+// ═══════════════════════════════════════════════════════════════════
+
+export interface TodoItem {
+  id: string;
+  title: string;
+  category: string;
+  priority: "critical" | "must" | "high" | "medium" | "nice" | "low" | string;
+  status: "pending" | "completed" | string;
+  dueDate?: string;                 // YYYY-MM-DD
+  owner?: string;                   // person name, if assigned
+}
+
 export interface HouseholdContextGraph {
   householdId: string;              // Firebase uid
   version: number;
@@ -496,6 +512,7 @@ export interface HouseholdContextGraph {
   finances: FinancialContext[];     // all financial nodes
   calendar: CalendarContext[];      // all calendar nodes
   tasks: RoutineContext[];          // all routine/task nodes
+  todos: TodoItem[];                // discrete to-do items from the Plan module
   goals: Goal[];
   stress: HouseholdStressContext;   // single current stress context
   decisions: HouseholdDecision[];
@@ -553,6 +570,12 @@ export interface CleoContextPack {
     upcomingEvents: string[];
     highLoadDays: string[];
     appointmentsThisWeek: string[];
+  };
+  taskSummary: {
+    totalOpen: number;
+    overdue: string[];        // "Sign permission slip (was due 2026-06-10)"
+    dueSoon: string[];        // "Pay water bill (due 2026-06-18)"
+    priorityOpen: string[];   // important open tasks with no near deadline
   };
   activeGoals: Array<{
     title: string;
