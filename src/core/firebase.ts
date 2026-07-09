@@ -37,7 +37,7 @@ function ownerFor(uid: string, collection: string): string {
 // context per message). Without a cache each is a fresh getDoc. A short TTL +
 // in-flight coalescing collapses that to one network read; writes invalidate.
 type LoadResult = Record<string, unknown> | null;
-const DOC_CACHE_TTL = 20_000; // 20s — bounded staleness, big read reduction
+const DOC_CACHE_TTL = 60_000; // 60s — writes invalidate instantly, so staleness only affects cross-device edits
 const _docCache = new Map<string, { data: LoadResult; expires: number }>();
 const _inflight = new Map<string, Promise<LoadResult>>();
 const cacheKey = (uid: string, col: string) => `${ownerFor(uid, col)}::${col}`;

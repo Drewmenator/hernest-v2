@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { T, F } from "../../config/theme";
+import toast from "react-hot-toast";
 import { useStore } from "../../core/store";
 import { useAdaptiveUX, filterInsightsForDisplay, getStateBannerProps, getAdaptiveGreeting } from "../../core/household/adaptiveUX";
 import { loadData } from "../../core/firebase";
@@ -9,6 +10,29 @@ import { createActionsFromInsight, executeRecommendedAction } from "../../core/r
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
+
+// ── Shared home-data fetch ─────────────────────────────────────────
+// Three cards used to fire their own loadData bursts for the same docs.
+// One promise per uid per mount-window; each card derives its own state.
+let _homeDocs: { uid: string; at: number; p: Promise<Record<string, any>> } | null = null;
+function loadHomeDocs(uid: string): Promise<Record<string, any>> {
+  if (_homeDocs && _homeDocs.uid === uid && Date.now() - _homeDocs.at < 30_000) return _homeDocs.p;
+  const p = (async () => {
+    const [tasks, budgetV2, budgetV1, calendar, school, trips, circle, thrive] = await Promise.all([
+      loadData(uid, "tasks"),
+      loadData(uid, "budget_v2"),
+      loadData(uid, "budget"),
+      loadData(uid, "calendar"),
+      loadData(uid, "school"),
+      loadData(uid, "trips"),
+      loadData(uid, "circle"),
+      loadData(uid, "thrive"),
+    ]);
+    return { tasks, budget: budgetV2 || budgetV1, calendar, school, trips, circle, thrive };
+  })();
+  _homeDocs = { uid, at: Date.now(), p };
+  return p;
+}
 
 // ── Briefing Hero Card (unchanged) ────────────────────────────────
 const getWindow = () => {
@@ -210,7 +234,10 @@ function HouseholdPulseCard() {
         setHouseholdInsights(insights);
         await saveHouseholdInsights(user.uid, insights);
       }
-    } catch (e) { console.warn("[Home] insight generation failed:", e); }
+    } catch (e) {
+      console.warn("[Home] insight generation failed:", e);
+      toast.error("Couldn't generate insights — try again in a moment");
+    }
     setInsightLoading(false);
   };
 
@@ -414,6 +441,8 @@ function CommandCenterCard() {
   useEffect(() => {
     if (!user?.uid) return;
     let alive = true;
+    // Safety ceiling: never leave the Command Center spinning on a hung read
+    const ceiling = setTimeout(() => { if (alive) setLoading(false); }, 12_000);
     (async () => {
       const out: CCItem[] = [];
       try {
@@ -455,8 +484,9 @@ function CommandCenterCard() {
         .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity])
         .slice(0, 5);
       if (alive) { setItems(ranked); setLoading(false); }
+      clearTimeout(ceiling);
     })();
-    return () => { alive = false; };
+    return () => { alive = false; clearTimeout(ceiling); };
   }, [user?.uid]);
 
   if (loading) return (
@@ -563,14 +593,7 @@ function IntelligenceCard() {
   useEffect(() => {
     if (!user?.uid) return;
     const today = new Date().toISOString().split("T")[0];
-    Promise.all([
-      loadData(user.uid, "tasks"),
-      loadData(user.uid, "budget_v2").then(d => d || loadData(user.uid, "budget")),
-      loadData(user.uid, "calendar"),
-      loadData(user.uid, "school"),
-      loadData(user.uid, "trips"),
-      loadData(user.uid, "circle"),
-    ]).then(([tasksD, budgetD, calendarD, schoolD, tripsD, circleD]) => {
+    loadHomeDocs(user.uid).then(({ tasks: tasksD, budget: budgetD, calendar: calendarD, school: schoolD, trips: tripsD, circle: circleD }) => {
       const allTasks = (tasksD?.tasks as any[]) || [];
       const pending = allTasks.filter((t: any) => t.status !== "completed");
       const overdue = pending.filter((t: any) => t.dueDate && t.dueDate < today);
@@ -696,14 +719,7 @@ function ModuleGrid() {
   useEffect(() => {
     if (!user?.uid) return;
     const today = new Date().toISOString().split("T")[0];
-    Promise.all([
-      loadData(user.uid, "tasks"),
-      loadData(user.uid, "budget_v2").then(d => d || loadData(user.uid, "budget")),
-      loadData(user.uid, "circle"),
-      loadData(user.uid, "trips"),
-      loadData(user.uid, "thrive"),
-      loadData(user.uid, "calendar"),
-    ]).then(([tasksD, budgetD, circleD, tripsD, thriveD, calendarD]) => {
+    loadHomeDocs(user.uid).then(({ tasks: tasksD, budget: budgetD, circle: circleD, trips: tripsD, thrive: thriveD, calendar: calendarD }) => {
       const b: Record<string, number | string> = {};
       const tasks = (tasksD?.tasks as any[]) || [];
       const overdue = tasks.filter((t: any) => t.status !== "completed" && t.dueDate && t.dueDate < today).length;

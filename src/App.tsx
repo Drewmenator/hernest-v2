@@ -23,20 +23,20 @@ import { LoginScreen }      from "./modules/auth/LoginScreen";
 import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
 import { HomeScreen }       from "./modules/home/HomeScreen";
 import { CleoScreen }       from "./modules/cleo/CleoScreen";
-import { PlanScreen }       from "./modules/plan/PlanScreen";
-import { BudgetScreen }     from "./modules/budget/BudgetScreen";
-import { BriefingScreen }   from "./modules/briefing/BriefingScreen";
-import { ThriveScreen }     from "./modules/thrive/ThriveScreen";
+const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
+const BudgetScreen = React.lazy(() => import("./modules/budget/BudgetScreen").then(m => ({ default: m.BudgetScreen })));
+const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
+const ThriveScreen = React.lazy(() => import("./modules/thrive/ThriveScreen").then(m => ({ default: m.ThriveScreen })));
 const StyleScreen = React.lazy(() => import("./modules/style/StyleScreen").then(m => ({ default: m.StyleScreen })));
 const TripsScreen = React.lazy(() => import("./modules/trips/TripsScreen").then(m => ({ default: m.TripsScreen })));
 const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").then(m => ({ default: m.CircleScreen })));
-import { FamilyScreen }    from "./modules/family/FamilyScreen";
-import { ProfileScreen }    from "./modules/profile/ProfileScreen";
+const FamilyScreen = React.lazy(() => import("./modules/family/FamilyScreen").then(m => ({ default: m.FamilyScreen })));
+const ProfileScreen = React.lazy(() => import("./modules/profile/ProfileScreen").then(m => ({ default: m.ProfileScreen })));
 const CalendarScreen = React.lazy(() => import("./modules/calendar/CalendarScreen").then(m => ({ default: m.CalendarScreen })));
 const MemoryScreen = React.lazy(() => import("./modules/memory/MemoryScreen").then(m => ({ default: m.MemoryScreen })));
 const ConnectionsScreen = React.lazy(() => import("./modules/connections/ConnectionsScreen").then(m => ({ default: m.ConnectionsScreen })));
-import { SettingsScreen }   from "./modules/settings/SettingsScreen";
-import { UpgradeScreen }   from "./modules/upgrade/UpgradeScreen";
+const SettingsScreen = React.lazy(() => import("./modules/settings/SettingsScreen").then(m => ({ default: m.SettingsScreen })));
+const UpgradeScreen = React.lazy(() => import("./modules/upgrade/UpgradeScreen").then(m => ({ default: m.UpgradeScreen })));
 
 // Global styles
 const globalStyles = `
@@ -243,6 +243,7 @@ export default function App() {
       case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
       case "family":   return <EB name="Family"><FamilyScreen /></EB>;
       case "settings": return <EB name="Settings"><SettingsScreen /></EB>;
+      case "upgrade":  return <EB name="Upgrade"><UpgradeScreen /></EB>;
       default:         return <EB name="Home"><HomeScreen /></EB>;
     }
   };
