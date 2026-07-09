@@ -6,6 +6,7 @@ import { Card, PageTitle, HeroCard, Pill, ProgressBar, AIBadge, Spinner } from "
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
+import { pickNudge } from "../../core/thriveCheckin";
 import toast from "react-hot-toast";
 
 // ── Types per blueprint ────────────────────────────────────────────
@@ -90,6 +91,9 @@ export function ThriveScreen() {
   const [sleepHours, setSleepHours] = useState<number|null>(null);
   const [wearable, setWearable] = useState<import("../../core/wellnessAutoTrack").WearableDay|null>(null);
   const [adjustSleep, setAdjustSleep] = useState(false);
+  const [checkinText, setCheckinText] = useState<string>("");
+  const [showBody, setShowBody] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [waterLog, setWaterLog]   = useState<WaterLog|null>(null);
   const [moodLog, setMoodLog]     = useState<MoodLog|null>(null);
   const [habits, setHabits]       = useState<Habit[]>(DEFAULT_HABITS);
@@ -162,6 +166,17 @@ export function ThriveScreen() {
   }, [user?.uid]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [coachMsgs]);
+
+  // Cleo's check-in paragraph — generated from real wearable numbers, cached daily
+  useEffect(() => {
+    if (!user?.uid) return;
+    let alive = true;
+    import("../../core/thriveCheckin").then(async ({ generateCheckin }) => {
+      const text = await generateCheckin(user.uid, (profile as any)?.name || "", wearable);
+      if (alive) setCheckinText(text);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [user?.uid, wearable?.date, wearable?.readiness]);
 
   const persist = async (updates: Record<string, unknown>) => {
     if (!user?.uid) return;
@@ -338,15 +353,6 @@ RULES:
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle eyebrow="WELLNESS" title="Thrive"/>
 
-      <HeroCard
-        eyebrow="TODAY"
-        title={doneCount===habits.length&&habits.length>0?"All habits done 🎉":`${doneCount} of ${habits.length} habits`}
-        subtitle={`${sleepLog?`${sleepLog.hours}h ${sleepLog.quality} sleep · `:""}${wearable?.readiness!=null?`Readiness ${wearable.readiness} · `:""}${water}/8 water · ${moodLog?`Mood ${moodLog.rating}/10`:""}`}
-        color={doneCount===habits.length&&habits.length>0?T.sage:T.esp}
-      >
-        <div style={{ marginTop:12 }}><ProgressBar value={doneCount} max={habits.length} color={T.gold}/></div>
-      </HeroCard>
-
       {/* Pattern detection callout */}
       {detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7)) && (
         <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10 }}>
@@ -367,42 +373,84 @@ RULES:
       {/* ── TODAY ─────────────────────────────────────────────────── */}
       {tab==="today" && <>
 
-        {/* Mood 1-10 per blueprint */}
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>HOW ARE YOU FEELING TODAY? {moodLog&&<span style={{ color:T.gold, fontWeight:400 }}>({moodLog.rating}/10 — {moodLog.label})</span>}</p>
-          <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:4 }}>
-            {MOOD_LEVELS.map(m=>(
-              <button key={m.value} onClick={()=>logMood(m.value)} style={{ flex:1, padding:"16px 8px", borderRadius:16, border:`2px solid ${moodLog?.rating===m.value?(m as any).color:T.linen}`, background:moodLog?.rating===m.value?`${(m as any).color}15`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, touchAction:"manipulation", transition:"all 0.2s" }}>
-                <span style={{ fontSize:18 }}>{m.emoji}</span>
-                <span style={{ fontFamily:F.sans, fontSize:8, color:moodLog?.rating===m.value?T.gold:T.taupe }}>{m.value}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {/* Sleep with quality per blueprint */}
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
-          {sleepLog && sleepLog.source && sleepLog.source !== "manual" && !adjustSleep ? (
-            <>
-              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:`${T.sage}10`, border:`1.5px solid ${T.sage}30`, borderRadius:14 }}>
-                <div style={{ width:40, height:40, borderRadius:"50%", background:`${T.sage}18`, display:"flex", alignItems:"center", justifyContent:"center", color:T.sage, fontSize:18, flexShrink:0 }}>♡</div>
-                <div style={{ flex:1 }}>
-                  <p style={{ fontFamily:F.serif, fontSize:18, fontWeight:700, color:T.esp, margin:0 }}>{sleepLog.hours}h · {sleepLog.quality}</p>
-                  <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>
-                    ✓ Synced from {sleepLog.source === "oura" ? "Oura" : "Apple Health"}
-                    {wearable?.sleepScore != null ? ` · sleep score ${wearable.sleepScore}` : ""}
-                    {wearable?.readiness != null ? ` · readiness ${wearable.readiness}` : ""}
-                  </p>
-                </div>
-                <button onClick={()=>setAdjustSleep(true)} style={{ background:"none", border:`1.5px solid ${T.linen}`, borderRadius:10, padding:"6px 12px", fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.taupe, cursor:"pointer", flexShrink:0 }}>Adjust</button>
-              </div>
-              <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"10px 0 0", textAlign:"center" }}>
-                {sleepLog.hours>=7?"✓ Great sleep!":sleepLog.hours>=6?"Almost there — aim for 7+ hours":"Low sleep — be gentle with yourself today"}
-              </p>
-            </>
+        {/* 1. Cleo's Check-in — the hero. She already knows your night. */}
+        <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"22px 20px", marginBottom:12 }}>
+          <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.45)", margin:"0 0 10px" }}>CLEO'S CHECK-IN</p>
+          <p style={{ fontFamily:F.serif, fontStyle:"italic", fontSize:16, color:"rgba(255,255,255,0.92)", margin:"0 0 14px", lineHeight:1.6 }}>
+            {checkinText || "Reading your night..."}
+          </p>
+          {!moodLog ? (
+            <div style={{ display:"flex", gap:8 }}>
+              {MOOD_LEVELS.map(m=>(
+                <button key={m.value} onClick={()=>logMood(m.value)} style={{ flex:1, padding:"10px 8px", borderRadius:14, border:"1.5px solid rgba(255,255,255,0.22)", background:"rgba(255,255,255,0.08)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, touchAction:"manipulation", minHeight:44 }}>
+                  <span style={{ fontSize:14, color:(m as any).color }}>{m.emoji}</span>
+                  <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color:"#fff" }}>{m.label}</span>
+                </button>
+              ))}
+            </div>
           ) : (
-          <>
+            <p style={{ fontFamily:F.sans, fontSize:12, color:T.gold, margin:0 }}>
+              {moodLog.rating>=8?"Noted — glad today feels good ✦":moodLog.rating>=5?"Noted. Steady as she goes ✦":"Noted. Be gentle with yourself today ✦"}
+            </p>
+          )}
+        </div>
+
+        {/* 2. Body Today — the numbers, quietly */}
+        <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+          <button onClick={()=>setShowBody(s=>!s)} style={{ flex:1, background:T.ivory, border:`1px solid ${showBody?T.gold:T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center", cursor:"pointer", touchAction:"manipulation" }}>
+            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:wearable?.readiness!=null?(wearable.readiness>=85?T.sage:wearable.readiness>=60?T.gold:T.blush):T.taupe, margin:0 }}>{wearable?.readiness ?? "—"}</p>
+            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Readiness {wearable?.readiness!=null?"▾":""}</p>
+          </button>
+          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
+            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:T.esp, margin:0 }}>{sleepLog?`${sleepLog.hours}h`:wearable?.sleepHours!=null?`${wearable.sleepHours}h`:"—"}</p>
+            <p style={{ fontFamily:F.sans, fontSize:8, color:sleepLog?.source&&sleepLog.source!=="manual"?T.sage:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>{sleepLog?.source&&sleepLog.source!=="manual"?"Sleep ✓ auto":"Sleep"}</p>
+          </div>
+          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
+            <p style={{ fontFamily:F.serif, fontSize:15, fontWeight:700, color:wearable?.stressDay==="restored"?T.sage:wearable?.stressDay==="stressful"?T.blush:T.esp, margin:"2px 0 0", textTransform:"capitalize" }}>{wearable?.stressDay ?? "—"}</p>
+            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"4px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Stress</p>
+          </div>
+          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
+            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:T.esp, margin:0 }}>{wearable?.steps!=null?(wearable.steps>=1000?`${(wearable.steps/1000).toFixed(1)}k`:wearable.steps):"—"}</p>
+            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Steps</p>
+          </div>
+        </div>
+
+        {/* Readiness contributors — why the number is what it is */}
+        {showBody && wearable && (
+          <Card>
+            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>WHY {wearable.readiness ?? "—"}?</p>
+            {wearable.avgHrv!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Average HRV</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{wearable.avgHrv}ms</span></div>}
+            {wearable.restingHr!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Resting heart rate</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{wearable.restingHr}bpm</span></div>}
+            {wearable.stressHighMins!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Stress vs recovery yesterday</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{Math.round((wearable.stressHighMins||0)/60*10)/10}h / {Math.round((wearable.recoveryHighMins||0)/60*10)/10}h</span></div>}
+            {wearable.readinessContributors && Object.entries(wearable.readinessContributors).filter(([,v])=>typeof v==="number").slice(0,4).map(([k,v])=>(
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}>
+                <span style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, textTransform:"capitalize" }}>{k.replace(/_/g," ")}</span>
+                <span style={{ fontFamily:F.sans, fontSize:12, color:(v as number)>=80?T.sage:(v as number)>=60?T.gold:T.blush }}>{v as number}</span>
+              </div>
+            ))}
+            <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>From your Oura ring · updates each morning</p>
+          </Card>
+        )}
+
+        {/* 3. One nudge, max — and only when it's actionable */}
+        {(() => {
+          const nudge = !nudgeDismissed ? pickNudge(wearable, water, new Date().getHours()) : null;
+          return nudge ? (
+            <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10, alignItems:"flex-start" }}>
+              <span style={{ fontSize:14, flexShrink:0, color:T.gold }}>✦</span>
+              <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, lineHeight:1.5, flex:1 }}>{nudge.text}</p>
+              <button onClick={()=>setNudgeDismissed(true)} style={{ background:"none", border:"none", color:T.taupe, fontSize:14, cursor:"pointer", padding:0, flexShrink:0 }}>×</button>
+            </div>
+          ) : null;
+        })()}
+
+        {/* Sleep entry — only when the ring didn't already handle it */}
+        {(adjustSleep || !sleepLog || sleepLog.source === "manual") && (
+        <Card>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>{adjustSleep?"ADJUST SLEEP":"SLEEP LAST NIGHT"}</p>
+            {adjustSleep && <button onClick={()=>setAdjustSleep(false)} style={{ background:"none", border:"none", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer" }}>Cancel</button>}
+          </div>
           <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
             {[4,5,6,7,8,9,10].map(h=>(
               <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.esp:T.linen}`, background:sleepHours===h?`${T.esp}10`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
@@ -424,48 +472,53 @@ RULES:
           <button onClick={()=>{ logSleep(); setAdjustSleep(false); }} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.esp:T.linen, color:sleepHours?"#fff":T.taupe, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
             Log {sleepHours||"?"}h {sleepQuality} sleep
           </button>
-          {sleepLog && <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"8px 0 0", textAlign:"center" }}>
-            {sleepLog.hours>=7?"✓ Great sleep!":sleepLog.hours>=6?"Almost there — aim for 7+ hours":"Low sleep — be gentle with yourself today"}
-          </p>}
-          </>
-          )}
         </Card>
+        )}
 
-        {/* Water with visual tracker per blueprint */}
+        {/* 4. Tracked for you — receipt of what's already handled + the rest */}
         <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>WATER TODAY</p>
-            <span style={{ fontFamily:F.serif, fontSize:24, fontWeight:700, color:T.sky }}>{water}<span style={{ fontFamily:F.sans, fontSize:12, color:T.taupe }}>/8</span></span>
-          </div>
-          <div style={{ display:"flex", gap:4 }}>
-            {Array.from({length:8},(_,i)=>(
-              <button key={i} onClick={()=>logWater(i<water?i:i+1)} style={{ flex:1, height:36, borderRadius:8, cursor:"pointer", background:i<water?T.sky:T.skyP, border:"none", transition:"background .15s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <span style={{ fontSize:14 }}>{i<water?"💧":"○"}</span>
-              </button>
-            ))}
-          </div>
-          <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"6px 0 0", textAlign:"center" }}>Tap filled to reduce · tap empty to add</p>
-        </Card>
-
-        {/* Habits with streak tracking per blueprint */}
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>HABITS</p>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>TRACKED FOR YOU</p>
             <span style={{ fontFamily:F.sans, fontSize:11, color:T.gold }}>{doneCount}/{habits.length}</span>
           </div>
+
+          {/* Sleep receipt line (auto or manual) with Adjust */}
+          {sleepLog && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${T.linen}` }}>
+              <span style={{ color:T.sage, fontSize:14, width:20, textAlign:"center", flexShrink:0 }}>✓</span>
+              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:0, flex:1 }}>
+                Sleep {sleepLog.hours}h · {sleepLog.quality}
+                <span style={{ fontSize:10 }}> — {sleepLog.source==="oura"?"Oura":sleepLog.source==="apple_health"?"Apple Health":"you"}</span>
+              </p>
+              <button onClick={()=>setAdjustSleep(true)} style={{ background:"none", border:"none", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", textDecoration:"underline", padding:0 }}>Adjust</button>
+            </div>
+          )}
+
+          {/* Habits — auto ones rendered quietly, human ones tappable */}
           {habits.map(h=>(
-            <div key={h.id} onClick={()=>!h.autoDetect&&toggleHabit(h.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 0", borderBottom:`1px solid ${T.linen}`, cursor:h.autoDetect?"default":"pointer", touchAction:"manipulation" }}>
-              <div style={{ width:36, height:36, borderRadius:"50%", background:h.done?`${T.sage}20`:T.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{h.icon}</div>
-              <div style={{ flex:1 }}>
-                <p style={{ fontFamily:F.sans, fontSize:13, color:h.done?T.taupe:T.esp, margin:0, textDecoration:h.done?"line-through":"none" }}>{h.name}</p>
-                {h.streak > 0 && <p style={{ fontFamily:F.sans, fontSize:10, color:T.gold, margin:"2px 0 0" }}>🔥 {h.streak} day streak</p>}
-                {h.autoDetect && <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"2px 0 0" }}>Auto-tracked</p>}
-              </div>
-              <div style={{ width:24, height:24, borderRadius:8, border:`2px solid ${h.done?T.sage:T.linen}`, background:h.done?T.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, flexShrink:0 }}>
-                {h.done?"✓":""}
-              </div>
+            <div key={h.id} onClick={()=>!h.autoDetect&&toggleHabit(h.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${T.linen}`, cursor:h.autoDetect?"default":"pointer", touchAction:"manipulation" }}>
+              <span style={{ fontSize:14, width:20, textAlign:"center", flexShrink:0, color:h.done?T.sage:T.linen }}>{h.done?"✓":"○"}</span>
+              <p style={{ fontFamily:F.sans, fontSize:13, color:h.done?T.taupe:T.esp, margin:0, flex:1 }}>
+                {h.name}
+                {h.id==="move"&&wearable?.steps!=null&&h.done && <span style={{ fontSize:10, color:T.taupe }}> — {wearable.steps.toLocaleString()} steps</span>}
+                {(h.autoDetect||h.id==="move") && <span style={{ fontSize:10, color:T.sage }}> · auto</span>}
+              </p>
+              {h.streak > 0 && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold, flexShrink:0 }}>🔥 {h.streak}</span>}
             </div>
           ))}
+
+          {/* Water — the one tap-tracker that stays */}
+          <div style={{ padding:"12px 0 2px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+              <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0 }}>Water</p>
+              <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:T.esp }}>{water}<span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>/8</span></span>
+            </div>
+            <div style={{ display:"flex", gap:4 }}>
+              {Array.from({length:8},(_,i)=>(
+                <button key={i} onClick={()=>logWater(i<water?i:i+1)} style={{ flex:1, height:30, borderRadius:8, cursor:"pointer", background:i<water?T.sky:T.skyP, border:"none", transition:"background .15s", touchAction:"manipulation" }} />
+              ))}
+            </div>
+          </div>
         </Card>
       </>}
 

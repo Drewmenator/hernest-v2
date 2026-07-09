@@ -441,17 +441,19 @@ async function syncOura(req, res, uid) {
   const start = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
   const q = `start_date=${start}&end_date=${today}`;
 
-  const [sleep, readiness, activity] = await Promise.all([
+  const [sleep, readiness, activity, stress] = await Promise.all([
     fetch(`https://api.ouraring.com/v2/usercollection/sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
     fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
     fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(`https://api.ouraring.com/v2/usercollection/daily_stress?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
   ]);
 
-  // Most recent long sleep period → hours; readiness/activity → latest score.
+  const newest = (arr) => (arr || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
   const sleeps = (sleep.data || []).filter(s => (s.total_sleep_duration || 0) > 0);
-  const latestSleep = sleeps.sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
-  const latestReadiness = (readiness.data || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
-  const latestActivity = (activity.data || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
+  const latestSleep = newest(sleeps);
+  const latestReadiness = newest(readiness.data);
+  const latestActivity = newest(activity.data);
+  const latestStress = newest(stress.data);
 
   const health = {
     date: latestSleep?.day || today,
@@ -459,6 +461,18 @@ async function syncOura(req, res, uid) {
     sleepScore: latestSleep?.score ?? null,
     readinessScore: latestReadiness?.score ?? null,
     steps: latestActivity?.steps ?? null,
+    // Tier 1: recovery + stress signals
+    avgHrv: latestSleep?.average_hrv ?? null,
+    restingHr: latestSleep?.lowest_heart_rate ?? null,
+    readinessContributors: latestReadiness?.contributors ?? null,
+    stressDay: latestStress?.day_summary ?? null,          // restored | normal | stressful
+    stressHighMins: latestStress?.stress_high != null ? Math.round(latestStress.stress_high / 60) : null,
+    recoveryHighMins: latestStress?.recovery_high != null ? Math.round(latestStress.recovery_high / 60) : null,
+    stressDate: latestStress?.day ?? null,
+    // Tier 2: richer activity
+    activeCalories: latestActivity?.active_calories ?? null,
+    sedentaryMins: latestActivity?.sedentary_time != null ? Math.round(latestActivity.sedentary_time / 60) : null,
+    activityScore: latestActivity?.score ?? null,
     lastSyncedAt: Date.now(),
     lastError: null,
   };

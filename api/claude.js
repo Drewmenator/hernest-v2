@@ -2,7 +2,7 @@ import { adminDb, adminAuth, applyCors } from "./_lib/secure.js";
 
 const FREE_LIMIT = 500; // Increased for testing
 
-const ALLOWED = ["cleo_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief","household_cfo","cleo_household","wellness_coach_v2","trip_planner_v2","circle_companion","gmail_extract"];
+const ALLOWED = ["cleo_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief","household_cfo","cleo_household","wellness_coach_v2","trip_planner_v2","circle_companion","gmail_extract","cleo_checkin"];
 
 export default async function handler(req, res) {
   if (applyCors(req, res, "POST, OPTIONS")) return;

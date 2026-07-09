@@ -94,6 +94,7 @@ export interface AppContext {
     readiness: number | null;   // Oura daily readiness (0-100)
     sleepScore: number | null;  // Oura sleep score (0-100)
     wearableSource: WearableDay["source"] | null;
+    stressDay: "restored" | "normal" | "stressful" | null;
   };
 
   // Trips
@@ -357,6 +358,7 @@ export async function buildAppContext(
       readiness: wearable?.readiness ?? null,
       sleepScore: wearable?.sleepScore ?? null,
       wearableSource: wearable?.source ?? null,
+      stressDay: wearable?.stressDay ?? null,
     },
 
     // Trips
@@ -442,7 +444,7 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   lines.push(`Water: ${ctx.thrive.water}/8. Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done. Mood: ${ctx.thrive.mood||"not logged"}/5.`);
   if (ctx.thrive.readiness != null) {
     const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
-    lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task.`);
+    lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}${ctx.thrive.stressDay ? `. Yesterday's stress balance: ${ctx.thrive.stressDay}` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task. If yesterday was stressful, acknowledge it and keep today's asks lighter.`);
   }
   if (ctx.thrive.weeklyScore) lines.push(`Weekly wellness score: ${ctx.thrive.weeklyScore}/10.`);
   lines.push(``);

@@ -15,6 +15,17 @@ export interface WearableDay {
   sleepScore: number | null;   // Oura only
   readiness: number | null;    // Oura only
   steps: number | null;
+  // Tier 1 recovery + stress (Oura only)
+  avgHrv: number | null;
+  restingHr: number | null;
+  readinessContributors: Record<string, number> | null;
+  stressDay: "restored" | "normal" | "stressful" | null;
+  stressHighMins: number | null;
+  recoveryHighMins: number | null;
+  // Tier 2 activity detail (Oura only)
+  activeCalories: number | null;
+  sedentaryMins: number | null;
+  activityScore: number | null;
 }
 
 const STEPS_GOAL = 7000; // auto-completes the "Move your body" habit
@@ -40,6 +51,15 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         sleepScore: oura.sleepScore ?? null,
         readiness: oura.readinessScore ?? null,
         steps: oura.steps ?? null,
+        avgHrv: oura.avgHrv ?? null,
+        restingHr: oura.restingHr ?? null,
+        readinessContributors: oura.readinessContributors ?? null,
+        stressDay: oura.stressDay ?? null,
+        stressHighMins: oura.stressHighMins ?? null,
+        recoveryHighMins: oura.recoveryHighMins ?? null,
+        activeCalories: oura.activeCalories ?? null,
+        sedentaryMins: oura.sedentaryMins ?? null,
+        activityScore: oura.activityScore ?? null,
       };
     }
     const ah = ahSnap.data();
@@ -49,6 +69,9 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         sleepHours: ah.lastSleepHours ?? null,
         sleepScore: null, readiness: null,
         steps: ah.lastSteps ?? null,
+        avgHrv: null, restingHr: null, readinessContributors: null,
+        stressDay: null, stressHighMins: null, recoveryHighMins: null,
+        activeCalories: null, sedentaryMins: null, activityScore: null,
       };
     }
   } catch (e) {
