@@ -9,7 +9,7 @@ import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 
 // ── Types per blueprint ────────────────────────────────────────────
-interface SleepLog { date: string; hours: number; quality: "poor"|"fair"|"good"|"excellent"; }
+interface SleepLog { date: string; hours: number; quality: "poor"|"fair"|"good"|"excellent"; source?: "manual"|"oura"|"apple_health"; }
 interface WaterLog  { date: string; glasses: number; target: number; timestamps: string[]; }
 interface MoodLog   { date: string; rating: number; label: string; note?: string; }
 interface Habit     { id: string; name: string; icon: string; category: string; done: boolean; streak: number; autoDetect?: boolean; lastCompleted?: string; }
@@ -88,7 +88,8 @@ export function ThriveScreen() {
   const [sleepLog, setSleepLog]   = useState<SleepLog|null>(null);
   const [sleepQuality, setSleepQuality] = useState<SleepLog["quality"]>("good");
   const [sleepHours, setSleepHours] = useState<number|null>(null);
-  const [wearable, setWearable] = useState<{ source: string; hours: number; sleepScore: number|null; readiness: number|null }|null>(null);
+  const [wearable, setWearable] = useState<import("../../core/wellnessAutoTrack").WearableDay|null>(null);
+  const [adjustSleep, setAdjustSleep] = useState(false);
   const [waterLog, setWaterLog]   = useState<WaterLog|null>(null);
   const [moodLog, setMoodLog]     = useState<MoodLog|null>(null);
   const [habits, setHabits]       = useState<Habit[]>(DEFAULT_HABITS);
@@ -140,23 +141,21 @@ export function ThriveScreen() {
       if (todayMood)  setMoodLog(todayMood);
       if (todayWater) setWaterLog(todayWater);
     });
-    // Prefill sleep from a wearable if data arrived recently. Oura (rich —
-    // includes a sleep score + readiness) takes priority over the Apple Health
-    // Shortcut. Falls to whichever has the most recent day.
-    import("firebase/firestore").then(async ({ doc, getDoc }) => {
-      const { db } = await import("../../core/firebase");
+    // Wearables know sleep & movement — auto-log them, then refresh state.
+    // Manual entries always win; auto-log never overwrites a user's log.
+    import("../../core/wellnessAutoTrack").then(async ({ autoTrackWellness }) => {
       try {
-        const [ouraSnap, ahSnap] = await Promise.all([
-          getDoc(doc(db, "users", user.uid, "integrations", "oura")),
-          getDoc(doc(db, "users", user.uid, "integrations", "apple_health")),
-        ]);
-        const oura = ouraSnap.data();
-        const ah = ahSnap.data();
-        const recent = (d?: any) => d?.date && d.date >= new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0];
-        if (recent(oura) && typeof oura?.lastSleepHours === "number") {
-          setWearable({ source: "Oura", hours: oura.lastSleepHours, sleepScore: oura.sleepScore ?? null, readiness: oura.readinessScore ?? null });
-        } else if (recent(ah) && typeof ah?.lastSleepHours === "number") {
-          setWearable({ source: "Apple Health", hours: ah.lastSleepHours, sleepScore: null, readiness: null });
+        const r = await autoTrackWellness(user.uid);
+        if (r.wearable) setWearable(r.wearable);
+        if (r.sleepLogged || r.moveDone) {
+          const d = await loadData(user.uid, "thrive");
+          if (d?.sleepLog) {
+            const sLogs = d.sleepLog as SleepLog[];
+            setSleepHistory(sLogs);
+            const t = sLogs.find(l => l.date === today) || sLogs.find(l => l.date === r.wearable?.date);
+            if (t) { setSleepLog(t); setSleepHours(t.hours); setSleepQuality(t.quality); }
+          }
+          if (d?.habits) setHabits((d.habits as Habit[]).map(h => ({ ...h, done: h.lastCompleted === today ? h.done : false })));
         }
       } catch { /* non-fatal */ }
     });
@@ -172,7 +171,7 @@ export function ThriveScreen() {
   // ── Sleep per blueprint (quality + hours) ─────────────────────────
   const logSleep = async () => {
     if (!sleepHours || !user?.uid) return;
-    const log: SleepLog = { date:today, hours:sleepHours, quality:sleepQuality };
+    const log: SleepLog = { date:today, hours:sleepHours, quality:sleepQuality, source:"manual" };
     const updated = [...sleepHistory.filter(l=>l.date!==today), log];
     setSleepLog(log); setSleepHistory(updated);
 
@@ -342,7 +341,7 @@ RULES:
       <HeroCard
         eyebrow="TODAY"
         title={doneCount===habits.length&&habits.length>0?"All habits done 🎉":`${doneCount} of ${habits.length} habits`}
-        subtitle={`${sleepLog?`${sleepLog.hours}h ${sleepLog.quality} sleep · `:""}${water}/8 water · ${moodLog?`Mood ${moodLog.rating}/10`:""}`}
+        subtitle={`${sleepLog?`${sleepLog.hours}h ${sleepLog.quality} sleep · `:""}${wearable?.readiness!=null?`Readiness ${wearable.readiness} · `:""}${water}/8 water · ${moodLog?`Mood ${moodLog.rating}/10`:""}`}
         color={doneCount===habits.length&&habits.length>0?T.sage:T.esp}
       >
         <div style={{ marginTop:12 }}><ProgressBar value={doneCount} max={habits.length} color={T.gold}/></div>
@@ -384,17 +383,26 @@ RULES:
         {/* Sleep with quality per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
-          {wearable && sleepHours !== Math.round(wearable.hours) && (
-            <button onClick={()=>{
-              setSleepHours(Math.round(wearable.hours));
-              if (wearable.sleepScore != null) {
-                setSleepQuality(wearable.sleepScore >= 85 ? "excellent" : wearable.sleepScore >= 70 ? "good" : wearable.sleepScore >= 55 ? "fair" : "poor");
-              }
-            }}
-              style={{ width:"100%", marginBottom:12, padding:"9px 12px", background:`${T.sage}12`, border:`1.5px solid ${T.sage}30`, borderRadius:12, fontFamily:F.sans, fontSize:12, color:T.esp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              <span style={{ color:T.sage }}>♡</span> {wearable.source}: {wearable.hours}h{wearable.sleepScore != null ? ` · score ${wearable.sleepScore}` : ""}{wearable.readiness != null ? ` · readiness ${wearable.readiness}` : ""} — tap to use
-            </button>
-          )}
+          {sleepLog && sleepLog.source && sleepLog.source !== "manual" && !adjustSleep ? (
+            <>
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:`${T.sage}10`, border:`1.5px solid ${T.sage}30`, borderRadius:14 }}>
+                <div style={{ width:40, height:40, borderRadius:"50%", background:`${T.sage}18`, display:"flex", alignItems:"center", justifyContent:"center", color:T.sage, fontSize:18, flexShrink:0 }}>♡</div>
+                <div style={{ flex:1 }}>
+                  <p style={{ fontFamily:F.serif, fontSize:18, fontWeight:700, color:T.esp, margin:0 }}>{sleepLog.hours}h · {sleepLog.quality}</p>
+                  <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>
+                    ✓ Synced from {sleepLog.source === "oura" ? "Oura" : "Apple Health"}
+                    {wearable?.sleepScore != null ? ` · sleep score ${wearable.sleepScore}` : ""}
+                    {wearable?.readiness != null ? ` · readiness ${wearable.readiness}` : ""}
+                  </p>
+                </div>
+                <button onClick={()=>setAdjustSleep(true)} style={{ background:"none", border:`1.5px solid ${T.linen}`, borderRadius:10, padding:"6px 12px", fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.taupe, cursor:"pointer", flexShrink:0 }}>Adjust</button>
+              </div>
+              <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"10px 0 0", textAlign:"center" }}>
+                {sleepLog.hours>=7?"✓ Great sleep!":sleepLog.hours>=6?"Almost there — aim for 7+ hours":"Low sleep — be gentle with yourself today"}
+              </p>
+            </>
+          ) : (
+          <>
           <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
             {[4,5,6,7,8,9,10].map(h=>(
               <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.esp:T.linen}`, background:sleepHours===h?`${T.esp}10`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
@@ -413,12 +421,14 @@ RULES:
               </button>
             ))}
           </div>
-          <button onClick={logSleep} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.esp:T.linen, color:sleepHours?"#fff":T.taupe, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
+          <button onClick={()=>{ logSleep(); setAdjustSleep(false); }} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.esp:T.linen, color:sleepHours?"#fff":T.taupe, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
             Log {sleepHours||"?"}h {sleepQuality} sleep
           </button>
           {sleepLog && <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"8px 0 0", textAlign:"center" }}>
             {sleepLog.hours>=7?"✓ Great sleep!":sleepLog.hours>=6?"Almost there — aim for 7+ hours":"Low sleep — be gentle with yourself today"}
           </p>}
+          </>
+          )}
         </Card>
 
         {/* Water with visual tracker per blueprint */}

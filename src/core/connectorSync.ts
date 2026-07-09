@@ -69,10 +69,14 @@ export async function syncAllConnectors(uid: string): Promise<void> {
     }
   }));
 
-  // Oura: refresh sleep/readiness server-side (writes the integration doc Thrive reads)
+  // Oura: refresh sleep/readiness server-side, then auto-log wellness so
+  // Thrive/briefing see it without the user ever opening a form.
   if (await isConnected(uid, "oura", "accessToken")) {
-    fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    try {
+      await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
+    } catch { /* health written server-side */ }
   }
+  import("./wellnessAutoTrack").then(m => m.autoTrackWellness(uid)).catch(() => {});
 }
 
 // ── OAuth connect: fetch the signed auth URL with a Bearer token, then
