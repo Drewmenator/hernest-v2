@@ -143,32 +143,15 @@ export function PlanScreen() {
 
   // ── School newsletter extraction per blueprint ──────────────────────
   const extractFromNewsletter = async () => {
-    if (!newsletterText.trim()) return;
+    if (!newsletterText.trim() || !user?.uid) return;
     setExtracting(true);
 
-    const sys = `You are Cleo extracting school events. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated. Return ONLY valid JSON array:
-[{
-  "title":"string",
-  "date":"YYYY-MM-DD",
-  "child":"string or null",
-  "type":"academic|sport|social|parent-evening|trip|deadline",
-  "requiresAction":true/false,
-  "actionType":"permission-slip|payment|rsvp|supply-list|costume|none",
-  "actionDeadline":"YYYY-MM-DD or null",
-  "notes":"string or null"
-}]
-Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
-
-    const result = await ai(sys, newsletterText, "school_calendar");
-    if (result.error) { toast.error("Couldn't extract events"); setExtracting(false); return; }
-
     try {
-      const extracted = JSON.parse(result.text.replace(/```json\s*/gi,"").replace(/```/g,"").trim());
-      const events: SchoolEvent[] = extracted.map((e:any) => ({ id:crypto.randomUUID(), ...e }));
-      const updated = [...events, ...schoolEvents];
-      setSchoolEvents(updated);
+      const { extractSchoolEvents } = await import("../../core/schoolNewsletterService");
+      const { events, allEvents, error } = await extractSchoolEvents(user.uid, newsletterText);
+      if (error) { toast.error("Couldn't extract events"); setExtracting(false); return; }
+      setSchoolEvents(allEvents as any);
       setNewsletterText("");
-      if (user?.uid) await saveData(user.uid, "school", { events:updated });
 
       // Auto-create tasks for action items per blueprint
       const actionTasks: Task[] = events.filter(e=>e.requiresAction).map(e => ({
@@ -188,7 +171,6 @@ Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
         const updatedTasks = [...actionTasks, ...tasks];
         setTasks(updatedTasks);
         await persist(updatedTasks);
-        await bus.publish("plan.school.newsletter.parsed", { events:events.length, actionItems:actionTasks.length }, { userId:user!.uid, source:"plan" });
       }
 
       toast.success(`Found ${events.length} events · ${events.filter(e=>e.requiresAction).length} need action`);

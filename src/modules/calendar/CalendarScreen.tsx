@@ -50,31 +50,23 @@ function SchoolNewsletterInput({ childName, userId, onEventsAdded }: {
     if (!text.trim()) return;
     setLoading(true);
     try {
-      const sys = `Extract school events from this newsletter for ${childName}. ONLY extract events explicitly mentioned — never invent or infer events not in the text. Return ONLY valid JSON array:
-[{"title":"string","date":"YYYY-MM-DD","time":"string or null","requiresAction":true/false,"actionType":"permission-slip|payment|rsvp|supply-list|costume|none","notes":"string or null"}]
-Today: ${new Date().toISOString().split("T")[0]}. Extract ALL events and deadlines.`;
-      const result = await ai(sys, text, "school_calendar");
-      if (!result.error) {
-        const parsed = (() => { const s=result.text.indexOf("{"); const e=result.text.lastIndexOf("}"); if(s===-1||e===-1) throw new Error("No JSON"); return JSON.parse(result.text.slice(s,e+1)); })();
-        const events: CalEvent[] = parsed.map((e: any) => ({
-          id: crypto.randomUUID(),
+      const { extractSchoolEvents } = await import("../../core/schoolNewsletterService");
+      const { events, error } = await extractSchoolEvents(userId, text, childName);
+      if (!error) {
+        onEventsAdded(events.map(e => ({
+          id: e.id,
           title: e.title,
           date: e.date,
-          time: e.time||undefined,
+          time: e.time,
           source: "school" as const,
           child: childName,
           color: T.sage,
           allDay: !e.time,
-          notes: e.notes||undefined,
-        }));
-        // Save to Firestore
-          const existing = await loadData(userId, "school");
-        const allEvents = [...((existing?.events as any[])||[]).filter((e:any)=>e.child!==childName), ...parsed.map((e:any)=>({...e,id:crypto.randomUUID(),child:childName}))];
-        await saveData(userId, "school", { events: allEvents });
-        onEventsAdded(events);
+          notes: e.notes,
+        })));
         setText("");
       }
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error("[Calendar] newsletter extract:", e); }
     setLoading(false);
   };
 

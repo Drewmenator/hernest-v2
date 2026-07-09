@@ -18,5 +18,13 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // firebase-admin is server-only (Vercel functions). Importing it in
+      // client code would bundle a 50MB SDK and leak credential handling.
+      'no-restricted-imports': ['error', {
+        paths: [{ name: 'firebase-admin', message: 'Server-only — use it in api/ functions, never in src/.' }],
+        patterns: [{ group: ['firebase-admin/*'], message: 'Server-only — use it in api/ functions, never in src/.' }],
+      }],
+    },
   },
 ])

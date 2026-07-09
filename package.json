@@ -14,7 +14,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0",
