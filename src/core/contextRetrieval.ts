@@ -317,7 +317,7 @@ function buildContextString(
 
   // Memory (always included)
   if (relevantMemories.length) {
-    lines.push(`\nNORA REMEMBERS:`);
+    lines.push(`\nCLEO REMEMBERS:`);
     relevantMemories.forEach(m => lines.push(`• ${m}`));
   }
 

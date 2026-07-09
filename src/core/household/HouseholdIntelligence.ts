@@ -98,7 +98,7 @@ Generate exactly 4 insights that are genuinely useful to this household.
 
 ${context}
 
-${memory ? `NORA'S MEMORY OF THIS HOUSEHOLD:\n${memory}` : ""}
+${memory ? `CLEO'S MEMORY OF THIS HOUSEHOLD:\n${memory}` : ""}
 
 Prioritize insights that CROSS modules:
 - High calendar load + increased spending = stress spending pattern

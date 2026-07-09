@@ -101,7 +101,7 @@ function GraphWirer() {
     const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
     const unsub = bus.subscribe("*", async (event: any) => {
       if (!GRAPH_EVENTS.includes(event.type)) return;
-      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch {}
+      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch (e) { console.warn("[GraphWirer] event failed:", e); }
     });
     return unsub;
   }, [handleEvent]);

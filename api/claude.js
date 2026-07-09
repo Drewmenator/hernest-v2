@@ -1,25 +1,11 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { adminDb, adminAuth, applyCors } from "./_lib/secure.js";
 
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
 const FREE_LIMIT = 500; // Increased for testing
 
 const ALLOWED = ["cleo_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief","household_cfo","cleo_household","wellness_coach_v2","trip_planner_v2","circle_companion"];
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (applyCors(req, res, "POST, OPTIONS")) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { prompt, system, feature, model, messages, tools, stream, max_tokens = 1000 } = req.body || {};
@@ -35,16 +21,20 @@ export default async function handler(req, res) {
 
   let uid;
   try {
-    const decoded = await getAuth().verifyIdToken(idToken);
+    const decoded = await adminAuth.verifyIdToken(idToken);
     uid = decoded.uid;
   } catch { return res.status(401).json({ error: "Invalid token" }); }
 
   const today = new Date().toISOString().split("T")[0];
   const usageRef = adminDb.doc(`users/${uid}/usage/${today}`);
   try {
-    const snap = await usageRef.get();
+    const [snap, subSnap] = await Promise.all([
+      usageRef.get(),
+      adminDb.doc(`users/${uid}/data/subscription`).get(),
+    ]);
+    const isPro = subSnap.exists && subSnap.data()?.status === "active";
     const count = snap.exists ? (snap.data()?.count || 0) : 0;
-    if (count >= FREE_LIMIT) return res.status(429).json({ error: "daily_limit_reached", message: "Daily limit reached. Upgrade to Pro for unlimited access." });
+    if (!isPro && count >= FREE_LIMIT) return res.status(429).json({ error: "daily_limit_reached", message: "Daily limit reached. Upgrade to Pro for unlimited access." });
     usageRef.set({ count: count + 1, date: today }, { merge: true }).catch(() => {});
   } catch (e) { console.error("[HerNest] Usage check failed:", e?.message); }
 

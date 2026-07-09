@@ -210,7 +210,7 @@ function HouseholdPulseCard() {
         setHouseholdInsights(insights);
         await saveHouseholdInsights(user.uid, insights);
       }
-    } catch {}
+    } catch (e) { console.warn("[Home] insight generation failed:", e); }
     setInsightLoading(false);
   };
 

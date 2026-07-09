@@ -1,21 +1,13 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
+import { adminDb, applyCors, verifyAuth } from "../_lib/secure.js";
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const { uid, tz } = req.query;
+  if (applyCors(req, res, "GET, OPTIONS")) return;
+
+  const uid = await verifyAuth(req);
+  if (!uid) return res.status(401).json({ error: "Unauthorized" });
+
+  const { tz } = req.query;
   const timezone = tz || "America/Chicago";
-  if (!uid) return res.status(400).json({ error: "Missing uid" });
 
   try {
     const doc = await adminDb.doc(`users/${uid}/integrations/google_calendar`).get();
@@ -35,11 +27,14 @@ export default async function handler(req, res) {
           grant_type:    "refresh_token",
         }),
       });
-      const refreshed = await refreshRes.json();
+      const refreshed = await refreshRes.json().catch(() => ({}));
       if (refreshed.access_token) {
         accessToken = refreshed.access_token;
         expiresAt = Date.now() + (refreshed.expires_in || 3600) * 1000;
         await adminDb.doc(`users/${uid}/integrations/google_calendar`).update({ accessToken, expiresAt });
+      } else {
+        console.error("[Google] token refresh failed:", refreshRes.status, refreshed.error || "");
+        return res.status(401).json({ error: "reauth_required", detail: "Google token refresh failed — reconnect your calendar" });
       }
     }
 
@@ -55,7 +50,7 @@ export default async function handler(req, res) {
     );
     const listData = await listRes.json();
     const calendars = (listData.items || []).filter(c => c.accessRole !== "freeBusyReader");
-    console.log("[Google] Found calendars:", calendars.map(c => c.summary));
+    console.log("[Google] Found calendars:", calendars.length);
 
     // Step 2: Fetch events from each calendar
     let allEvents = [];
@@ -79,7 +74,7 @@ export default async function handler(req, res) {
         }));
         allEvents = allEvents.concat(events);
       } catch (e) {
-        console.error("[Google] Error fetching calendar:", cal.summary, e.message);
+        console.error("[Google] Error fetching a calendar:", e.message);
       }
     }
 

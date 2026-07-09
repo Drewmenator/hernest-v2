@@ -1,26 +1,15 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
 import crypto from "crypto";
-
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
+import { adminDb, applyCors, verifyAuth } from "../_lib/secure.js";
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (applyCors(req, res, "POST, OPTIONS")) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { fromUid, fromName, toEmail, shareCategories } = req.body || {};
-  if (!fromUid || !toEmail) return res.status(400).json({ error: "Missing required fields" });
+  const fromUid = await verifyAuth(req);
+  if (!fromUid) return res.status(401).json({ error: "Unauthorized" });
+
+  const { fromName, toEmail, shareCategories } = req.body || {};
+  if (!toEmail) return res.status(400).json({ error: "Missing required fields" });
 
   try {
     // Generate unique invite token

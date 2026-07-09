@@ -45,7 +45,7 @@ export interface AIResponse {
 }
 
 export interface AIError {
-  text?: never;
+  text: string; // always "" on error — lets callers use .text without narrowing
   error: string;
   code: string;
 }
@@ -59,7 +59,7 @@ export async function ai(
   history: Array<{ role: string; content: string }> = []
 ): Promise<AIResult> {
   const idToken = await getIdToken();
-  if (!idToken) return { error: "Not authenticated", code: "unauthenticated" };
+  if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
 
   const model = MODEL_MAP[feature] || AI.HAIKU;
 
@@ -93,12 +93,12 @@ export async function ai(
 
     if (res.status === 429) {
       window.dispatchEvent(new CustomEvent("hn_limit_reached"));
-      return { error: "Daily limit reached", code: "daily_limit_reached" };
+      return { text: "", error: "Daily limit reached", code: "daily_limit_reached" };
     }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return { error: err.message || `HTTP ${res.status}`, code: `http_${res.status}` };
+      return { text: "", error: err.message || `HTTP ${res.status}`, code: `http_${res.status}` };
     }
 
     const data = await res.json();
@@ -109,10 +109,10 @@ export async function ai(
       data.content?.[0]?.text ||
       "";
     // An empty reply becomes a soft fallback rather than a hard "having a moment".
-    if (!text) return { error: "Empty response from model", code: "empty_response" };
+    if (!text) return { text: "", error: "Empty response from model", code: "empty_response" };
     return { text };
   } catch (e) {
-    return { error: "Network error", code: "network_error" };
+    return { text: "", error: "Network error", code: "network_error" };
   }
 }
 

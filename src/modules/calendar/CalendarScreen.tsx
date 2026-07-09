@@ -425,7 +425,7 @@ export function CalendarScreen() {
           </div>
         ) : null;
       })()}
-      {householdSnapshot?.financial?.topOverspendCategories?.length > 0 && (
+      {householdSnapshot && (householdSnapshot.financial?.topOverspendCategories?.length ?? 0) > 0 && (
         <div style={{ background:`${T.blush}10`, border:`1px solid ${T.blush}25`, borderRadius:12, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:16 }}>💰</span>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
@@ -527,7 +527,7 @@ export function CalendarScreen() {
                 setAppleLoading(true);
                 try{
                   const idToken=await auth.currentUser?.getIdToken();
-                  const res=await fetch(`/api/auth/apple?uid=${user?.uid}&email=${encodeURIComponent(appleEmail)}&password=${encodeURIComponent(applePassword)}`,{headers:{Authorization:`Bearer ${idToken}`}});
+                  const res=await fetch("/api/auth/apple",{method:"POST",headers:{Authorization:`Bearer ${idToken}`,"Content-Type":"application/json"},body:JSON.stringify({email:appleEmail,password:applePassword})});
                   if(res.ok||res.redirected){setAppleConnected(true);setShowAppleModal(false);toast.success("Apple Calendar connected ✓");}
                   else{const d=await res.json();toast.error(d.error||"Connection failed");}
                 }catch(e){toast.error("Connection failed — check your credentials");}

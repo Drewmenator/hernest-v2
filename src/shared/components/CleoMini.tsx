@@ -40,7 +40,7 @@ export function CleoMini() {
       const items = (existing?.items as any[]) || [];
       items.unshift({ type, content: content.slice(0, 200), timestamp: Date.now() });
       await saveData(user.uid, "cleo_feedback", { items: items.slice(0, 50) });
-    } catch {}
+    } catch (e) { console.warn("[CleoMini] feedback save failed:", e); }
   };
 
   const startVoice = () => {

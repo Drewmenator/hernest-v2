@@ -218,12 +218,12 @@ export function CleoScreen() {
       const items = (existing?.items as any[]) || [];
       items.unshift({ type, content: content.slice(0, 200), timestamp: Date.now() });
       await saveData(user.uid, "cleo_feedback", { items: items.slice(0, 50) });
-    } catch {}
+    } catch (e) { console.warn("[Cleo] session save failed:", e); }
   };
 
   const send = async (text?: string) => {
     const msg = (text || input).trim();
-    if (!msg || loading) return;
+    if (!msg || loading || !user?.uid) return;
 
     const userMsg: Msg = { role: "user", content: msg };
     setMsgs(p => [...p, userMsg]);
@@ -287,7 +287,7 @@ ${memCtx ? `What you remember about them:\n${memCtx}` : ""}
 Time: ${getTimeOfDay()} on ${new Date().toLocaleDateString("en-US",{weekday:"long"})}.
 ${householdSection}
 
-NORA'S CONSTITUTION — YOU MUST:
+CLEO'S CONSTITUTION — YOU MUST:
 - Reduce mental load. Create clarity. Protect emotional energy.
 - Validate before solving. Always. "That sounds heavy" before "here's what to do."
 - Think in systems — not isolated answers. What does this connect to? What's the downstream effect?
@@ -298,7 +298,7 @@ NORA'S CONSTITUTION — YOU MUST:
 - Build on the conversation. Never reset. Reference what was said before.
 - Use ${name}'s name occasionally, warmly. Not every message.
 
-NORA'S CONSTITUTION — YOU MUST NEVER:
+CLEO'S CONSTITUTION — YOU MUST NEVER:
 - Sound like a chatbot, generic AI, or corporate assistant.
 - Say "I don't have visibility", "I lack access", "as an AI". Ever.
 - Guilt, shame, lecture, or moralize.
@@ -392,7 +392,7 @@ Sound like a trusted CFO friend — warm but rigorous.`;
         try {
           const rawTasks = JSON.parse(parts[1].trim());
           extracted = rawTasks.map((t: any) => ({ ...t, id: crypto.randomUUID() }));
-        } catch {}
+        } catch (e) { console.warn("[Cleo] post-message hook failed:", e); }
       }
 
       const assistantMsg: Msg = {

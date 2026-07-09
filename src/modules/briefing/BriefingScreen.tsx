@@ -82,7 +82,7 @@ export function BriefingScreen() {
             return;
           }
         }
-      } catch {}
+      } catch (e) { console.warn("[Briefing] cache check failed:", e); }
       generate();
     };
     checkCacheAndGenerate();

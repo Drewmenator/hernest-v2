@@ -1,20 +1,10 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
+import { adminDb, applyCors, verifyAuth } from "../_lib/secure.js";
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const { uid } = req.query;
-  if (!uid) return res.status(400).json({ error: "Missing uid" });
+  if (applyCors(req, res, "GET, OPTIONS")) return;
+
+  const uid = await verifyAuth(req);
+  if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const doc = await adminDb.doc(`users/${uid}/integrations/outlook_calendar`).get();

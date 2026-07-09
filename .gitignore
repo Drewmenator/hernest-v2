@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 .vercel
 .env*.local
+
+# secrets
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

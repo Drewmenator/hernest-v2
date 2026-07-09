@@ -1274,7 +1274,7 @@ export async function saveMemoryFromInsight(
       confidence: memNode.confidenceScore,
       createdAt: Date.now(),
     }]);
-  } catch {}
+  } catch (e) { console.warn("[Graph] operation failed:", e); }
 
   await saveGraphToFirestore(userId, graph);
 }

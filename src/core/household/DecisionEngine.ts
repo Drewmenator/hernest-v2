@@ -229,7 +229,7 @@ export async function analyzeScenario(
       confidence: 0.9,
       createdAt: Date.now(),
     }]);
-  } catch {}
+  } catch (e) { console.warn("[DecisionEngine] scenario failed:", e); }
 
   return { record, result };
 }

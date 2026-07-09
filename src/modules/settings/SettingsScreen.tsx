@@ -57,11 +57,11 @@ export function SettingsScreen() {
     if (!partnerEmail.trim() || !user?.uid) return;
     setSendingInvite(true);
     try {
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/invite/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
-          fromUid: user.uid,
           fromName: (profile as any)?.name || "Your partner",
           toEmail: partnerEmail.trim(),
           shareCategories,

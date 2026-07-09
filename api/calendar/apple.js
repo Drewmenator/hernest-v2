@@ -1,15 +1,4 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
+import { adminDb, applyCors, verifyAuth, decryptSecret } from "../_lib/secure.js";
 
 function parseICSEvents(icsText) {
   const events = [];
@@ -49,11 +38,10 @@ async function getCalendarHomeUrl(authHeader) {
   // Extract principal href
   const m1 = t1.match(/<current-user-principal[^>]*>[\s\S]*?<href[^>]*>([^<]+)<\/href>/);
   if (!m1) {
-    console.log("[Apple] No principal found in:", t1.slice(0, 500));
+    console.log("[Apple] No principal found (status", r1.status + ")");
     return null;
   }
   const principalUrl = m1[1].startsWith("http") ? m1[1] : `https://caldav.icloud.com${m1[1]}`;
-  console.log("[Apple] Principal URL:", principalUrl);
 
   // Step 2: Get calendar-home-set from principal
   const r2 = await fetch(principalUrl, {
@@ -66,25 +54,24 @@ async function getCalendarHomeUrl(authHeader) {
 
   const m2 = t2.match(/<calendar-home-set[^>]*>[\s\S]*?<href[^>]*>([^<]+)<\/href>/);
   if (!m2) {
-    console.log("[Apple] No calendar-home found in:", t2.slice(0, 500));
+    console.log("[Apple] No calendar-home found (status", r2.status + ")");
     return null;
   }
-  const homeUrl = m2[1].startsWith("http") ? m2[1] : `https://caldav.icloud.com${m2[1]}`;
-  console.log("[Apple] Calendar home URL:", homeUrl);
-  return homeUrl;
+  return m2[1].startsWith("http") ? m2[1] : `https://caldav.icloud.com${m2[1]}`;
 }
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const { uid } = req.query;
-  if (!uid) return res.status(400).json({ error: "Missing uid" });
+  if (applyCors(req, res, "GET, OPTIONS")) return;
+
+  const uid = await verifyAuth(req);
+  if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const doc = await adminDb.doc(`users/${uid}/integrations/apple_calendar`).get();
     if (!doc.exists) return res.status(404).json({ error: "Not connected" });
 
     const { email, password } = doc.data();
-    const decoded = Buffer.from(password, "base64").toString("utf-8");
+    const decoded = decryptSecret(password);
     const authHeader = `Basic ${Buffer.from(`${email}:${decoded}`).toString("base64")}`;
 
     const homeUrl = await getCalendarHomeUrl(authHeader);
@@ -116,7 +103,7 @@ export default async function handler(req, res) {
         calUrls.push(url);
       }
     }
-    console.log("[Apple] Found calendar URLs:", calUrls.length, calUrls);
+    console.log("[Apple] Found calendars:", calUrls.length);
 
     if (calUrls.length === 0) {
       // No sub-calendars found — use home directly
@@ -146,12 +133,12 @@ export default async function handler(req, res) {
           body: reportBody,
         });
         const xml = await r.text();
-        console.log("[Apple] REPORT status:", r.status, "for:", calUrl, "length:", xml.length, "preview:", xml.slice(0, 300));
+        console.log("[Apple] REPORT status:", r.status, "length:", xml.length);
         const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
         const events = icsMatches.flatMap(parseICSEvents).filter(Boolean);
         allEvents = allEvents.concat(events);
       } catch (e) {
-        console.error("[Apple] REPORT error for", calUrl, e.message);
+        console.error("[Apple] REPORT error:", e.message);
       }
     }
 

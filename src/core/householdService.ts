@@ -89,12 +89,15 @@ export async function bootstrapHousehold(
 // Accept a partner invite (client-side, when ?invite=token is present and the user
 // is signed in). Delegates to the existing admin endpoint, which writes the
 // household_link that resolveHouseholdId() reads on the next bootstrap.
-export async function acceptInvite(token: string, uid: string): Promise<boolean> {
+export async function acceptInvite(token: string, _uid: string): Promise<boolean> {
   try {
+    const { auth } = await import("./firebase");
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return false;
     const res = await fetch("/api/invite/accept", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, partnerUid: uid }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ token }),
     });
     return res.ok;
   } catch (e) {

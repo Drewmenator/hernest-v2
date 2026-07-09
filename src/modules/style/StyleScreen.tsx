@@ -387,7 +387,7 @@ Return ONLY valid JSON:
             )}
 
             {/* Alternatives per blueprint */}
-            {rec.alternatives?.filter(a=>a?.item).length > 0 && (
+            {(rec.alternatives?.filter(a=>a?.item).length ?? 0) > 0 && (
               <Card>
                 <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>DON'T HAVE IT? TRY</p>
                 {rec.alternatives!.filter(a=>a?.item).map((alt,i)=>(

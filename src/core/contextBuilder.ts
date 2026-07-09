@@ -457,7 +457,7 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   }
 
   if (ctx.memory) {
-    lines.push(`=== NORA'S MEMORY ===`);
+    lines.push(`=== CLEO'S MEMORY ===`);
     lines.push(ctx.memory);
   }
 

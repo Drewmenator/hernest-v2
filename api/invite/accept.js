@@ -1,25 +1,14 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-if (!getApps().length) {
-  initializeApp({ credential: cert({
-    projectId:   process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  })});
-}
-
-const adminDb = getFirestore();
+import { adminDb, applyCors, verifyAuth } from "../_lib/secure.js";
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (applyCors(req, res, "POST, OPTIONS")) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { token, partnerUid } = req.body || {};
-  if (!token || !partnerUid) return res.status(400).json({ error: "Missing token or partnerUid" });
+  const partnerUid = await verifyAuth(req);
+  if (!partnerUid) return res.status(401).json({ error: "Unauthorized" });
+
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: "Missing token" });
 
   try {
     const inviteDoc = await adminDb.doc(`invites/${token}`).get();

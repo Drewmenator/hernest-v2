@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { PageTitle } from "../../shared/components";
-import { saveData } from "../../core/firebase";
+import { saveData, auth } from "../../core/firebase";
 import toast from "react-hot-toast";
 
 const PRO_FEATURES = [
@@ -33,6 +33,26 @@ export function UpgradeScreen() {
       });
       setJoined(true);
       toast.success("You're on the list ✦");
+    } catch {
+      toast.error("Something went wrong — try again");
+    }
+    setLoading(false);
+  };
+
+  // Stripe checkout when payments are configured; waitlist otherwise
+  const upgrade = async () => {
+    if (!user?.uid) return;
+    setLoading(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      });
+      if (res.status === 503) { await joinWaitlist(); return; }
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; return; }
+      toast.error("Checkout failed — try again");
     } catch {
       toast.error("Something went wrong — try again");
     }
@@ -71,9 +91,9 @@ export function UpgradeScreen() {
 
       {/* CTA */}
       {!joined ? (
-        <button onClick={joinWaitlist} disabled={loading}
+        <button onClick={upgrade} disabled={loading}
           style={{ width:"100%", padding:"16px", background:T.esp, color:"#fff", border:"none", borderRadius:16, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:12 }}>
-          {loading ? "Joining..." : "Join the waitlist ✦"}
+          {loading ? "One moment..." : "Upgrade to Pro ✦"}
         </button>
       ) : (
         <div style={{ background:`${T.sage}15`, border:`1px solid ${T.sage}30`, borderRadius:16, padding:"20px", textAlign:"center" }}>
