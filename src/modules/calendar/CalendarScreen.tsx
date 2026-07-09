@@ -376,10 +376,10 @@ export function CalendarScreen() {
     if (provider === "apple") { setShowAppleModal(true); return; }
     if (provider === "google") {
       // Redirect to Google OAuth
-      window.location.href = `/api/auth/google?uid=${user?.uid}`;
+      import("../../core/connectorSync").then(m => m.connectOAuth("google"));
       return;
     }
-    window.location.href = `/api/auth/outlook?uid=${user?.uid}`;
+    import("../../core/connectorSync").then(m => m.connectOAuth("outlook"));
     return;
   };
 

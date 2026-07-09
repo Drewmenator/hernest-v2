@@ -152,6 +152,10 @@ export default function App() {
         // Wire up cross-module connectivity
         initConnectivity(u.uid);
         connectIntelligenceLayer(u.uid);
+        // Wave 1: background-refresh all connected sources so the briefing
+        // never reasons over stale data (previously only synced on the
+        // Calendar screen).
+        import("./core/connectorSync").then(m => m.syncAllConnectors(u.uid)).catch(() => {});
         setScreen("app");
       } else {
         setUser(null);

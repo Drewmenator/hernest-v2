@@ -1,18 +1,16 @@
-// ─── Connections (Phase 5 — Connectors hub) ─────────────────────
-// One place to connect the external services that feed the household OS.
-// Architectural principle (per the 6-phase plan): connectors are just more
-// EVENT PUBLISHERS — each normalizes its data into the same household event
-// envelope. The calendar connectors (Google/Apple/Outlook) are live today and
-// already publish `calendar.synced`; the rest are scaffolded here so wiring a
-// new wave is uniform once its OAuth app exists.
+// ─── Connections (Waves 1+2 — Connectors hub with sync health) ────
+// One place to see everything feeding the household OS. Each connector is
+// an event publisher into the same household stream. Shows real freshness
+// (last synced, item counts, errors) from users/{uid}/integrations/{doc},
+// written server-side on every sync.
 import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { PageTitle } from "../../shared/components";
+import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon";
-type ConnectorStatus = "connected" | "available" | "soon";
 
 interface Connector {
   id: string;
@@ -21,61 +19,72 @@ interface Connector {
   blurb: string;
   icon: string;
   kind: ConnectorKind;
-  connectUrl?: string;     // oauth: redirect target
-  tab?: string;            // deeplink: in-app screen that owns the connect flow
-  statusDoc?: string;      // integrations/{doc} to check for a live connection
-  statusField?: string;    // field that signals "connected"
+  oauthProvider?: "google" | "gmail" | "outlook";
+  tab?: string;
+  statusDoc?: string;
+  statusField?: string;
 }
 
 const CONNECTORS: Connector[] = [
-  { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", connectUrl: "/api/auth/google", statusDoc: "google_calendar", statusField: "accessToken" },
-  { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", connectUrl: "/api/auth/outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
+  { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
+  { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
-  { id: "gmail", name: "Gmail", category: "Email", blurb: "Turn key emails into tasks & events", icon: "✉", kind: "soon" },
+  { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "google_classroom", name: "Google Classroom", category: "School", blurb: "Assignments & school deadlines", icon: "◷", kind: "soon" },
-  { id: "canvas", name: "Canvas", category: "School", blurb: "Coursework and due dates", icon: "◷", kind: "soon" },
   { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live balances & transactions via Plaid", icon: "◎", kind: "soon" },
-  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Sleep & activity for resilience scoring", icon: "♡", kind: "soon" },
+  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Not possible from a web app — log wellness in Thrive for now", icon: "♡", kind: "soon" },
+];
+
+// Manual data sources already built into other screens — surfaced here so this
+// screen is the complete inventory of what feeds Cleo.
+const MANUAL_SOURCES = [
+  { id: "csv", name: "Bank CSV import", blurb: "Upload statements into the budget", icon: "◎", tab: "budget" },
+  { id: "receipts", name: "Receipt scanner", blurb: "Snap receipts, Cleo logs the expense", icon: "◉", tab: "budget" },
+  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "calendar" },
 ];
 
 const CATEGORIES: Connector["category"][] = ["Calendar", "Email", "School", "Finance", "Wellness"];
 
+function timeAgo(ts?: number): string {
+  if (!ts) return "";
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 export function ConnectionsScreen() {
   const { user } = useStore();
   const setActiveTab = useStore(s => s.setActiveTab);
-  const [connected, setConnected] = useState<Record<string, boolean>>({});
+  const [health, setHealth] = useState<Record<string, ConnectorHealth>>({});
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [scanningGmail, setScanningGmail] = useState(false);
+
+  const loadHealth = async (uid: string) => {
+    const checks = CONNECTORS.filter(c => c.statusDoc);
+    const results = await Promise.all(checks.map(async c =>
+      [c.id, await getConnectorHealth(uid, c.statusDoc!, c.statusField || "accessToken")] as const
+    ));
+    setHealth(Object.fromEntries(results));
+  };
 
   useEffect(() => {
     if (!user?.uid) return;
     let alive = true;
     (async () => {
-      try {
-        const { db } = await import("../../core/firebase");
-        const { doc, getDoc } = await import("firebase/firestore");
-        const checks = CONNECTORS.filter(c => c.statusDoc);
-        const results = await Promise.all(checks.map(async c => {
-          try {
-            const snap = await getDoc(doc(db, "users", user.uid, "integrations", c.statusDoc!));
-            return [c.id, snap.exists() && !!snap.data()?.[c.statusField || "accessToken"]] as const;
-          } catch { return [c.id, false] as const; }
-        }));
-        if (alive) setConnected(Object.fromEntries(results));
-      } catch (e) {
-        console.warn("[Connections] status check failed:", e);
-      } finally {
-        if (alive) setLoading(false);
-      }
+      try { await loadHealth(user.uid); } catch (e) { console.warn("[Connections] health check failed:", e); }
+      if (alive) setLoading(false);
     })();
     return () => { alive = false; };
   }, [user?.uid]);
 
-  const statusOf = (c: Connector): ConnectorStatus =>
-    connected[c.id] ? "connected" : c.kind === "soon" ? "soon" : "available";
-
-  const onConnect = (c: Connector) => {
-    if (c.kind === "oauth" && c.connectUrl) {
-      window.location.href = `${c.connectUrl}?uid=${user?.uid}`;
+  const onConnect = async (c: Connector) => {
+    if (c.kind === "oauth" && c.oauthProvider) {
+      const ok = await connectOAuth(c.oauthProvider);
+      if (!ok) toast.error("Couldn't start the connection — try again");
     } else if (c.kind === "deeplink" && c.tab) {
       setActiveTab(c.tab);
     } else {
@@ -83,15 +92,53 @@ export function ConnectionsScreen() {
     }
   };
 
-  const liveCount = Object.values(connected).filter(Boolean).length;
+  const onSyncNow = async () => {
+    if (!user?.uid || syncing) return;
+    setSyncing(true);
+    try {
+      await syncAllConnectors(user.uid);
+      await loadHealth(user.uid);
+      toast.success("Sources refreshed ✓");
+    } catch {
+      toast.error("Sync hit a snag — try again");
+    }
+    setSyncing(false);
+  };
+
+  const onScanGmail = async () => {
+    if (!user?.uid || scanningGmail) return;
+    setScanningGmail(true);
+    try {
+      const { scanGmail } = await import("../../core/gmailIntelligence");
+      const r = await scanGmail(user.uid);
+      if (r.error === "reauth_required") toast.error("Gmail needs reconnecting");
+      else if (r.error) toast.error("Scan failed — try again");
+      else if (r.eventsAdded || r.receiptsFound) toast.success(`Found ${r.eventsAdded} event${r.eventsAdded === 1 ? "" : "s"} · ${r.receiptsFound} receipt${r.receiptsFound === 1 ? "" : "s"} ✓`);
+      else toast(`Scanned ${r.scanned} emails — nothing new`, { icon: "✉" });
+      await loadHealth(user.uid);
+    } catch {
+      toast.error("Scan failed — try again");
+    }
+    setScanningGmail(false);
+  };
+
+  const liveCount = Object.values(health).filter(h => h.connected).length;
 
   return (
     <div style={{ paddingBottom: 80 }}>
       <PageTitle eyebrow="YOUR INTEGRATIONS" title="Connections" />
-      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "4px 0 18px", lineHeight: 1.6 }}>
-        Connect the services that feed your household. Each one becomes a source Cleo can see and reason about.
-        {liveCount > 0 && <> <span style={{ color: T.sage, fontWeight: 700 }}>{liveCount} connected.</span></>}
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "4px 0 18px" }}>
+        <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6, flex: 1 }}>
+          Connect the services that feed your household. Each becomes a source Cleo can see and reason about.
+          {liveCount > 0 && <> <span style={{ color: T.sage, fontWeight: 700 }}>{liveCount} connected.</span></>}
+        </p>
+        {liveCount > 0 && (
+          <button onClick={onSyncNow} disabled={syncing}
+            style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
+            {syncing ? "Syncing..." : "↺ Sync now"}
+          </button>
+        )}
+      </div>
 
       {CATEGORIES.map(cat => {
         const items = CONNECTORS.filter(c => c.category === cat);
@@ -100,20 +147,39 @@ export function ConnectionsScreen() {
           <div key={cat} style={{ marginBottom: 20 }}>
             <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
             {items.map(c => {
-              const status = loading ? "available" : statusOf(c);
+              const h = health[c.id];
+              const isConnected = !loading && !!h?.connected;
+              const hasError = isConnected && !!h?.lastError;
+              const border = hasError ? `${T.blush}50` : isConnected ? `${T.sage}40` : T.linen;
               return (
-                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${status === "connected" ? `${T.sage}40` : T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: status === "connected" ? `${T.sage}14` : `${T.taupe}10`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: status === "connected" ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
-                    <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{c.blurb}</p>
+                <div key={c.id} style={{ background: "#fff", border: `1.5px solid ${border}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: isConnected ? `${T.sage}14` : `${T.taupe}10`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: isConnected ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
+                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
+                        {hasError
+                          ? <span style={{ color: T.blush }}>Needs reconnecting — token expired</span>
+                          : isConnected && h?.lastSyncedAt
+                          ? <>✓ {h.itemCount ?? 0} item{(h.itemCount ?? 0) === 1 ? "" : "s"} · synced {timeAgo(h.lastSyncedAt)}</>
+                          : c.blurb}
+                      </p>
+                    </div>
+                    {isConnected && !hasError ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
+                    ) : c.kind === "soon" ? (
+                      <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
+                    ) : (
+                      <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                        {hasError ? "Reconnect" : "Connect"}
+                      </button>
+                    )}
                   </div>
-                  {status === "connected" ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
-                  ) : status === "soon" ? (
-                    <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
-                  ) : (
-                    <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Connect</button>
+                  {c.id === "gmail" && isConnected && !hasError && (
+                    <button onClick={onScanGmail} disabled={scanningGmail}
+                      style={{ width: "100%", marginTop: 10, padding: "10px", background: `${T.gold}12`, border: `1.5px solid ${T.gold}30`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>
+                      {scanningGmail ? "✦ Cleo is reading your inbox..." : "✦ Scan inbox for receipts & events"}
+                    </button>
                   )}
                 </div>
               );
@@ -122,8 +188,23 @@ export function ConnectionsScreen() {
         );
       })}
 
+      {/* Manual sources — already built, part of the same picture */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
+        {MANUAL_SOURCES.map(s => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{s.name}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
+            </div>
+            <button onClick={() => setActiveTab(s.tab)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
+          </div>
+        ))}
+      </div>
+
       <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "8px 0 0", lineHeight: 1.6, fontStyle: "italic", textAlign: "center" }}>
-        More connectors (Gmail, School, Bank feeds, Health) arrive in waves. Each plugs into the same household event stream — no separate silos.
+        Connected sources refresh automatically when you open HerNest. Bank feeds and school connectors arrive in the next wave.
       </p>
     </div>
   );

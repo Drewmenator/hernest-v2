@@ -47,6 +47,7 @@ export type EventType =
   | "briefing.invalidate"
   | "calendar.connected"
   | "calendar.synced"
+  | "budget.receipts.found"
   | "trips.trip.approaching"
   | "trips.trip.completed"
   // Circle

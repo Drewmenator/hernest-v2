@@ -1,16 +1,40 @@
 {
   "rewrites": [
     {
+      "source": "/api/auth/google/callback",
+      "destination": "/api/connectors?action=callback"
+    },
+    {
+      "source": "/api/auth/outlook/callback",
+      "destination": "/api/connectors?action=callback"
+    },
+    {
+      "source": "/api/auth/:provider",
+      "destination": "/api/connectors?provider=:provider&action=auth"
+    },
+    {
+      "source": "/api/calendar/:provider",
+      "destination": "/api/connectors?provider=:provider&action=sync"
+    },
+    {
+      "source": "/api/invite/send",
+      "destination": "/api/household?action=invite_send"
+    },
+    {
+      "source": "/api/invite/accept",
+      "destination": "/api/household?action=invite_accept"
+    },
+    {
+      "source": "/api/partner/data",
+      "destination": "/api/household?action=partner_data"
+    },
+    {
       "source": "/api/stripe/checkout",
       "destination": "/api/stripe?action=checkout"
     },
     {
       "source": "/api/stripe/webhook",
       "destination": "/api/stripe?action=webhook"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
     }
   ]
 }
