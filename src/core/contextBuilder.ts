@@ -6,6 +6,7 @@ import { loadData } from "./firebase";
 import { buildMemoryContext, loadMemoryFacts } from "./memory";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
 import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
+import { readWearable, type WearableDay } from "./wellnessAutoTrack";
 import type { HouseholdSnapshot } from "./store";
 
 // ── Tone Profiles (unchanged) ─────────────────────────────────────
@@ -90,6 +91,9 @@ export interface AppContext {
     mood: number | null;
     moodTrend: number[];
     weeklyScore?: number;
+    readiness: number | null;   // Oura daily readiness (0-100)
+    sleepScore: number | null;  // Oura sleep score (0-100)
+    wearableSource: WearableDay["source"] | null;
   };
 
   // Trips
@@ -165,7 +169,7 @@ export async function buildAppContext(
   const [
     tasksData, budgetDataV2, budgetDataV1, thriveData,
     tripsData, schoolData, circleData, calendarData,
-    memoryFacts
+    memoryFacts, wearable
   ] = await Promise.all([
     loadData(userId, "tasks"),
     loadData(userId, "budget_v2"),   // NEW: try v2 first
@@ -176,6 +180,7 @@ export async function buildAppContext(
     loadData(userId, "circle"),
     loadData(userId, "calendar"),
     loadMemoryFacts(userId),
+    readWearable(userId).catch(() => null),
   ]);
 
   // Use v2 if available, otherwise fall back to v1
@@ -349,6 +354,9 @@ export async function buildAppContext(
       mood: todayMood?.value || null,
       moodTrend,
       weeklyScore: (thriveData?.score as any)?.score,
+      readiness: wearable?.readiness ?? null,
+      sleepScore: wearable?.sleepScore ?? null,
+      wearableSource: wearable?.source ?? null,
     },
 
     // Trips
@@ -432,6 +440,10 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   lines.push(`=== THRIVE ===`);
   lines.push(`Sleep last night: ${ctx.thrive.sleepLast||"not logged"}h. 7-day trend: ${ctx.thrive.sleepTrend.join(", ")||"no data"}.`);
   lines.push(`Water: ${ctx.thrive.water}/8. Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done. Mood: ${ctx.thrive.mood||"not logged"}/5.`);
+  if (ctx.thrive.readiness != null) {
+    const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
+    lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task.`);
+  }
   if (ctx.thrive.weeklyScore) lines.push(`Weekly wellness score: ${ctx.thrive.weeklyScore}/10.`);
   lines.push(``);
 

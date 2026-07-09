@@ -138,7 +138,7 @@ Return ONLY valid JSON:
   "budget": {"status":"healthy|watch|warning|critical","keyMessage":"positive or actionable message — focus on cash remaining and savings progress, NOT total debt","forecastMessage":"month end forecast","categoryAlert":"optional — only if overspending","savingsUpdate":"optional — celebrate progress"},
   "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
   "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
-  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"based on X sleep + Y mood","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
+  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest signals you have — body readiness if present, else sleep + mood (e.g. \"readiness 62 + 5.8h sleep\")","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
   "affirmation": {"text":"warm personal affirmation","theme":"${appCtx.toneConfig.affirmationTheme}"},
   "travelBrief": ${appCtx?.trips?.isClose ? '{"urgentActions":[""],"packingTip":"","weatherHint":"","kidsTip":"","excitement":""}' : 'null'}
 }
