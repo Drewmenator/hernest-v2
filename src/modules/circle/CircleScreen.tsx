@@ -362,8 +362,8 @@ CRITICAL RULES:
           <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 6px" }}>Preferred contact method</p>
           <div style={{ display:"flex", gap:6, marginBottom:10 }}>
             {(["call","text","voice-note","in-person"] as const).map(m=>(
-              <button key={m} onClick={()=>setNewMethod(m)} style={{ flex:1, padding:"6px 4px", borderRadius:10, border:`1.5px solid ${newMethod===m?T.sky:T.linen}`, background:newMethod===m?T.skyP:"#fff", color:newMethod===m?T.sky:T.bark, fontFamily:F.sans, fontSize:10, cursor:"pointer", touchAction:"manipulation", textAlign:"center" }}>
-                {m==="call"?"📞":m==="text"?"💬":m==="voice-note"?"🎤":"🤝"} {m}
+              <button key={m} onClick={()=>setNewMethod(m)} style={{ flex:1, padding:"6px 4px", borderRadius:10, border:`1.5px solid ${newMethod===m?T.esp:T.linen}`, background:newMethod===m?`${T.esp}10`:"#fff", color:newMethod===m?T.esp:T.bark, fontFamily:F.sans, fontSize:10, cursor:"pointer", touchAction:"manipulation", textAlign:"center" }}>
+                {m}
               </button>
             ))}
           </div>

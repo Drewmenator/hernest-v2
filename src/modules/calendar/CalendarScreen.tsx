@@ -25,12 +25,12 @@ export interface CalEvent {
 
 const SOURCE_META = {
   google:   { label: "Google",   color: "#4285F4", icon: "◈" },
-  apple:    { label: "Apple",    color: "#000000", icon: "" },
-  work:     { label: "Work",     color: "#0078D4", icon: "📧" },
-  school:   { label: "School",   color: T.sage,   icon: "🏫" },
-  trip:     { label: "Trip",     color: T.gold,   icon: "✈️" },
+  apple:    { label: "Apple",    color: "#6E6E73", icon: "" },
+  work:     { label: "Work",     color: "#0078D4", icon: "◈" },
+  school:   { label: "School",   color: T.sage,   icon: "◆" },
+  trip:     { label: "Trip",     color: T.gold,   icon: "→" },
   birthday: { label: "Birthday", color: T.blush,  icon: "◆" },
-  manual:   { label: "Family",   color: T.lav,    icon: "👨‍👩‍👧" },
+  manual:   { label: "Family",   color: T.lav,    icon: "◉" },
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -460,7 +460,7 @@ export function CalendarScreen() {
         {[
           { key:"google",  name:"Google Calendar", icon:"◈", color:"#4285F4", connected:googleConnected,  desc:"Sign in once — stays connected" },
           { key:"outlook", name:"Outlook / Work",  icon:"◈", color:"#1B2A4A", connected:outlookConnected, desc:"Microsoft 365 & work events" },
-          { key:"apple",   name:"Apple Calendar", icon:"",  color:"#000000", connected:appleConnected,   desc:"iCloud Calendar sync" },
+          { key:"apple",   name:"Apple Calendar", icon:"",  color:"#6E6E73", connected:appleConnected,   desc:"iCloud Calendar sync" },
         ].map(p => (
           <div key={p.key} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
             <span style={{ fontSize:22 }}>{p.icon}</span>

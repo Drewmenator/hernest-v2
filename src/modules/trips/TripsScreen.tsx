@@ -658,9 +658,16 @@ Weather: pack for typical ${trip.destination} conditions.`;
           </>
         )}
 
+        {trips.length > 0 && !showAdd && (
+          <button onClick={() => setShowAdd(true)}
+            style={{ width:"100%", marginTop:8, padding:"14px", background:"none", border:`1.5px dashed ${T.linen}`, borderRadius:16, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", touchAction:"manipulation" }}>
+            + Plan another trip
+          </button>
+        )}
+
         {trips.length === 0 && !showAdd && (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
-            <p style={{ fontSize: 48, marginBottom: 12 }}>✈</p>
+            <div style={{ width:64, height:64, borderRadius:"50%", background:`${T.gold}15`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:28, color:T.gold }}>→</div>
             <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Where next?</p>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 20px" }}>Plan a trip and Cleo will help reduce the stress of every step.</p>
             <button onClick={() => setShowAdd(true)}

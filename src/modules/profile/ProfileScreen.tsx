@@ -408,7 +408,7 @@ export function ProfileScreen() {
 
       {/* ── MEMORY per blueprint ───────────────────────────────────── */}
       {section==="memory" && <>
-        <HeroCard eyebrow="NORA'S BRAIN" title="What Cleo knows" subtitle={`${memories.length} facts · Updated from conversations`} color={T.esp}/>
+        <HeroCard eyebrow="CLEO'S MEMORY" title="What Cleo knows" subtitle={`${memories.length} facts · Updated from conversations`} color={T.esp}/>
 
         {/* Memory type breakdown per blueprint */}
         {memories.length > 0 && (
@@ -425,7 +425,7 @@ export function ProfileScreen() {
         )}
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>TELL NORA SOMETHING</p>
+          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>TELL CLEO SOMETHING</p>
           <Input value={newFact} onChange={setNewFact} placeholder="e.g. Maya is allergic to nuts" style={{ marginBottom:10 }}/>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
             {FACT_TYPES.map(t=>(
@@ -439,7 +439,7 @@ export function ProfileScreen() {
 
         {filteredMemories.length > 0 && (
           <Card>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>NORA KNOWS ({filteredMemories.length})</p>
+            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>CLEO KNOWS ({filteredMemories.length})</p>
             {filteredMemories.map(f=>{
               const meta = FACT_TYPES.find(t=>t.id===f.type);
               const isExpiring = f.expiresAt && f.expiresAt - Date.now() < 24*60*60*1000;

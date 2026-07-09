@@ -627,7 +627,7 @@ function IntelligenceCard() {
             </div>
           )}
           {data.circleOverdue > 0 && (
-            <div onClick={() => useStore.getState().setActiveTab("circle")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.sky}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+            <div onClick={() => useStore.getState().setActiveTab("circle")} style={{ display: "flex", gap: 10, padding: "8px 10px", background: `${T.gold}10`, borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
               <span style={{ fontSize: 14, flexShrink: 0 }}>💌</span>
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: 0 }}>{data.circleOverdue} check-in{data.circleOverdue > 1 ? "s" : ""} overdue</p>
             </div>

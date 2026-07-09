@@ -329,8 +329,8 @@ RULES:
 
       {/* Pattern detection callout */}
       {detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7)) && (
-        <div style={{ background:`${T.sky}15`, border:`1px solid ${T.sky}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10 }}>
-          <span style={{ fontSize:16, flexShrink:0 }}>💡</span>
+        <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10 }}>
+          <span style={{ fontSize:16, flexShrink:0, color:T.gold }}>✦</span>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, lineHeight:1.5 }}>
             {detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7))}
           </p>
@@ -365,8 +365,8 @@ RULES:
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
           <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
             {[4,5,6,7,8,9,10].map(h=>(
-              <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.sky:T.linen}`, background:sleepHours===h?T.skyP:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
-                <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:sleepHours===h?T.sky:T.esp }}>{h}</span>
+              <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.esp:T.linen}`, background:sleepHours===h?`${T.esp}10`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
+                <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:T.esp }}>{h}</span>
                 <span style={{ fontFamily:F.sans, fontSize:8, color:T.taupe }}>hrs</span>
               </button>
             ))}
@@ -381,7 +381,7 @@ RULES:
               </button>
             ))}
           </div>
-          <button onClick={logSleep} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.sky:T.linen, color:"#fff", border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
+          <button onClick={logSleep} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.esp:T.linen, color:sleepHours?"#fff":T.taupe, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
             Log {sleepHours||"?"}h {sleepQuality} sleep
           </button>
           {sleepLog && <p style={{ fontFamily:F.sans, fontSize:11, color:sleepLog.hours>=7?T.sage:sleepLog.hours>=6?T.gold:T.blush, margin:"8px 0 0", textAlign:"center" }}>
@@ -443,7 +443,7 @@ RULES:
             <Card>
               <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SCORE BREAKDOWN</p>
               {[
-                { label:"Sleep",      value:score.breakdown.sleep,      weight:"25%", color:T.sky },
+                { label:"Sleep",      value:score.breakdown.sleep,      weight:"25%", color:T.navy },
                 { label:"Mood",       value:score.breakdown.mood,       weight:"25%", color:T.gold },
                 { label:"Habits",     value:score.breakdown.habits,     weight:"20%", color:T.sage },
                 { label:"Hydration",  value:score.breakdown.hydration,  weight:"15%", color:T.lav },
@@ -492,7 +492,7 @@ RULES:
         )}
       </>}
 
-      {/* ── NORA COACH ────────────────────────────────────────────── */}
+      {/* ── CLEO COACH ────────────────────────────────────────────── */}
       {tab==="coach" && (
         <div style={{ display:"flex", flexDirection:"column" }}>
           <div style={{ marginBottom:12 }}>

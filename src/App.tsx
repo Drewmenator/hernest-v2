@@ -251,7 +251,7 @@ export default function App() {
       <style>{globalStyles}</style>
       <BrowserRouter>
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <div style={{ padding: "16px 16px calc(90px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
+          <div style={{ padding: "16px 16px calc(160px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
             <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #C9A96130",borderTop:"2px solid #C9A961",animation:"spin 0.8s linear infinite"}}/></div>}>
               {renderScreen()}
             </React.Suspense>

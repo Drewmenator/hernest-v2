@@ -431,7 +431,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                   {day.prepTime && <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>⏱ {day.prepTime}min</span>}
                 </div>
                 {[
-                  { label:"B", meal:day.breakfast, color:T.sky },
+                  { label:"B", meal:day.breakfast, color:T.gold },
                   { label:"L", meal:day.lunch,     color:T.sage },
                   { label:"D", meal:day.dinner,    color:T.esp },
                   { label:"S", meal:day.snack,     color:T.taupe },

@@ -108,10 +108,10 @@ export function SettingsScreen() {
       {/* Section tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
         {[
-          { id:"partner", label:"👫 Partner" },
-          { id:"privacy", label:"🔒 Privacy" },
-          { id:"legal",   label:"📄 Legal" },
-          { id:"account", label:"⚙ Account" },
+          { id:"partner", label:"Partner" },
+          { id:"privacy", label:"Privacy" },
+          { id:"legal",   label:"Legal" },
+          { id:"account", label:"Account" },
         ].map(s=>(
           <button key={s.id} onClick={()=>setSection(s.id as Section)} style={{ padding:"8px 16px", borderRadius:20, border:`1.5px solid ${section===s.id?T.esp:T.linen}`, background:section===s.id?T.esp:"#fff", color:section===s.id?"#fff":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s.id?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
             {s.label}

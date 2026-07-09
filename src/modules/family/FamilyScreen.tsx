@@ -451,7 +451,7 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
 
       {tab === "cleo" && <>
         <div style={{ background: `linear-gradient(135deg,${T.esp},#4a2e18)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>NORA · FAMILY MODE</p>
+          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>CLEO · FAMILY MODE</p>
           <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
             Ask me anything about your family's week — prep, logistics, who needs what.
           </p>
