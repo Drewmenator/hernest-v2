@@ -125,7 +125,9 @@ export function initConnectivity(userId: string) {
     const newAlert = {
       id: `circle_${contact}`,
       type: "circle",
-      message: `${contact} — ${daysSince} days since last contact`,
+      message: daysSince >= 999
+        ? `Say hi to ${contact} when you have a moment ✦`
+        : `${contact} might love to hear from you — it's been ${daysSince} days`,
       severity: "low",
       createdAt: Date.now(),
       read: false,

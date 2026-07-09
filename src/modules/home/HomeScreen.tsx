@@ -425,9 +425,17 @@ function CommandCenterCard() {
       } catch (e) { console.warn("[CommandCenter] radar failed:", e); }
       try {
         const alerts = ((await loadData(user.uid, "alerts"))?.alerts as any[]) || [];
+        // Relationship nudges are gentle by design — surface at most one, as info.
+        let circleShown = false;
         for (const al of alerts.slice(0, 6)) {
-          const sev: AttentionSeverity = al?.severity === "critical" ? "alert" : al?.severity === "warning" ? "watch" : "info";
-          const label = cc_str(al?.message);
+          const isCircle = cc_str(al?.type) === "circle";
+          if (isCircle && circleShown) continue;
+          if (isCircle) circleShown = true;
+          const sev: AttentionSeverity = isCircle ? "info" : al?.severity === "critical" ? "alert" : al?.severity === "warning" ? "watch" : "info";
+          let label = cc_str(al?.message);
+          // Sanitize legacy stored copies of the old guilt-y circle wording
+          const legacy = label.match(/^(.+?) — (\d+) days since last contact$/);
+          if (legacy) label = Number(legacy[2]) >= 999 ? `Say hi to ${legacy[1]} when you have a moment ✦` : `${legacy[1]} might love to hear from you — it's been ${legacy[2]} days`;
           if (label) out.push({ id: `alert_${cc_str(al?.type)}_${label.slice(0, 12)}`, severity: sev, label, detail: "", tab: SOURCE_TAB[cc_str(al?.type)] || "home" });
         }
       } catch { /* non-fatal */ }
