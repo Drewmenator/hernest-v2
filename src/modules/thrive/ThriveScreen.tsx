@@ -88,7 +88,7 @@ export function ThriveScreen() {
   const [sleepLog, setSleepLog]   = useState<SleepLog|null>(null);
   const [sleepQuality, setSleepQuality] = useState<SleepLog["quality"]>("good");
   const [sleepHours, setSleepHours] = useState<number|null>(null);
-  const [appleHealthSleep, setAppleHealthSleep] = useState<number|null>(null);
+  const [wearable, setWearable] = useState<{ source: string; hours: number; sleepScore: number|null; readiness: number|null }|null>(null);
   const [waterLog, setWaterLog]   = useState<WaterLog|null>(null);
   const [moodLog, setMoodLog]     = useState<MoodLog|null>(null);
   const [habits, setHabits]       = useState<Habit[]>(DEFAULT_HABITS);
@@ -140,15 +140,23 @@ export function ThriveScreen() {
       if (todayMood)  setMoodLog(todayMood);
       if (todayWater) setWaterLog(todayWater);
     });
-    // Wave 4: prefill sleep from Apple Health (iOS Shortcut) if it arrived today
-    // and the user hasn't already logged sleep manually.
+    // Prefill sleep from a wearable if data arrived recently. Oura (rich —
+    // includes a sleep score + readiness) takes priority over the Apple Health
+    // Shortcut. Falls to whichever has the most recent day.
     import("firebase/firestore").then(async ({ doc, getDoc }) => {
       const { db } = await import("../../core/firebase");
       try {
-        const snap = await getDoc(doc(db, "users", user.uid, "integrations", "apple_health"));
-        const h = snap.data();
-        if (h?.date === today && typeof h.lastSleepHours === "number") {
-          setAppleHealthSleep(h.lastSleepHours);
+        const [ouraSnap, ahSnap] = await Promise.all([
+          getDoc(doc(db, "users", user.uid, "integrations", "oura")),
+          getDoc(doc(db, "users", user.uid, "integrations", "apple_health")),
+        ]);
+        const oura = ouraSnap.data();
+        const ah = ahSnap.data();
+        const recent = (d?: any) => d?.date && d.date >= new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0];
+        if (recent(oura) && typeof oura?.lastSleepHours === "number") {
+          setWearable({ source: "Oura", hours: oura.lastSleepHours, sleepScore: oura.sleepScore ?? null, readiness: oura.readinessScore ?? null });
+        } else if (recent(ah) && typeof ah?.lastSleepHours === "number") {
+          setWearable({ source: "Apple Health", hours: ah.lastSleepHours, sleepScore: null, readiness: null });
         }
       } catch { /* non-fatal */ }
     });
@@ -376,10 +384,15 @@ RULES:
         {/* Sleep with quality per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
-          {appleHealthSleep != null && sleepHours !== Math.round(appleHealthSleep) && (
-            <button onClick={()=>setSleepHours(Math.round(appleHealthSleep))}
+          {wearable && sleepHours !== Math.round(wearable.hours) && (
+            <button onClick={()=>{
+              setSleepHours(Math.round(wearable.hours));
+              if (wearable.sleepScore != null) {
+                setSleepQuality(wearable.sleepScore >= 85 ? "excellent" : wearable.sleepScore >= 70 ? "good" : wearable.sleepScore >= 55 ? "fair" : "poor");
+              }
+            }}
               style={{ width:"100%", marginBottom:12, padding:"9px 12px", background:`${T.sage}12`, border:`1.5px solid ${T.sage}30`, borderRadius:12, fontFamily:F.sans, fontSize:12, color:T.esp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              <span style={{ color:T.sage }}>♡</span> Apple Health: {appleHealthSleep}h — tap to use
+              <span style={{ color:T.sage }}>♡</span> {wearable.source}: {wearable.hours}h{wearable.sleepScore != null ? ` · score ${wearable.sleepScore}` : ""}{wearable.readiness != null ? ` · readiness ${wearable.readiness}` : ""} — tap to use
             </button>
           )}
           <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>

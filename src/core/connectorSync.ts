@@ -68,11 +68,16 @@ export async function syncAllConnectors(uid: string): Promise<void> {
       console.warn("[ConnectorSync]", provider, "failed:", e);
     }
   }));
+
+  // Oura: refresh sleep/readiness server-side (writes the integration doc Thrive reads)
+  if (await isConnected(uid, "oura", "accessToken")) {
+    fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+  }
 }
 
 // ── OAuth connect: fetch the signed auth URL with a Bearer token, then
 //    navigate. (The old flow put a raw uid in the redirect — hijackable.) ──
-export async function connectOAuth(provider: "google" | "gmail" | "outlook"): Promise<boolean> {
+export async function connectOAuth(provider: "google" | "gmail" | "outlook" | "oura"): Promise<boolean> {
   const token = await idToken();
   if (!token) return false;
   try {

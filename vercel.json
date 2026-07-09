@@ -9,6 +9,10 @@
       "destination": "/api/connectors?action=callback"
     },
     {
+      "source": "/api/auth/oura/callback",
+      "destination": "/api/connectors?action=callback"
+    },
+    {
       "source": "/api/auth/:provider",
       "destination": "/api/connectors?provider=:provider&action=auth"
     },

@@ -112,6 +112,18 @@ async function handleAuth(req, res, provider) {
     return res.json({ url: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}` });
   }
 
+  if (provider === "oura") {
+    if (!process.env.OURA_CLIENT_ID) return res.status(503).json({ error: "oura_not_configured" });
+    const params = new URLSearchParams({
+      client_id: process.env.OURA_CLIENT_ID,
+      redirect_uri: `${APP_URL}/api/auth/oura/callback`,
+      response_type: "code",
+      scope: "daily personal",
+      state: signState("oura", uid),
+    });
+    return res.json({ url: `https://cloud.ouraring.com/oauth/authorize?${params}` });
+  }
+
   return res.status(400).json({ error: "unknown_provider" });
 }
 
@@ -194,6 +206,29 @@ async function handleCallback(req, res) {
         connectedAt: Date.now(),
       });
       return res.redirect(`${APP_URL}?calendar_connected=outlook`);
+    }
+
+    if (provider === "oura") {
+      const tokenRes = await fetch("https://api.ouraring.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: `${APP_URL}/api/auth/oura/callback`,
+          client_id: process.env.OURA_CLIENT_ID,
+          client_secret: process.env.OURA_CLIENT_SECRET,
+        }).toString(),
+      });
+      const tokens = await tokenRes.json();
+      if (!tokens.access_token) throw new Error("no access token");
+      await adminDb.doc(`users/${uid}/integrations/oura`).set({
+        accessToken: encryptSecret(tokens.access_token),
+        refreshToken: tokens.refresh_token ? encryptSecret(tokens.refresh_token) : null,
+        expiresAt: Date.now() + (tokens.expires_in || 86400) * 1000,
+        connectedAt: Date.now(),
+      });
+      return res.redirect(`${APP_URL}?connected=oura`);
     }
 
     return res.redirect(`${APP_URL}?calendar_error=unknown_provider`);
@@ -364,6 +399,73 @@ async function syncOutlook(req, res, uid) {
   res.json({ events });
 }
 
+// ═══ SYNC: OURA (sleep / readiness / activity → Thrive) ═════════════
+
+async function freshOuraToken(uid) {
+  const snap = await adminDb.doc(`users/${uid}/integrations/oura`).get();
+  if (!snap.exists) return { error: "not_connected" };
+  let { accessToken, refreshToken, expiresAt } = snap.data();
+  if (Date.now() > (expiresAt || 0) - 60000 && refreshToken) {
+    const r = await fetch("https://api.ouraring.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: decryptSecret(refreshToken),
+        client_id: process.env.OURA_CLIENT_ID,
+        client_secret: process.env.OURA_CLIENT_SECRET,
+      }),
+    });
+    const refreshed = await r.json().catch(() => ({}));
+    if (!refreshed.access_token) return { error: "reauth_required" };
+    accessToken = encryptSecret(refreshed.access_token);
+    expiresAt = Date.now() + (refreshed.expires_in || 86400) * 1000;
+    await adminDb.doc(`users/${uid}/integrations/oura`).update({
+      accessToken,
+      refreshToken: refreshed.refresh_token ? encryptSecret(refreshed.refresh_token) : refreshToken,
+      expiresAt,
+    });
+  }
+  return { accessToken: decryptSecret(accessToken) };
+}
+
+async function syncOura(req, res, uid) {
+  const tok = await freshOuraToken(uid);
+  if (tok.error === "not_connected") return res.status(404).json({ error: "Not connected" });
+  if (tok.error) {
+    await writeMeta(uid, "oura", { lastError: "reauth_required", lastSyncedAt: Date.now() });
+    return res.status(401).json({ error: "reauth_required" });
+  }
+  const headers = { Authorization: `Bearer ${tok.accessToken}` };
+  const today = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
+  const q = `start_date=${start}&end_date=${today}`;
+
+  const [sleep, readiness, activity] = await Promise.all([
+    fetch(`https://api.ouraring.com/v2/usercollection/sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
+  ]);
+
+  // Most recent long sleep period → hours; readiness/activity → latest score.
+  const sleeps = (sleep.data || []).filter(s => (s.total_sleep_duration || 0) > 0);
+  const latestSleep = sleeps.sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
+  const latestReadiness = (readiness.data || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
+  const latestActivity = (activity.data || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
+
+  const health = {
+    date: latestSleep?.day || today,
+    lastSleepHours: latestSleep ? Math.round((latestSleep.total_sleep_duration / 3600) * 10) / 10 : null,
+    sleepScore: latestSleep?.score ?? null,
+    readinessScore: latestReadiness?.score ?? null,
+    steps: latestActivity?.steps ?? null,
+    lastSyncedAt: Date.now(),
+    lastError: null,
+  };
+  await writeMeta(uid, "oura", health);
+  res.json({ health });
+}
+
 // ═══ SYNC: GMAIL (read-only scan for receipts / school / travel) ════
 
 const GMAIL_QUERIES = {
@@ -445,6 +547,7 @@ export default async function handler(req, res) {
       if (provider === "apple") return await syncApple(req, res, uid);
       if (provider === "outlook") return await syncOutlook(req, res, uid);
       if (provider === "gmail") return await syncGmail(req, res, uid);
+      if (provider === "oura") return await syncOura(req, res, uid);
     } catch (e) {
       console.error("[Connectors] sync error:", provider, e?.message);
       return res.status(500).json({ error: "sync_failed" });
