@@ -6,11 +6,12 @@
 import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
+import { auth } from "../../core/firebase";
 import { PageTitle } from "../../shared/components";
 import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
 
-type ConnectorKind = "oauth" | "deeplink" | "soon";
+type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
 
 interface Connector {
   id: string;
@@ -32,7 +33,7 @@ const CONNECTORS: Connector[] = [
   { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "google_classroom", name: "Google Classroom", category: "School", blurb: "Assignments & school deadlines", icon: "◷", kind: "soon" },
   { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "accessToken" },
-  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Not possible from a web app — log wellness in Thrive for now", icon: "♡", kind: "soon" },
+  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];
 
 // Manual data sources already built into other screens — surfaced here so this
@@ -62,6 +63,8 @@ export function ConnectionsScreen() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [scanningGmail, setScanningGmail] = useState(false);
+  const [healthSetup, setHealthSetup] = useState<{ token: string; endpoint: string } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
 
   const loadHealth = async (uid: string) => {
     const checks = CONNECTORS.filter(c => c.statusDoc);
@@ -87,9 +90,26 @@ export function ConnectionsScreen() {
       if (!ok) toast.error("Couldn't start the connection — try again");
     } else if (c.kind === "deeplink" && c.tab) {
       setActiveTab(c.tab);
+    } else if (c.kind === "health") {
+      await setupHealth();
     } else {
       toast("Coming in a future wave ✦", { icon: "🔌" });
     }
+  };
+
+  const setupHealth = async () => {
+    if (!user?.uid || healthLoading) return;
+    setHealthLoading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/connectors?action=health_token", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.token) setHealthSetup({ token: data.token, endpoint: data.endpoint });
+      else toast.error("Couldn't set up — try again");
+    } catch {
+      toast.error("Couldn't set up — try again");
+    }
+    setHealthLoading(false);
   };
 
   const onSyncNow = async () => {
@@ -165,7 +185,11 @@ export function ConnectionsScreen() {
                           : c.blurb}
                       </p>
                     </div>
-                    {isConnected && !hasError ? (
+                    {c.kind === "health" ? (
+                      <button onClick={() => onConnect(c)} disabled={healthLoading} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: isConnected ? T.esp : "#fff", background: isConnected ? "none" : T.esp, border: isConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                        {healthLoading ? "..." : isConnected ? "Setup" : "Set up"}
+                      </button>
+                    ) : isConnected && !hasError ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
                     ) : c.kind === "soon" ? (
                       <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
@@ -180,6 +204,24 @@ export function ConnectionsScreen() {
                       style={{ width: "100%", marginTop: 10, padding: "10px", background: `${T.gold}12`, border: `1.5px solid ${T.gold}30`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>
                       {scanningGmail ? "✦ Cleo is reading your inbox..." : "✦ Scan inbox for receipts & events"}
                     </button>
+                  )}
+                  {c.id === "apple_health" && healthSetup && (
+                    <div style={{ marginTop: 10, padding: "12px 14px", background: T.sand, borderRadius: 12, border: `1px solid ${T.linen}` }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.esp, margin: "0 0 8px", lineHeight: 1.5, fontWeight: 700 }}>iOS Shortcut setup</p>
+                      <ol style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "0 0 10px", paddingLeft: 16, lineHeight: 1.7 }}>
+                        <li>Open the <strong>Shortcuts</strong> app → new Automation → <strong>Time of Day</strong> (e.g. 8am daily)</li>
+                        <li>Add <strong>Find Health Samples</strong> → Sleep → today; repeat for Steps</li>
+                        <li>Add <strong>Get Contents of URL</strong> — method POST, JSON body below</li>
+                      </ol>
+                      <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
+                      </div>
+                      <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
+                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
+                      </div>
+                      <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied ✓"); }}
+                        style={{ marginTop: 8, fontFamily: F.sans, fontSize: 11.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
+                    </div>
                   )}
                 </div>
               );

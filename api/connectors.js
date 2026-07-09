@@ -419,6 +419,24 @@ export default async function handler(req, res) {
 
   if (action === "auth") return handleAuth(req, res, provider);
 
+  if (action === "health_token") {
+    const uid = await verifyAuth(req);
+    if (!uid) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const existing = await adminDb.doc(`users/${uid}/integrations/apple_health`).get();
+      let token = existing.exists ? existing.data()?.token : null;
+      if (!token) {
+        token = crypto.randomBytes(24).toString("hex");
+        await adminDb.doc(`health_tokens/${token}`).set({ uid, createdAt: Date.now() });
+        await adminDb.doc(`users/${uid}/integrations/apple_health`).set({ token, connectedAt: Date.now() }, { merge: true });
+      }
+      return res.json({ token, endpoint: `${APP_URL}/api/health-ingest` });
+    } catch (e) {
+      console.error("[Connectors] health_token error:", e?.message);
+      return res.status(500).json({ error: "token_failed" });
+    }
+  }
+
   if (action === "sync") {
     const uid = await verifyAuth(req);
     if (!uid) return res.status(401).json({ error: "Unauthorized" });

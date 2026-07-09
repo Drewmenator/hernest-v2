@@ -88,6 +88,7 @@ export function ThriveScreen() {
   const [sleepLog, setSleepLog]   = useState<SleepLog|null>(null);
   const [sleepQuality, setSleepQuality] = useState<SleepLog["quality"]>("good");
   const [sleepHours, setSleepHours] = useState<number|null>(null);
+  const [appleHealthSleep, setAppleHealthSleep] = useState<number|null>(null);
   const [waterLog, setWaterLog]   = useState<WaterLog|null>(null);
   const [moodLog, setMoodLog]     = useState<MoodLog|null>(null);
   const [habits, setHabits]       = useState<Habit[]>(DEFAULT_HABITS);
@@ -138,6 +139,18 @@ export function ThriveScreen() {
       if (todaySleep) { setSleepLog(todaySleep); setSleepHours(todaySleep.hours); setSleepQuality(todaySleep.quality); }
       if (todayMood)  setMoodLog(todayMood);
       if (todayWater) setWaterLog(todayWater);
+    });
+    // Wave 4: prefill sleep from Apple Health (iOS Shortcut) if it arrived today
+    // and the user hasn't already logged sleep manually.
+    import("firebase/firestore").then(async ({ doc, getDoc }) => {
+      const { db } = await import("../../core/firebase");
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid, "integrations", "apple_health"));
+        const h = snap.data();
+        if (h?.date === today && typeof h.lastSleepHours === "number") {
+          setAppleHealthSleep(h.lastSleepHours);
+        }
+      } catch { /* non-fatal */ }
     });
   }, [user?.uid]);
 
@@ -363,6 +376,12 @@ RULES:
         {/* Sleep with quality per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SLEEP LAST NIGHT</p>
+          {appleHealthSleep != null && sleepHours !== Math.round(appleHealthSleep) && (
+            <button onClick={()=>setSleepHours(Math.round(appleHealthSleep))}
+              style={{ width:"100%", marginBottom:12, padding:"9px 12px", background:`${T.sage}12`, border:`1.5px solid ${T.sage}30`, borderRadius:12, fontFamily:F.sans, fontSize:12, color:T.esp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              <span style={{ color:T.sage }}>♡</span> Apple Health: {appleHealthSleep}h — tap to use
+            </button>
+          )}
           <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
             {[4,5,6,7,8,9,10].map(h=>(
               <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.esp:T.linen}`, background:sleepHours===h?`${T.esp}10`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
