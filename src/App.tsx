@@ -199,7 +199,7 @@ export default function App() {
 
   if (screen === "loading") {
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.esp }}>
+      <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.esp }}>
         <div style={{ textAlign: "center" }}>
           <h1 style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 40, color: T.gold, fontWeight: 400 }}>HerNest</h1>
           <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 8 }}>Loading...</p>
