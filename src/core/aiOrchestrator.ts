@@ -85,7 +85,7 @@ export interface OrchestratorResponse {
   error?: string;
 }
 
-interface IntentClassification {
+export interface IntentClassification {
   intent: AIIntent;
   feature: OrchestratorFeature;
   requiredModules: string[];
@@ -143,7 +143,7 @@ const WELLNESS_KEYWORDS = [
   "wellness", "health", "routine", "self care", "rest", "relax",
 ];
 
-function classifyIntentLocally(message: string, sourceModule: SourceModule): IntentClassification | null {
+export function classifyIntentLocally(message: string, sourceModule: SourceModule): IntentClassification | null {
   const msg = message.toLowerCase();
 
   const financialScore  = FINANCIAL_KEYWORDS.filter(k => msg.includes(k)).length;

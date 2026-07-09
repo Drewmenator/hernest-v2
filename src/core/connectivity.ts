@@ -143,7 +143,7 @@ export function initConnectivity(userId: string) {
     // Clear IndexedDB briefing cache so it regenerates
     try {
       await db.clearBriefing();
-    } catch {}
+    } catch (e) { console.warn("[Connectivity] briefing cache clear failed:", e); }
   });
 
   // ── 7. TASK COMPLETED → Update Intelligence card ──────────────
@@ -176,7 +176,7 @@ export function initConnectivity(userId: string) {
     console.log("[Connectivity] profile updated — clearing briefing cache");
     try {
       await db.clearBriefing();
-    } catch {}
+    } catch (e) { console.warn("[Connectivity] briefing cache clear failed:", e); }
   });
 
   // ── 10. NORA CRISIS DETECTED → Save care flag ─────────────────
@@ -193,12 +193,12 @@ export function initConnectivity(userId: string) {
           read: false,
         }]
       });
-    } catch {}
+    } catch (e) { console.error("[Connectivity] CRISIS care-flag save failed:", e); }
   });
 
   // ── 11. STYLE PREFERENCE UPDATED → Invalidate briefing ────────
   bus.subscribe("style.preference.updated", async () => {
-    try { await db.clearBriefing(); } catch {}
+    try { await db.clearBriefing(); } catch (e) { console.warn("[Connectivity] briefing cache clear failed:", e); }
   });
 
   // ── 12. THRIVE SLEEP LOGGED → Update briefing context ─────────

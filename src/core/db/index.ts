@@ -57,6 +57,10 @@ export interface LoggedEvent {
 // ── Database ───────────────────────────────────────────────────────
 class HerNestDB extends Dexie {
   docs!: Table<LocalDoc>;
+  // NOTE (2026-07-10 audit): this queue is DORMANT — nothing enqueues or
+  // drains it yet. Offline writes currently fail rather than queue. Wiring
+  // real offline sync is tracked in the optimization roadmap; don't assume
+  // offline safety because this table exists.
   syncQueue!: Table<SyncQueueItem>;
   briefings!: Table<CachedBriefing>;
   chatSessions!: Table<ChatSession>;

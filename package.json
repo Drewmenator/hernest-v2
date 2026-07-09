@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
+    "@sentry/react": "^10.64.0",
     "clsx": "^2.1.1",
     "dexie": "^4.4.2",
     "firebase": "^12.13.0",

@@ -13,6 +13,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error(`[ErrorBoundary:${this.props.name}]`, error, info);
+    // Report to Sentry when monitoring is configured (lazy — no-op otherwise)
+    if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+      import("@sentry/react")
+        .then(S => S.captureException(error, { tags: { boundary: this.props.name || "root" } }))
+        .catch(() => {});
+    }
   }
 
   render() {
