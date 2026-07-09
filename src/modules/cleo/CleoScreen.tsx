@@ -143,7 +143,7 @@ export function CleoScreen() {
 
         // Check overspend
         if (f?.topOverspendCategories?.length > 0) {
-          observations.push(`A heads up — you're over budget in ${f.topOverspendCategories[0]}. Worth a quick look when you have a moment.`);
+          observations.push(`${f.topOverspendCategories[0]} is running a little hot this month — nothing urgent, worth a glance when you have a moment.`);
         }
 
         // Check goals at risk

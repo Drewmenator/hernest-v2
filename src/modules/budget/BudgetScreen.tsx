@@ -386,7 +386,7 @@ function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, totalBudget,
           actions.push({
             action: `Bring ${worstCat?.label || "overspent categories"} back on budget`,
             pts,
-            detail: worstCat ? `Over by $${Math.round(worstCat.spent - worstCat.budget)} this month` : `${overSpendCount} categories over budget`
+            detail: worstCat ? `$${Math.round(worstCat.spent - worstCat.budget)} past plan — a small cap gets it back` : `${overSpendCount} categories running past plan`
           });
         }
 
@@ -1071,6 +1071,19 @@ Maximum 50 transactions.`;
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <PageTitle eyebrow="FINANCES" title="Financial Hub" />
 
+      {/* First-use: without income, Cleo's whole financial brain is blind —
+          make the first step unmissable instead of showing an empty grid. */}
+      {monthlyIncome === 0 && expenses.length === 0 && (
+        <div style={{ background:`linear-gradient(135deg,${T.gold}18,${T.gold}08)`, border:`1.5px solid ${T.gold}40`, borderRadius:20, padding:"18px", marginBottom:12 }}>
+          <p style={{ fontFamily:F.serif, fontSize:19, fontStyle:"italic", color:T.esp, margin:"0 0 6px" }}>Let's give Cleo the numbers</p>
+          <p style={{ fontFamily:F.sans, fontSize:12.5, color:T.bark, margin:"0 0 14px", lineHeight:1.6 }}>Start with your monthly income — even a rough figure unlocks the health score, insights, and the CFO. Everything else can follow.</p>
+          <button onClick={()=>setShowAddIncome(true)}
+            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"12px 20px", fontFamily:F.sans, fontSize:13.5, fontWeight:700, cursor:"pointer", minHeight:46, touchAction:"manipulation" }}>
+            Add your income ✦
+          </button>
+        </div>
+      )}
+
       {/* ── HERO ──────────────────────────────────────────────────── */}
       <HeroCard
         eyebrow="THIS MONTH"
@@ -1721,7 +1734,7 @@ Maximum 50 transactions.`;
                 <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 4px" }}>CASH FLOW FORECAST</p>
                 <p style={{ fontFamily: F.sans, fontSize: 13, color: projected > totalBudget ? T.blush : T.sage, margin: 0 }}>
                   {projected > totalBudget
-                    ? `⚠ On track to overspend by $${(projected - totalBudget).toLocaleString()}`
+                    ? `Trending $${(projected - totalBudget).toLocaleString()} past plan — small trims now beat big cuts later`
                     : `✓ On track to save $${(totalBudget - projected).toLocaleString()}`}
                 </p>
               </div>

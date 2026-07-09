@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore, FamilyMember, SchoolInfo }  from "../../core/store";
-import { Card, PageTitle, Pill, Spinner } from "../../shared/components";
+import { Card, PageTitle, Pill, Spinner, EmptyState } from "../../shared/components";
 import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
@@ -281,11 +281,13 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
 
       {tab === "members" && <>
         {familyMembers.length === 0 && !showAdd && (
-          <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
-              Add your family members so Cleo knows who's who across the whole app.
-            </p>
-          </Card>
+          <EmptyState
+            icon="◉"
+            title="Who's in your nest?"
+            body="Add your people and Cleo starts connecting the dots — school events to the right child, plans to the right person."
+            actionLabel="Add your first person ✦"
+            onAction={() => setShowAdd(true)}
+          />
         )}
 
         {familyMembers.map(m => (

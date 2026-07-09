@@ -309,3 +309,34 @@ export function AIErrorCard({
     </div>
   );
 }
+
+// ── EmptyState ─────────────────────────────────────────────────────
+// Warm first-use state: never a blank card. Icon in a soft circle,
+// serif headline, one clear action. Asset framing, not deficit.
+export function EmptyState({
+  icon = "✦",
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
+  icon?: string;
+  title: string;
+  body: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div style={{ textAlign: "center", padding: "36px 24px" }}>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", background: `${T.gold}15`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 26, color: T.gold }}>{icon}</div>
+      <p style={{ fontFamily: F.serif, fontSize: 21, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>{title}</p>
+      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 auto 20px", lineHeight: 1.6, maxWidth: 300 }}>{body}</p>
+      {actionLabel && onAction && (
+        <button onClick={onAction}
+          style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "12px 24px", fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}

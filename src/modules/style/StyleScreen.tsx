@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Pill, Button, Input, AIBadge, Spinner } from "../../shared/components";
+import { Card, PageTitle, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
@@ -473,7 +473,7 @@ Return ONLY valid JSON:
       {/* ── SAVED OUTFITS ─────────────────────────────────────────── */}
       {tab==="saved" && <>
         {saved.length===0
-          ? <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0" }}>No saved outfits yet.<br/>Generate an outfit and tap Save ♥</p></Card>
+          ? <EmptyState icon="♥" title="Your future favourites" body="When Cleo styles something you love, tap Save and it lives here — ready for the next busy morning." />
           : saved.map(s=>(
             <Card key={s.id}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>

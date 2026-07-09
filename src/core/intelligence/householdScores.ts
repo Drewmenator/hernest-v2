@@ -209,7 +209,7 @@ export function rankAttention(ctx: AppContext): AttentionItem[] {
   if (ctx.trips.next && ctx.trips.next.daysUntil <= 14 && ctx.trips.next.packingPct < 60) {
     items.push({
       id: "trip_prep",
-      title: `${ctx.trips.next.dest} trip in ${ctx.trips.next.daysUntil}d · packing ${ctx.trips.next.packingPct}%`,
+      title: `${ctx.trips.next.dest} in ${ctx.trips.next.daysUntil} days — a 20-min packing session gets you ahead`,
       severity: ctx.trips.next.daysUntil <= 5 ? "alert" : "watch", source: "trips",
       why: "Travel prep compresses fast and disrupts routines if left late.",
       suggestedAction: "Block 20 minutes to finish the packing/prep list.",

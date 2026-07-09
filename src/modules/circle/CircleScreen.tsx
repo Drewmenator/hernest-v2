@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, HeroCard, Pill, Button, Input, AIBadge, Spinner } from "../../shared/components";
+import { Card, PageTitle, HeroCard, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
@@ -452,7 +452,15 @@ CRITICAL RULES:
           );
         })}
 
-        {allPeople.length===0 && <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0", lineHeight:1.6 }}>Your circle is empty.<br/>Add the people who matter most.</p></Card>}
+        {allPeople.length===0 && (
+          <EmptyState
+            icon="◉"
+            title="The people who matter"
+            body="Add friends and family here and Cleo will remember birthdays, nudge you when it's been a while, and help with gift ideas."
+            actionLabel="Add someone ✦"
+            onAction={()=>setShowAdd(true)}
+          />
+        )}
       </>}
 
       {/* ── AI COMPANIONS per blueprint ───────────────────────────── */}

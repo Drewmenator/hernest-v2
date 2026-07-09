@@ -429,7 +429,7 @@ export function CalendarScreen() {
         <div style={{ background:`${T.blush}10`, border:`1px solid ${T.blush}25`, borderRadius:12, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:16 }}>💰</span>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-            Heads up — you're over budget in <strong>{householdSnapshot.financial.topOverspendCategories[0]}</strong> this month.
+            <strong>{householdSnapshot.financial.topOverspendCategories[0]}</strong> is running higher than planned this month — you've still got room to steer it.
           </p>
         </div>
       )}
