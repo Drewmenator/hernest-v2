@@ -31,7 +31,7 @@ interface Expense {
   merchant: string;
   note: string;
   date: string;
-  method: "manual" | "receipt" | "csv";
+  method: "manual" | "receipt" | "csv" | "plaid";
 }
 
 interface Income {
@@ -987,6 +987,79 @@ Maximum 50 transactions.`;
   };
 
   // ═══════════════════════════════════════════════════════════════
+  // PLAID — live bank feed (Wave 3)
+  // ═══════════════════════════════════════════════════════════════
+
+  const [bankConnected, setBankConnected] = useState(false);
+  const [bankBusy, setBankBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    loadData(user.uid, "integrations").then(() => {}).catch(() => {});
+    import("firebase/firestore").then(async ({ doc, getDoc }) => {
+      const { db } = await import("../../core/firebase");
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid, "integrations", "plaid"));
+        setBankConnected(snap.exists() && !!snap.data()?.accessToken);
+      } catch { /* non-fatal */ }
+    });
+  }, [user?.uid]);
+
+  // Turn synced Plaid transactions into expenses + update category spend,
+  // deduped by transaction id — mirrors the CSV importer.
+  const applyBankTransactions = async () => {
+    const { syncBankTransactions } = await import("../../core/plaidService");
+    const { transactions, error } = await syncBankTransactions();
+    if (error === "reauth_required") { toast.error("Bank needs reconnecting"); return 0; }
+    if (error && error !== "not_connected") { toast.error("Couldn't sync transactions"); return 0; }
+    if (!transactions.length) return 0;
+
+    const existingIds = new Set(expenses.map(e => e.id));
+    const fresh = transactions.filter(t => !existingIds.has(t.id));
+    if (!fresh.length) return 0;
+
+    let updatedCats = [...cats];
+    const newExpenses: Expense[] = fresh.map(t => {
+      updatedCats = updatedCats.map(c => c.id === t.category ? { ...c, spent: c.spent + Math.abs(t.amount) } : c);
+      return { id: t.id, amount: Math.abs(t.amount), category: t.category, merchant: t.merchant, note: "Bank feed", date: t.date, method: "plaid" as const };
+    });
+    const updatedExpenses = [...newExpenses, ...expenses];
+    setCats(updatedCats);
+    setExpenses(updatedExpenses);
+    await persist({ cats: updatedCats, expenses: updatedExpenses });
+    return fresh.length;
+  };
+
+  const connectBank = async () => {
+    setBankBusy(true);
+    try {
+      const { connectBank: startConnect } = await import("../../core/plaidService");
+      const result = await startConnect();
+      if (result === "not_configured") { toast("Bank connections aren't set up yet", { icon: "🔌" }); return; }
+      if (result === "cancelled") return;
+      if (result !== "connected") { toast.error("Couldn't connect — try again"); return; }
+      setBankConnected(true);
+      toast("Cleo is pulling your transactions...", { icon: "✦" });
+      const n = await applyBankTransactions();
+      toast.success(n > 0 ? `Imported ${n} transaction${n === 1 ? "" : "s"} ✓` : "Bank connected ✓");
+    } catch {
+      toast.error("Couldn't connect — try again");
+    } finally {
+      setBankBusy(false);
+    }
+  };
+
+  const refreshBank = async () => {
+    setBankBusy(true);
+    try {
+      const n = await applyBankTransactions();
+      toast.success(n > 0 ? `${n} new transaction${n === 1 ? "" : "s"} ✓` : "Up to date ✓");
+    } finally {
+      setBankBusy(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════
 
@@ -1146,6 +1219,19 @@ Maximum 50 transactions.`;
                 <Button onClick={addIncome} disabled={!incLabel.trim() || !incAmount} variant="gold">Add Income</Button>
               </Card>
             )}
+          </div>
+
+          {/* Live bank feed (Plaid) */}
+          <div style={{ marginTop: 12, padding: "12px 16px", background: bankConnected ? `${T.sage}12` : T.sand, borderRadius: 16, border: `1px solid ${bankConnected ? `${T.sage}40` : T.linen}`, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>◎</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{bankConnected ? "Bank connected" : "Connect your bank"}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{bankConnected ? "Transactions sync automatically & categorize" : "Live transactions, auto-categorized by Cleo"}</p>
+            </div>
+            <button onClick={bankConnected ? refreshBank : connectBank} disabled={bankBusy}
+              style={{ background: bankConnected ? "none" : T.esp, color: bankConnected ? T.esp : "#fff", border: bankConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "6px 14px", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: bankBusy ? "default" : "pointer", minHeight: 32 }}>
+              {bankBusy ? "..." : bankConnected ? "↺ Sync" : "Connect"}
+            </button>
           </div>
 
           {/* CSV Import */}

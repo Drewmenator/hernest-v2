@@ -31,7 +31,7 @@ const CONNECTORS: Connector[] = [
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
   { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "google_classroom", name: "Google Classroom", category: "School", blurb: "Assignments & school deadlines", icon: "◷", kind: "soon" },
-  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live balances & transactions via Plaid", icon: "◎", kind: "soon" },
+  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "accessToken" },
   { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Not possible from a web app — log wellness in Thrive for now", icon: "♡", kind: "soon" },
 ];
 
