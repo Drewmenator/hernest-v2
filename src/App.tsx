@@ -11,6 +11,7 @@ import { useStore } from "./core/store";
 import { bus } from "./core/events";
 import { useContextGraph } from "./core/graph";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
+import { isOnboarded } from "./core/onboarding";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { F, T } from "./config/theme";
@@ -171,8 +172,9 @@ export default function App() {
           console.warn("[App] household bootstrap failed (non-fatal):", e);
         }
         // Load profile from Firebase into store
+        let profileData: any = null;
         try {
-          const profileData = await loadData(u.uid, "profile");
+          profileData = await loadData(u.uid, "profile");
           if (profileData) setProfile(profileData as any);
         } catch(e) {
           console.warn("[App] profile load failed:", e);
@@ -188,7 +190,7 @@ export default function App() {
         // never reasons over stale data (previously only synced on the
         // Calendar screen).
         import("./core/connectorSync").then(m => m.syncAllConnectors(u.uid)).catch(() => {});
-        setScreen("app");
+        setScreen(isOnboarded(profileData) ? "app" : "onboarding");
       } else {
         setUser(null);
         setScreen("login");

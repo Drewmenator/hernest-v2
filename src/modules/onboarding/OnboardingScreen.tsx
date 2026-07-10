@@ -51,6 +51,16 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Escape hatch — never trap a user in the questions. Writes a flag so the
+  // gate doesn't re-prompt on the next sign-in; the contextual setup on Home
+  // is the backup path.
+  const skip = async () => {
+    if (user?.uid) {
+      try { await saveData(user.uid, "profile", { onboardingSkipped: true }); } catch { /* non-fatal */ }
+    }
+    if (onComplete) onComplete();
+  };
+
   // Opening message
   useEffect(() => {
     const intro = `Hi ✦ I'm Cleo — your household's AI chief of staff.\n\nI'm going to ask you a few quick questions so I can set up your household properly. The more you tell me, the more useful I'll be from day one.\n\nThis takes about 2 minutes.`;
@@ -172,11 +182,18 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.cream, display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100svh", background: T.cream, display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <div style={{ padding: "52px 24px 16px", borderBottom: `1px solid ${T.linen}` }}>
-        <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
-        <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
+      <div style={{ padding: "calc(52px + env(safe-area-inset-top, 0px)) 24px 16px", borderBottom: `1px solid ${T.linen}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
+          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
+        </div>
+        {!done && (
+          <button onClick={skip} style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer", padding: "4px 0", textDecoration: "underline", flexShrink: 0 }}>
+            Skip for now
+          </button>
+        )}
       </div>
 
       {/* Chat */}
@@ -237,7 +254,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             style={{
               flex: 1, background: "#fff", border: `1.5px solid ${T.linen}`,
               borderRadius: 14, padding: "12px 16px", fontFamily: F.sans,
-              fontSize: 15, color: T.esp, outline: "none",
+              fontSize: 16, color: T.esp, outline: "none",
             }}
           />
           <button onClick={send} disabled={!input.trim()}
