@@ -21,7 +21,10 @@ vi.mock("./identity", () => ({ getHouseholdId: vi.fn(() => null) }));
 vi.mock("./firebase", () => ({ loadData: vi.fn(), saveData: vi.fn(), db: {}, auth: {} }));
 vi.mock("./memoryServiceV2", () => ({ buildMemoryContextV2: vi.fn(), proposeMemory: vi.fn() }));
 
-import { classifyIntentLocally } from "./aiOrchestrator";
+import { classifyIntentLocally, buildSystemPrompt, orchestrate } from "./aiOrchestrator";
+import { ai } from "./ai";
+import { validateResponse } from "./household/responseValidator";
+import type { Mock } from "vitest";
 
 describe("classifyIntentLocally — the router that decides which brain answers", () => {
   it("routes clearly financial questions to the CFO", () => {
@@ -56,5 +59,47 @@ describe("classifyIntentLocally — the router that decides which brain answers"
   it("returns null for ambiguous messages (falls through to AI classification)", () => {
     const r = classifyIntentLocally("hello there", "cleo");
     expect(r).toBeNull();
+  });
+});
+
+
+describe("buildSystemPrompt — intent addenda now live (ported from CleoScreen's dead prompt)", () => {
+  const base = { requiredModules: [], emotionalWeight: "low" as const, decisionRequired: false, financialDataRequired: false, needsFullContext: false };
+
+  it("financial analysis instructs the educational-guidance disclaimer", () => {
+    const p = buildSystemPrompt({ ...base, intent: "financial_analysis", feature: "household_cfo" } as any);
+    expect(p).toContain("Educational guidance, not financial advice");
+  });
+
+  it("task creation instructs TASKS_JSON and forbids claiming completion", () => {
+    const p = buildSystemPrompt({ ...base, intent: "task_creation", feature: "task_extraction" } as any);
+    expect(p).toContain("TASKS_JSON");
+    expect(p).toContain("never claim they were added");
+  });
+
+  it("plain chat gets neither addendum", () => {
+    const p = buildSystemPrompt({ ...base, intent: "unknown", feature: "cleo_chat" } as any);
+    expect(p).not.toContain("TASKS_JSON");
+    expect(p).not.toContain("not financial advice");
+  });
+});
+
+describe("orchestrate — streamed responses are validated (previously skipped)", () => {
+  it("runs validateResponse on the streaming path and returns its text", async () => {
+    (ai as Mock).mockResolvedValue({ text: "raw model text" });
+    (validateResponse as Mock).mockReturnValue({
+      valid: true, text: "VALIDATED TEXT", warnings: [], repaired: false,
+      confidenceNormalized: false, lengthAdjusted: false,
+    });
+    const res = await orchestrate({
+      userId: "u1",
+      profile: { name: "Test" },
+      sourceModule: "cleo",
+      userMessage: "hello there, just checking in on things today okay",
+      conversationHistory: [],
+      options: { onToken: () => {} },
+    });
+    expect(validateResponse).toHaveBeenCalled();
+    expect(res.text).toBe("VALIDATED TEXT");
   });
 });

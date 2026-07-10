@@ -281,12 +281,25 @@ Focus on:
 - Offering 1-3 practical, realistic relief actions
 - Being gentle — never prescriptive or clinical`;
 
-function buildSystemPrompt(classification: IntentClassification): string {
+export function buildSystemPrompt(classification: IntentClassification): string {
+  let base: string;
   switch (classification.feature) {
-    case "household_cfo":        return CFO_SYSTEM;
-    case "wellness_coach":       return WELLNESS_SYSTEM;
-    default:                     return NORA_BASE;
+    case "household_cfo":        base = CFO_SYSTEM; break;
+    case "wellness_coach":       base = WELLNESS_SYSTEM; break;
+    default:                     base = NORA_BASE;
   }
+  // Intent addenda. These lived in CleoScreen's hand-built prompt, which was
+  // never actually sent (the orchestrator builds its own) — ported here so
+  // they run for real.
+  if (classification.intent === "financial_analysis") {
+    base += `\n\nWhen giving financial guidance, end with one short line: "(Educational guidance, not financial advice.)"`;
+  }
+  if (classification.intent === "task_creation") {
+    base += `\n\nTASK EXTRACTION: After responding warmly, extract any clear actionable tasks mentioned.
+Return your response, then on a new line: TASKS_JSON:[{"title":"","category":"family|work|home|travel|personal","dueDate":"YYYY-MM-DD or null","confidence":0.9}]
+Only include TASKS_JSON if you found clear actionable tasks. The app shows these to the user for approval — never claim they were added.`;
+  }
+  return base;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -551,9 +564,10 @@ Today is ${todayStr}. You can act in the app using tools: add_task, complete_tas
   }
 
   // ── Step 6: Response validation ─────────────────────────────────
-  // Skipped when streaming — the text is already on the user's screen, so we
-  // can't swap it out post-hoc, and it saves a context rebuild on the hot path.
-  if (!fallbackUsed && !onToken) {
+  // Runs for streamed responses too: the UI replaces the streamed placeholder
+  // with the returned (validated) text when the promise resolves, so
+  // sanitization/safety checks apply to the message the user keeps.
+  if (!fallbackUsed) {
     let currentState: import("./household/householdStateEngine").HouseholdStateResult | null = null;
     try {
       const { buildAppContext: getCtx } = await import("./contextBuilder");

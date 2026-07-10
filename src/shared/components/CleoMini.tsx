@@ -1,15 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { ai } from "../../core/ai";
+import { askCleo } from "../../core/aiOrchestrator";
 import { Spinner } from "./index";
-import { buildMemoryContext, extractFactsFromConversation, saveMemoryFacts } from "../../core/memory";
 import { detectCrisis, CRISIS_RESPONSE } from "../../core/crisis";
 
 interface Msg { role: "user" | "assistant"; content: string; }
 
 export function CleoMini() {
-  const { user, profile, familyMembers, activeTab } = useStore();
+  const { user, profile, activeTab } = useStore();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -69,27 +68,19 @@ export function CleoMini() {
       return;
     }
     setLoading(true);
-    const familyRoster = familyMembers.length > 0
-      ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join("; ")
-      : "";
-    const memCtx = user?.uid ? await buildMemoryContext(user.uid) : "";
-    const sys = `You are Cleo, ${name}'s AI chief of staff. ${familyRoster}
-${memCtx ? `Context: ${memCtx}` : ""}
-Be concise — 2-3 sentences max. Warm, direct, actionable.`;
+    // Same brain as the full Cleo screen: the orchestrator provides context
+    // retrieval, output validation, and V2 memory governance. This widget
+    // previously called the raw model directly with its own thin prompt.
     const history = msgs.slice(-6).map(m => ({ role: m.role, content: m.content }));
-    const result = await ai(sys, msg, "cleo_chat", history);
-    const reply = result.error ? "I'm having a moment — try again." : result.text;
-    setMsgs(p => {
-      const updated = [...p, { role: "assistant" as const, content: reply }];
-      // Extract facts fire-and-forget
-      if (!result.error && user?.uid) {
-        const uid = user.uid;
-        extractFactsFromConversation(updated.slice(-6), uid).then(facts => {
-          if (facts.length > 0) saveMemoryFacts(uid, facts);
-        });
+    let reply = "I'm having a moment — try again.";
+    try {
+      if (user?.uid) {
+        const text = await askCleo(user.uid, (profile || {}) as Record<string, unknown>, msg, history);
+        // Strip any task-extraction payload — the mini widget has no approval UI
+        if (text) reply = text.split("TASKS_JSON:")[0].trim() || reply;
       }
-      return updated;
-    });
+    } catch (e) { console.warn("[CleoMini] ask failed:", e); }
+    setMsgs(p => [...p, { role: "assistant" as const, content: reply }]);
     setLoading(false);
   };
 
