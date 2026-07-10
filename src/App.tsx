@@ -1,6 +1,6 @@
 // ─── HerNest V2 App ───────────────────────────────────────────────
 import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
 import { auth } from "./core/firebase";
@@ -13,7 +13,6 @@ import { useContextGraph } from "./core/graph";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
-import { ROUTES } from "./config";
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
 import { CleoMini } from "./shared/components/CleoMini";
@@ -64,6 +63,24 @@ const globalStyles = `
   
   /* Remove tap highlights on mobile */
   * { -webkit-tap-highlight-color: transparent; }
+
+  /* Keyboard focus must be visible — tap-highlight removal killed every
+     focus cue. :focus-visible only fires for keyboard/AT, so touch is
+     unaffected. */
+  :focus-visible {
+    outline: 2px solid ${T.gold} !important;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Respect vestibular/motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   
   /* Buttons — minimum 44px touch target per Apple HIG */
   button {
@@ -124,6 +141,17 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       clearTimeout(loadingTimeout);
       if (u) {
+        // Shared-device guard: different account than last time → wipe
+        // non-uid-scoped local caches (briefings etc.) before anything loads.
+        try {
+          const last = localStorage.getItem("hn_last_uid");
+          if (last && last !== u.uid) {
+            const { db: localDb } = await import("./core/db");
+            await localDb.clearAllLocal();
+            localStorage.removeItem("hn_getstarted_done");
+          }
+          localStorage.setItem("hn_last_uid", u.uid);
+        } catch { /* non-fatal */ }
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
         await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
         // ── Household identity (migration Step 1) ──
@@ -149,6 +177,10 @@ export default function App() {
         } catch(e) {
           console.warn("[App] profile load failed:", e);
         }
+        // Pro subscription status (written by the Stripe webhook)
+        loadData(u.uid, "subscription").then(sub => {
+          if (sub?.status === "active") useStore.getState().setIsPro(true);
+        }).catch(() => {});
         // Wire up cross-module connectivity
         initConnectivity(u.uid);
         connectIntelligenceLayer(u.uid);
@@ -175,6 +207,24 @@ export default function App() {
       setTimeout(() => {
         import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected ✓"));
       }, 1500);
+    }
+    if (params.get("upgraded") === "1") {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Don't celebrate until the webhook has actually confirmed the sub
+      import("react-hot-toast").then(({ default: toast }) => toast("Finishing your upgrade...", { icon: "✦" }));
+      // Webhook may land a moment after redirect — re-check shortly
+      setTimeout(() => {
+        const u = useStore.getState().user;
+        if (u?.uid) loadData(u.uid, "subscription").then(sub => {
+          if (sub?.status === "active") {
+            useStore.getState().setIsPro(true);
+            import("react-hot-toast").then(({ default: toast }) => toast.success("Welcome to HerNest Pro ✦"));
+          }
+        }).catch(() => {});
+      }, 4000);
+    }
+    if (params.get("upgrade_cancelled") === "1") {
+      window.history.replaceState({}, "", window.location.pathname);
     }
     if (params.get("calendar_error")) {
       window.history.replaceState({}, "", window.location.pathname);

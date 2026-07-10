@@ -173,6 +173,7 @@ export function SettingsScreen() {
           </p>
           {[
             { icon:"🔒", title:"Your data is yours", body:"We never sell your personal data to third parties. Ever. Your information is used only to power your HerNest experience." },
+            { icon:"✦", title:"How Cleo works", body:"When you chat with Cleo or generate briefings, the relevant parts of your household data are processed by Anthropic's Claude AI to create the response. It isn't used to train AI models." },
             { icon:"🤖", title:"How Cleo uses your data", body:"Cleo's memory is stored securely in Firestore under your user ID. AI conversations are processed via Anthropic's Claude API. Anthropic does not use your conversations to train their models." },
             { icon:"📍", title:"Location data", body:"We do not collect or store your location. Any location-based features use your device's local data only." },
             { icon:"🏦", title:"Financial data", body:"Budget data is stored securely in your personal Firestore database. We never have access to your actual bank accounts or cards." },
@@ -334,7 +335,7 @@ export function SettingsScreen() {
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>{user?.email}</p>
             </div>
           </div>
-          <button onClick={async()=>{ await signOut(auth); reset(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8 }}>
+          <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8 }}>
             Sign out of HerNest
           </button>
         </Card>

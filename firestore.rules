@@ -44,17 +44,24 @@ service cloud.firestore {
     }
 
     // ── User namespace ───────────────────────────────────────────
-    // Full access to your OWN namespace — preserves all existing behavior
-    // (data, integrations/tokens, usage, and anything else under users/{uid}).
-    match /users/{ownerUid}/{document=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == ownerUid;
+    // Full access to your OWN namespace EXCEPT data/ (handled explicitly
+    // below so household_link can be locked down — see security note).
+    match /users/{ownerUid}/{col}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == ownerUid && col != 'data';
     }
 
-    // ADDITIVE: other household members may read/write ONLY the shared data
-    // collections under the owner's namespace. Personal collections are not in
-    // householdShared(), so they remain owner-only via the rule above.
+    // data/: owner reads everything; owner writes everything EXCEPT
+    // household_link. SECURITY: household_link is what isMember() trusts —
+    // if clients could write their own, anyone could forge a link pointing
+    // at any household and read its shared data (found by the rules test
+    // suite, 2026-07-10). Only the admin SDK (/api/invite/accept and
+    // /api/household) may write it — admin bypasses rules.
+    // Household members additionally read/write the shared subset.
     match /users/{ownerUid}/data/{col} {
-      allow read, write: if householdShared().hasAny([col]) && isMember(ownerUid);
+      allow read: if (isSignedIn() && request.auth.uid == ownerUid)
+                  || (householdShared().hasAny([col]) && isMember(ownerUid));
+      allow write: if (isSignedIn() && request.auth.uid == ownerUid && col != 'household_link')
+                   || (householdShared().hasAny([col]) && isMember(ownerUid));
     }
 
     // ── Households ───────────────────────────────────────────────

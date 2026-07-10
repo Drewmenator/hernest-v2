@@ -89,21 +89,28 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
         priority: (input.priority as string) || "medium",
         status: "pending",
         source: "cleo",
+        // AI-created tasks await user confirmation — Plan surfaces these with
+        // a "Confirm" affordance (same flow as school-extracted tasks).
+        userConfirmed: false,
         ...(input.dueDate ? { dueDate: String(input.dueDate) } : {}),
       };
       await saveData(uid, "tasks", { tasks: [...existing, task] });
       await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
-      return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""}.`;
+      return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""} — it's waiting for your confirmation in Plan.`;
     }
 
     case "complete_task": {
       const q = String(input.title || "").trim().toLowerCase();
       if (!q) return "I couldn't tell which task to complete.";
       const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
-      const match = existing.find(
+      // Fuzzy matching completed the WRONG task when several titles overlapped.
+      // Only act on an unambiguous match; otherwise ask instead of guessing.
+      const matches = existing.filter(
         (t: any) => t.status !== "completed" && String(t.title || "").toLowerCase().includes(q)
       );
-      if (!match) return `I couldn't find an open task matching "${input.title}".`;
+      if (matches.length === 0) return `I couldn't find an open task matching "${input.title}".`;
+      if (matches.length > 1) return `A few tasks match "${input.title}": ${matches.slice(0, 3).map((t: any) => `"${t.title}"`).join(", ")}. Which one did you mean?`;
+      const match = matches[0];
       const updated = existing.map((t: any) => (t.id === match.id ? { ...t, status: "completed" } : t));
       await saveData(uid, "tasks", { tasks: updated });
       await bus.publish("plan.task.completed", match, { userId: uid, source: "cleo" }).catch(() => {});

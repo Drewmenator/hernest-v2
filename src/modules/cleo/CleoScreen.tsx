@@ -47,23 +47,13 @@ const INTENT_PATTERNS = {
   ],
 };
 
-const CRISIS_PATTERNS = [
-  /(kill|hurt|harm) myself/i,
-  /end (it|my life|everything)/i,
-  /(don'?t|do not) want to (live|be here|exist)/i,
-  /suicide/i,
-  /(no|nobody) (would|will) miss me/i,
-];
+import { detectCrisis } from "../../core/crisis";
 
 function classifyIntent(msg: string): string {
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
     if (patterns.some(p => p.test(msg))) return intent;
   }
   return "general";
-}
-
-function detectCrisis(msg: string): boolean {
-  return CRISIS_PATTERNS.some(p => p.test(msg));
 }
 
 const QUICK_REPLIES = [
@@ -343,7 +333,8 @@ Only include TASKS_JSON if you found clear actionable tasks.`;
         sys += `\n\nFINANCIAL MODE: You have the household's actual financial data above. Use it directly.
 Reference real numbers — actual spending, income, debt, goals. 
 Apply Decision Quality thinking: frame the decision, name the tradeoffs, give a clear recommendation.
-Sound like a trusted CFO friend — warm but rigorous.`;
+Sound like a trusted CFO friend — warm but rigorous.
+End with one short line: "(Educational guidance, not financial advice.)"`;
       } else if (intent === "action-request") {
         sys += `\n\nACTION MODE: Be specific and practical. Give a clear plan or answer with real numbers where relevant.`;
       }

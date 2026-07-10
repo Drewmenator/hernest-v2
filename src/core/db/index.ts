@@ -57,10 +57,9 @@ export interface LoggedEvent {
 // ── Database ───────────────────────────────────────────────────────
 class HerNestDB extends Dexie {
   docs!: Table<LocalDoc>;
-  // NOTE (2026-07-10 audit): this queue is DORMANT — nothing enqueues or
-  // drains it yet. Offline writes currently fail rather than queue. Wiring
-  // real offline sync is tracked in the optimization roadmap; don't assume
-  // offline safety because this table exists.
+  // Offline write queue — LIVE as of 2026-07-10: saveData failures enqueue
+  // here (core/firebase.ts) and core/offlineSync.ts drains on 'online',
+  // app start, and a 2-minute interval.
   syncQueue!: Table<SyncQueueItem>;
   briefings!: Table<CachedBriefing>;
   chatSessions!: Table<ChatSession>;
@@ -126,6 +125,19 @@ class HerNestDB extends Dexie {
       generatedAt: Date.now(),
       stale: false,
     });
+  }
+
+  // Sign-out / account-switch hygiene: local caches are NOT uid-scoped
+  // (briefings key on date+window only), so they MUST be wiped when the
+  // user changes — otherwise User B can see User A's cached briefing.
+  async clearAllLocal(): Promise<void> {
+    await Promise.all([
+      this.docs.clear(),
+      this.syncQueue.clear(),
+      this.briefings.clear(),
+      this.chatSessions.clear(),
+      this.events.clear(),
+    ]);
   }
 
   async clearBriefing(): Promise<void> {

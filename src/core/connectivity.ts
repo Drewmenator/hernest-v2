@@ -2,17 +2,24 @@
 // Subscribes to events from all modules and triggers cross-module actions.
 // This is the "magic" — one change ripples everywhere.
 
+// Dev-only logging: these logs carry household PII (moods, contacts,
+// budget categories) and must not print in production/tester builds.
+const dlog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 import { bus } from "./events";
 import { db } from "./db";
 import { saveData, loadData } from "./firebase";
 import { useStore } from "./store";
 
 export function initConnectivity(userId: string) {
+  // Offline sync: replay queued writes on start / when back online (Step: real offline safety)
+  import("./offlineSync").then(m => m.wireOfflineSync()).catch(() => {});
+
 
   // ── 1. MOOD LOGGED → Briefing tone changes ─────────────────────
   bus.subscribe("thrive.mood.logged", async (e: any) => {
     const { rating, label } = e.payload;
-    console.log("[Connectivity] mood logged:", label, rating);
+    dlog("[Connectivity] mood logged:", label, rating);
 
     // Invalidate today's briefing so it regenerates with new tone
     await bus.publish("briefing.invalidate", { reason: "mood_changed", mood: label }, { userId, source: "connectivity" });
@@ -27,7 +34,7 @@ export function initConnectivity(userId: string) {
   // ── 2. NEWSLETTER PARSED → Calendar auto-updated ───────────────
   bus.subscribe("plan.school.newsletter.parsed", async (e: any) => {
     const { events } = e.payload;
-    console.log("[Connectivity] newsletter parsed, adding to calendar:", events);
+    dlog("[Connectivity] newsletter parsed, adding to calendar:", events);
 
     if (!events || events === 0) return;
 
@@ -61,14 +68,14 @@ export function initConnectivity(userId: string) {
       const updated = [...calEvents, ...toAdd];
       await saveData(userId, "calendar", { events: updated });
       await bus.publish("calendar.synced", { added: toAdd.length, source: "school" }, { userId, source: "connectivity" });
-      console.log(`[Connectivity] Added ${toAdd.length} school events to calendar`);
+      dlog(`[Connectivity] Added ${toAdd.length} school events to calendar`);
     }
   });
 
   // ── 3. BUDGET THRESHOLD → Home alert + Cleo context ───────────
   bus.subscribe("budget.threshold.hit", async (e: any) => {
     const { category, percentUsed, amount } = e.payload;
-    console.log("[Connectivity] budget threshold hit:", category, percentUsed);
+    dlog("[Connectivity] budget threshold hit:", category, percentUsed);
 
     // Store budget alert in a way Cleo can read
     const existing = await loadData(userId, "alerts") || {};
@@ -87,7 +94,7 @@ export function initConnectivity(userId: string) {
   // ── 4. TRIP CREATED → Calendar blocked ────────────────────────
   bus.subscribe("trips.trip.created", async (e: any) => {
     const trip = e.payload;
-    console.log("[Connectivity] trip created, blocking calendar:", trip.destination);
+    dlog("[Connectivity] trip created, blocking calendar:", trip.destination);
 
     if (!trip.departureDate || !trip.returnDate) return;
 
@@ -110,14 +117,14 @@ export function initConnectivity(userId: string) {
     if (!existingIds.has(tripEvent.id)) {
       const updated = [...calEvents, tripEvent];
       await saveData(userId, "calendar", { events: updated });
-      console.log(`[Connectivity] Trip ${trip.destination} added to calendar`);
+      dlog(`[Connectivity] Trip ${trip.destination} added to calendar`);
     }
   });
 
   // ── 5. CIRCLE OVERDUE → Cleo context updated ──────────────────
   bus.subscribe("circle.checkin.due", async (e: any) => {
     const { contact, daysSince } = e.payload;
-    console.log("[Connectivity] circle checkin due:", contact, daysSince);
+    dlog("[Connectivity] circle checkin due:", contact, daysSince);
 
     // Store as alert for Home and Cleo
     const existing = await loadData(userId, "alerts") || {};
@@ -139,7 +146,7 @@ export function initConnectivity(userId: string) {
 
   // ── 6. BRIEFING INVALIDATE → Clear cache ──────────────────────
   bus.subscribe("briefing.invalidate", async (e: any) => {
-    console.log("[Connectivity] briefing invalidated:", e.payload);
+    dlog("[Connectivity] briefing invalidated:", e.payload);
     // Clear IndexedDB briefing cache so it regenerates
     try {
       await db.clearBriefing();
@@ -148,7 +155,7 @@ export function initConnectivity(userId: string) {
 
   // ── 7. TASK COMPLETED → Update Intelligence card ──────────────
   bus.subscribe("plan.task.completed", async (e: any) => {
-    console.log("[Connectivity] task completed:", e.payload);
+    dlog("[Connectivity] task completed:", e.payload);
     // Trigger a subtle store update so Home re-renders
     window.dispatchEvent(new CustomEvent("hernest:data_updated", { detail: { module: "plan" } }));
   });
@@ -173,7 +180,7 @@ export function initConnectivity(userId: string) {
 
   // ── 9. PROFILE UPDATED → Clear briefing cache ─────────────────
   bus.subscribe("profile.updated", async () => {
-    console.log("[Connectivity] profile updated — clearing briefing cache");
+    dlog("[Connectivity] profile updated — clearing briefing cache");
     try {
       await db.clearBriefing();
     } catch (e) { console.warn("[Connectivity] briefing cache clear failed:", e); }
@@ -181,7 +188,7 @@ export function initConnectivity(userId: string) {
 
   // ── 10. NORA CRISIS DETECTED → Save care flag ─────────────────
   bus.subscribe("cleo.crisis.detected", async (e: any) => {
-    console.log("[Connectivity] crisis detected — saving care flag");
+    dlog("[Connectivity] crisis detected — saving care flag");
     try {
       await saveData(userId, "alerts", {
         alerts: [{
@@ -264,10 +271,10 @@ export function initConnectivity(userId: string) {
 
       if (newEvents.length > 0) {
         await saveData(userId, "calendar", { events: [...filtered, ...newEvents] });
-        console.log("[Connectivity] synced", newEvents.length, "school term events to calendar");
+        dlog("[Connectivity] synced", newEvents.length, "school term events to calendar");
       }
     } catch(e) { console.error("[Connectivity] school calendar sync failed:", e); }
   });
 
-  console.log("[Connectivity] Wired up for user:", userId);
+  dlog("[Connectivity] Wired up for user:", userId);
 }

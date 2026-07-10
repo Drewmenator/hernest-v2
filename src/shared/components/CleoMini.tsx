@@ -4,6 +4,7 @@ import { useStore } from "../../core/store";
 import { ai } from "../../core/ai";
 import { Spinner } from "./index";
 import { buildMemoryContext, extractFactsFromConversation, saveMemoryFacts } from "../../core/memory";
+import { detectCrisis, CRISIS_RESPONSE } from "../../core/crisis";
 
 interface Msg { role: "user" | "assistant"; content: string; }
 
@@ -62,6 +63,11 @@ export function CleoMini() {
     if (!msg || loading) return;
     setMsgs(p => [...p, { role: "user", content: msg }]);
     setInput("");
+    // Crisis check BEFORE any AI call — same safety net as the full screen
+    if (detectCrisis(msg)) {
+      setMsgs(p => [...p, { role: "assistant", content: CRISIS_RESPONSE }]);
+      return;
+    }
     setLoading(true);
     const familyRoster = familyMembers.length > 0
       ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join("; ")
@@ -159,10 +165,10 @@ Be concise — 2-3 sentences max. Warm, direct, actionable.`;
             <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder="Ask Cleo anything..."
               style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:14, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}
             />
-            <button onClick={startVoice} style={{ width:44, height:44, borderRadius:14, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:18, cursor:"pointer", flexShrink:0 }}>
+            <button onClick={startVoice} aria-label={recording ? "Stop voice input" : "Start voice input"} style={{ width:44, height:44, borderRadius:14, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:18, cursor:"pointer", flexShrink:0 }}>
               {recording?"⏹":"🎤"}
             </button>
-            <button onClick={() => send()} disabled={!input.trim()||loading} style={{ width:44, height:44, borderRadius:14, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:16, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0 }}>
+            <button onClick={() => send()} disabled={!input.trim()||loading} aria-label="Send message" style={{ width:44, height:44, borderRadius:14, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:16, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0 }}>
               {loading?<Spinner size={14} color="#fff"/>:"→"}
             </button>
           </div>
@@ -171,7 +177,7 @@ Be concise — 2-3 sentences max. Warm, direct, actionable.`;
 
       {/* FAB */}
       {activeTab !== "cleo" && (
-        <button onClick={() => setOpen(true)}
+        <button onClick={() => setOpen(true)} aria-label="Chat with Cleo"
           style={{
             position:"fixed",
             bottom:`calc(88px + env(safe-area-inset-bottom, 0px))`,

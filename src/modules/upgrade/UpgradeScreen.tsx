@@ -17,7 +17,7 @@ const PRO_FEATURES = [
 ];
 
 export function UpgradeScreen() {
-  const { user, profile } = useStore();
+  const { user, profile, isPro } = useStore();
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -58,6 +58,19 @@ export function UpgradeScreen() {
     }
     setLoading(false);
   };
+
+  if (isPro) return (
+    <div style={{ animation:"fadeUp .45s ease both" }}>
+      <PageTitle title="HerNest Pro" />
+      <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"36px 24px", textAlign:"center" }}>
+        <div style={{ width:56, height:56, borderRadius:"50%", background:`${T.gold}25`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:24 }}>✦</div>
+        <p style={{ fontFamily:F.serif, fontSize:26, fontStyle:"italic", color:"#fff", margin:"0 0 8px" }}>You're Pro</p>
+        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
+          Unlimited Cleo, full memory, every connector — all yours. Thank you for backing HerNest ♥
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>

@@ -47,6 +47,21 @@ export function invalidateDataCache(uid: string, col: string): void {
 }
 
 // ── Data Helpers ──────────────────────────────────────────────────
+// Raw write used by the offline-sync replay — throws on failure and never
+// re-queues (that would loop). App code should use saveData below.
+export async function saveDataDirect(
+  uid: string,
+  collection: string,
+  data: Record<string, unknown>
+): Promise<void> {
+  invalidateDataCache(uid, collection);
+  try {
+    await setDoc(doc(db, "users", ownerFor(uid, collection), "data", collection), data, { merge: true });
+  } finally {
+    invalidateDataCache(uid, collection);
+  }
+}
+
 export async function saveData(
   uid: string,
   collection: string,
@@ -55,13 +70,13 @@ export async function saveData(
   // Invalidate before AND after the write so a concurrent read can't re-cache
   // stale data mid-flight. setDoc uses merge, so we drop the entry rather than
   // cache the partial — the next read re-fetches the full merged doc.
-  invalidateDataCache(uid, collection);
   try {
-    await setDoc(doc(db, "users", ownerFor(uid, collection), "data", collection), data, { merge: true });
+    await saveDataDirect(uid, collection, data);
   } catch (e) {
-    console.error(`[Firebase] saveData failed: ${collection}`, e);
-  } finally {
-    invalidateDataCache(uid, collection);
+    // Offline or transient failure: queue for replay instead of losing the write
+    console.error(`[Firebase] saveData failed: ${collection} — queueing for retry`, e);
+    const { enqueueFailedWrite } = await import("./offlineSync");
+    await enqueueFailedWrite(uid, collection, data);
   }
 }
 

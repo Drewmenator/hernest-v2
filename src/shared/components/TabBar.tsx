@@ -19,6 +19,8 @@ const MORE_TABS = [
   { id: "trips",    label: "Trips",     IC: TripsIcon },
   { id: "circle",   label: "Circle",    IC: CircleIcon },
   { id: "calendar", label: "Calendar",  IC: CalendarIcon },
+  { id: "connections", label: "Connections", IC: SettingsIcon },
+  { id: "memory",   label: "Memory",    IC: ProfileIcon },
   { id: "profile",  label: "Profile",   IC: ProfileIcon },
   { id: "settings", label: "Settings",  IC: SettingsIcon },
   { id: "upgrade",  label: "Go Pro ✦",  IC: UpgradeIcon },

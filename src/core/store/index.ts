@@ -117,6 +117,8 @@ interface AppStore {
   showMore: boolean;
   showSettings: boolean;
   showUpgrade: boolean;
+  isPro: boolean;
+  setIsPro: (v: boolean) => void;
   isOnline: boolean;
   dailyUsage: number;
   usageLimit: number;
@@ -159,7 +161,7 @@ const defaultFinancialSnapshot: FinancialSnapshot = {
 export const useStore = create<AppStore>()(
   immer((set) => ({
     user: null, authChecked: false, profile: null, activeTab: "home",
-    screen: "loading", showMore: false, showSettings: false, showUpgrade: false,
+    screen: "loading", showMore: false, showSettings: false, showUpgrade: false, isPro: false,
     isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 10,
     householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
     currentHouseholdId: null, householdRole: null, householdMembers: [],
@@ -173,6 +175,7 @@ export const useStore = create<AppStore>()(
     setShowMore: (show) => set((s) => { s.showMore = show; }),
     setShowSettings: (show) => set((s) => { s.showSettings = show; }),
     setShowUpgrade: (show) => set((s) => { s.showUpgrade = show; }),
+    setIsPro: (v) => set((s) => { s.isPro = v; }),
     setIsOnline: (online) => set((s) => { s.isOnline = online; }),
     incrementUsage: () => set((s) => { s.dailyUsage += 1; }),
     reset: () => set((s) => {
@@ -180,6 +183,9 @@ export const useStore = create<AppStore>()(
       s.activeTab = "home"; s.dailyUsage = 0;
       s.householdSnapshot = null; s.householdInsights = []; s.activeScenario = null;
       s.currentHouseholdId = null; s.householdRole = null; s.householdMembers = [];
+      // Residue from these leaked across accounts on shared devices
+      s.isPro = false; s.familyMembers = [];
+      s.showMore = false; s.showSettings = false; s.showUpgrade = false;
     }),
     setHouseholdSnapshot: (snap) => set((s) => { s.householdSnapshot = snap; }),
     setHouseholdInsights: (insights) => set((s) => { s.householdInsights = insights; }),
