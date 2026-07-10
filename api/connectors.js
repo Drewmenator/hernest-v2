@@ -14,6 +14,7 @@
 // to users/{uid}/integrations/{doc} so the app can show freshness.
 import crypto from "crypto";
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret } from "./_lib/secure.js";
+import { pickMainSleep, resolveSleepScore, sleepHours } from "./_lib/oura.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -441,24 +442,26 @@ async function syncOura(req, res, uid) {
   const start = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
   const q = `start_date=${start}&end_date=${today}`;
 
-  const [sleep, readiness, activity, stress] = await Promise.all([
+  const [sleep, dailySleep, readiness, activity, stress] = await Promise.all([
     fetch(`https://api.ouraring.com/v2/usercollection/sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
     fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
     fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
     fetch(`https://api.ouraring.com/v2/usercollection/daily_stress?${q}`, { headers }).then(r => r.json()).catch(() => ({})),
   ]);
 
   const newest = (arr) => (arr || []).sort((a, b) => (b.day || "").localeCompare(a.day || ""))[0];
-  const sleeps = (sleep.data || []).filter(s => (s.total_sleep_duration || 0) > 0);
-  const latestSleep = newest(sleeps);
+  // Main night's sleep — longest long_sleep period, not the first fragment.
+  const latestSleep = pickMainSleep(sleep.data);
   const latestReadiness = newest(readiness.data);
   const latestActivity = newest(activity.data);
   const latestStress = newest(stress.data);
 
   const health = {
     date: latestSleep?.day || today,
-    lastSleepHours: latestSleep ? Math.round((latestSleep.total_sleep_duration / 3600) * 10) / 10 : null,
-    sleepScore: latestSleep?.score ?? null,
+    lastSleepHours: sleepHours(latestSleep),
+    // Score is on /daily_sleep, not /sleep — matched to the night's day.
+    sleepScore: resolveSleepScore(dailySleep.data, latestSleep?.day),
     readinessScore: latestReadiness?.score ?? null,
     steps: latestActivity?.steps ?? null,
     // Tier 1: recovery + stress signals

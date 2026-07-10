@@ -93,11 +93,20 @@ export async function autoTrackWellness(uid: string): Promise<{ wearable: Wearab
     let sleepLogged = false;
     let moveDone = false;
 
-    // Sleep: only if the user hasn't logged that date themselves
-    if (wearable.sleepHours != null && !sleepLog.some(l => l?.date === wearable.date)) {
+    // Sleep: log/refresh from the wearable. A manual entry always wins and is
+    // never touched; but a previous WEARABLE entry may be updated (Oura keeps
+    // finalizing a night through the morning, and a parsing fix can correct a
+    // bad value) — so re-sync when the hours changed, unless the user edited it.
+    const wHours = wearable.sleepHours;
+    const existingSleep = sleepLog.find(l => l?.date === wearable.date);
+    const canWriteSleep = wHours != null && (
+      !existingSleep ||
+      (existingSleep.source !== "manual" && Math.round((existingSleep.hours || 0) * 10) !== Math.round(wHours * 10))
+    );
+    if (canWriteSleep && wHours != null) {
       const entry = {
         date: wearable.date,
-        hours: Math.round(wearable.sleepHours * 10) / 10,
+        hours: Math.round(wHours * 10) / 10,
         quality: scoreToQuality(wearable.sleepScore),
         source: wearable.source,
       };
@@ -105,7 +114,7 @@ export async function autoTrackWellness(uid: string): Promise<{ wearable: Wearab
       // Auto-detect the "sleep 7+" habit like the manual flow does
       if (habits.length) {
         updates.habits = habits.map(h =>
-          h.id === "sleep7" ? { ...h, done: wearable.sleepHours! >= 7, streak: wearable.sleepHours! >= 7 ? (h.streak || 0) + 1 : 0, lastCompleted: wearable.date } : h
+          h.id === "sleep7" ? { ...h, done: wHours >= 7, streak: wHours >= 7 ? (h.streak || 0) + 1 : 0, lastCompleted: wearable.date } : h
         );
       }
       sleepLogged = true;
