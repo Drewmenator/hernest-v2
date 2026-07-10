@@ -10,10 +10,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-hernest-rules \"vitest run -c vitest.rules.config.ts\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-hernest-rules \"vitest run -c vitest.rules.config.ts\"",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@sentry/react": "^10.64.0",
     "clsx": "^2.1.1",
     "dexie": "^4.4.2",
@@ -28,6 +32,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^5.0.1",
     "@tailwindcss/vite": "^4.3.0",
