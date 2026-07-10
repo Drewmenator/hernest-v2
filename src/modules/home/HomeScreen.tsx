@@ -251,7 +251,7 @@ function ModuleGrid() {
     { id: "trips",    label: "Trips",    icon: "→", sub: "Plan your next escape", color: T.orange },
     { id: "thrive",   label: "Thrive",   icon: "◦", sub: "Log today's mood",     color: T.sage },
     { id: "circle",   label: "Circle",   icon: "◉", sub: "Your people",          color: T.sky },
-    { id: "budget",   label: "Finances", icon: "◎", sub: "Household CFO",        color: T.yellow },
+    { id: "budget",   label: "Budget", icon: "◎", sub: "Household CFO",        color: T.yellow },
     { id: "plan",     label: "Plan",     icon: "◈", sub: "Tasks & meals",        color: T.esp },
     { id: "calendar", label: "Calendar", icon: "◆", sub: "Your schedule",        color: T.navy },
     { id: "family",   label: "Family",   icon: "⌂", sub: "Command centre",      color: T.gold },
@@ -375,7 +375,7 @@ export function HomeScreen() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
         {[
-          { label: "Briefing", icon: "☀", tab: "briefing", color: T.gold },
+          { label: "Brief", icon: "☀", tab: "briefing", color: T.gold },
           { label: "Chat Cleo", icon: "✦", tab: "cleo", color: T.esp },
           { label: "Add Task", icon: "+", tab: "plan", color: T.sage },
         ].map((a, i) => (
