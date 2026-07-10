@@ -8,11 +8,12 @@ export const T = {
   sand:     "#F0E8D8",
   esp:      "#2A1F18",   // espresso — kept
   bark:     "#5C4033",
-  taupe:    "#9B8577",
+  taupe:    "#756557", // darkened 2026-07-11: was #9B8577 (3.1:1 on ivory — failed WCAG AA); now ~5:1
   stone:    "#7A6B60",
 
   // Brand gold — kept
   gold:     "#C9A961",
+  goldText: "#8B6914", // gold is 2.2:1 as text on light bg — use THIS for gold text on cream/ivory (4.5:1+)
   goldSoft: "#E8D9B5",
   goldP:    "rgba(201,169,97,0.12)",
 

@@ -330,7 +330,7 @@ function GetStartedCard() {
   return (
     <div style={{ background: T.ivory, border: `1.5px solid ${T.gold}40`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.gold, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
+        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldText, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
         <button onClick={() => { localStorage.setItem("hn_getstarted_done", "1"); setDismissed(true); }}
           style={{ background: "none", border: "none", color: T.taupe, fontSize: 15, cursor: "pointer", padding: 0 }}>×</button>
       </div>
