@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import { T, F } from "../../config/theme";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "../../core/firebase";
-
-const googleProvider = new GoogleAuthProvider();
+import { signInWithGoogle } from "../../core/nativeAuth";
 
 export function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -13,9 +10,12 @@ export function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithGoogle();
     } catch (e: any) {
-      if (e?.code !== "auth/popup-closed-by-user") {
+      // Ignore user-initiated cancels (web popup close or native sheet dismiss);
+      // surface everything else as a retry prompt.
+      const cancelled = e?.code === "auth/popup-closed-by-user" || e?.code === "1"; // native cancel
+      if (!cancelled) {
         setError("Sign in failed — please try again");
       }
     }

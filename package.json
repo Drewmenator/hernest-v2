@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
+    "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/ios": "^8.4.1",
     "@sentry/react": "^10.64.0",

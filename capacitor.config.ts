@@ -15,6 +15,17 @@ const config: CapacitorConfig = {
     contentInset: "always",
     backgroundColor: "#2A1F18",
   },
+  plugins: {
+    // Native Google Sign-In. Google blocks OAuth inside embedded webviews, so
+    // the web signInWithPopup flow can't run on device. The native plugin does
+    // the Google handshake, and skipNativeAuth: true means it hands the ID token
+    // back to JS — we exchange it for a Firebase credential on the same JS auth
+    // instance the whole app already reads from, so nothing downstream changes.
+    FirebaseAuthentication: {
+      skipNativeAuth: true,
+      providers: ["google.com"],
+    },
+  },
 };
 
 export default config;
