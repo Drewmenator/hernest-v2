@@ -4,9 +4,10 @@ HerNest now has a **native iOS shell** (Capacitor) that wraps the built web app.
 The Xcode project compiles cleanly (`BUILD SUCCEEDED`, verified). This guide takes
 you from that shell to testers' phones.
 
-> **Read the "Login blocker" section before inviting testers.** The shell builds
-> and uploads today, but Google Sign-In will not work inside the webview until
-> native auth is wired. That's the one remaining functional gap.
+> **Login works.** Native Google Sign-In is wired (`@capacitor-firebase/authentication`,
+> `GoogleService-Info.plist` bundled, verified building with the Firebase SDK linked).
+> Nothing else is required before testers can log in. The section below is kept as a
+> record of what was done / what to redo if you change the bundle id.
 
 ---
 
@@ -37,31 +38,29 @@ building in Xcode. Otherwise Xcode ships a stale bundle.
 
 ---
 
-## Login blocker — native Google Sign-In (do this before testers)
+## Native Google Sign-In — DONE (how it works / redo notes)
 
 HerNest authenticates only with Google (Firebase Auth). Google **blocks OAuth
-inside embedded webviews** (`disallowed_useragent`), which is exactly what the
-Capacitor shell is. So the web `signInWithPopup` flow will fail on device.
+inside embedded webviews**, so the web `signInWithPopup` flow can't run on device.
+This is already solved:
 
-The fix is a native sign-in that hands a credential to Firebase. Split of work:
+- `@capacitor-firebase/authentication` (skipNativeAuth) does the native Google
+  handshake and hands the ID token back to JS; `src/core/nativeAuth.ts` exchanges
+  it for a Firebase credential on the same JS auth instance, so auth state and the
+  onboarding gate behave exactly as on web.
+- `GoogleService-Info.plist` is bundled (registered in the Xcode project), and the
+  `REVERSED_CLIENT_ID` URL scheme is in `Info.plist`.
+- Verified: `xcodebuild` succeeds with the Firebase SDK linked; the plist and URL
+  scheme are present in the built `.app`.
 
-**You (Firebase console — I can't do these):**
-1. Firebase console → Project settings → **Add app → iOS**, using your final bundle id.
-2. Download **`GoogleService-Info.plist`**.
-3. Drop it into `ios/App/App/` in Xcode (check *Copy items if needed*).
+**If you ever change the bundle id**, you must re-register the iOS app in Firebase
+under the new id, download a fresh `GoogleService-Info.plist` into `ios/App/App/`,
+and update the `REVERSED_CLIENT_ID` URL scheme in `Info.plist` to match.
 
-**Then the code side (I can do this once the plist exists):**
-4. Add `@capacitor-firebase/authentication` + the Google provider, register the
-   plugin, and add the `REVERSED_CLIENT_ID` URL scheme to `Info.plist`.
-5. Branch auth on `Capacitor.isNativePlatform()`: native path calls the plugin's
-   Google sign-in, then `signInWithCredential` on the existing Firebase instance;
-   web path stays as-is. No change to session handling downstream.
-
-Until step 4–5 land, testers can open the app but not log in. If you want a
-first look sooner without native auth, the **PWA "Add to Home Screen"** path
-(open the deployed Vercel URL in Safari → Share → Add to Home Screen) gives a
-full-screen install with working Google login today — no Apple Developer account
-needed. TestFlight is the right call for push notifications + HealthKit later.
+(A **PWA "Add to Home Screen"** install — open the Vercel URL in Safari → Share →
+Add to Home Screen — also works today with Google login, if you want eyes on it
+before finishing the Apple Developer enrolment. TestFlight is still the path for
+push notifications + HealthKit.)
 
 ---
 
