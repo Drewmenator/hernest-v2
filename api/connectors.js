@@ -14,7 +14,7 @@
 // to users/{uid}/integrations/{doc} so the app can show freshness.
 import crypto from "crypto";
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret } from "./_lib/secure.js";
-import { pickMainSleep, resolveSleepScore, sleepHours } from "./_lib/oura.js";
+import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory } from "./_lib/oura.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -439,7 +439,7 @@ async function syncOura(req, res, uid) {
   }
   const headers = { Authorization: `Bearer ${tok.accessToken}` };
   const today = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
+  const start = new Date(Date.now() - 14 * 86400000).toISOString().split("T")[0]; // 14d for trend sparklines
   const q = `start_date=${start}&end_date=${today}`;
 
   const [sleep, dailySleep, readiness, activity, stress] = await Promise.all([
@@ -476,6 +476,8 @@ async function syncOura(req, res, uid) {
     activeCalories: latestActivity?.active_calories ?? null,
     sedentaryMins: latestActivity?.sedentary_time != null ? Math.round(latestActivity.sedentary_time / 60) : null,
     activityScore: latestActivity?.score ?? null,
+    // 7-day trends for the dashboard (keep last 14, screen shows 7)
+    history: buildOuraHistory(sleep.data, dailySleep.data, readiness.data, activity.data, stress.data).slice(-14),
     lastSyncedAt: Date.now(),
     lastError: null,
   };

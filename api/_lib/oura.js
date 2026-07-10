@@ -32,3 +32,32 @@ export function sleepHours(period) {
   if (!period || period.total_sleep_duration == null) return null;
   return Math.round((period.total_sleep_duration / 3600) * 10) / 10;
 }
+
+// Compact per-day history for trend sparklines. Joins the four Oura daily
+// collections by day; sleep hours come from the matching long_sleep period.
+export function buildOuraHistory(sleepPeriods, dailySleep, readiness, activity, stress) {
+  const days = new Set();
+  for (const arr of [dailySleep, readiness, activity, stress]) {
+    for (const d of (arr || [])) if (d.day) days.add(d.day);
+  }
+  const byDay = (arr, day) => (arr || []).find(d => d.day === day);
+  // Longest long_sleep period per day
+  const sleepForDay = (day) => {
+    const pool = (sleepPeriods || []).filter(s => (s.day === day) && (s.total_sleep_duration || 0) > 0);
+    const longs = pool.filter(s => s.type === "long_sleep");
+    return (longs.length ? longs : pool).sort((a, b) => (b.total_sleep_duration || 0) - (a.total_sleep_duration || 0))[0];
+  };
+  return [...days].sort().map(day => {
+    const s = sleepForDay(day);
+    return {
+      day,
+      sleepHours: s ? Math.round((s.total_sleep_duration / 3600) * 10) / 10 : null,
+      sleepScore: byDay(dailySleep, day)?.score ?? null,
+      readiness: byDay(readiness, day)?.score ?? null,
+      hrv: s?.average_hrv ?? null,
+      restingHr: s?.lowest_heart_rate ?? null,
+      steps: byDay(activity, day)?.steps ?? null,
+      stressDay: byDay(stress, day)?.day_summary ?? null,
+    };
+  });
+}

@@ -82,3 +82,35 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
     return fallback;
   }
 }
+
+// ─── Weekly wellness score (body-first) ────────────────────────────
+// Composed from wearable trends + mood. No hydration/habits — those were
+// removed with the manual-logging redesign. Pure + tested.
+export interface ScoreBreakdown { sleep: number; readiness: number; activity: number; mood: number }
+
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+export function computeWeeklyScore(
+  history: Array<{ sleepScore: number | null; sleepHours: number | null; readiness: number | null }>,
+  activityScores: number[],
+  moodRatings: number[], // 3 | 6 | 9 scale from MOOD_LEVELS
+): { score: number; breakdown: ScoreBreakdown } {
+  const last7 = (history || []).slice(-7);
+  // Sleep 0-10: prefer Oura sleep score, else derive from hours (7-8h = 10)
+  const sleepVals = last7.map(d => d.sleepScore != null ? d.sleepScore / 10
+    : d.sleepHours != null ? (d.sleepHours >= 7 && d.sleepHours <= 9 ? 10 : d.sleepHours >= 6 ? 8 : d.sleepHours >= 5 ? 6 : 3)
+    : null).filter((v): v is number => v != null);
+  const readyVals = last7.map(d => d.readiness).filter((v): v is number => v != null).map(v => v / 10);
+  const actVals = (activityScores || []).filter(v => v != null).map(v => v / 10);
+  const moodVals = (moodRatings || []).map(v => (v / 9) * 10); // 3→3.3, 9→10
+
+  const sleep = sleepVals.length ? avg(sleepVals) : 5;
+  const readiness = readyVals.length ? avg(readyVals) : 5;
+  const activity = actVals.length ? avg(actVals) : 5;
+  const mood = moodVals.length ? avg(moodVals) : 5;
+
+  // Sleep 30 · Readiness 30 · Activity 20 · Mood 20
+  const score = Math.round((sleep * 0.3 + readiness * 0.3 + activity * 0.2 + mood * 0.2) * 10) / 10;
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return { score, breakdown: { sleep: r1(sleep), readiness: r1(readiness), activity: r1(activity), mood: r1(mood) } };
+}

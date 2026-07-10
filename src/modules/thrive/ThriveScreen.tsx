@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, HeroCard, Pill, ProgressBar, AIBadge, Spinner } from "../../shared/components";
+import { Card, PageTitle, HeroCard, Pill, ProgressBar, AIBadge, Spinner, EmptyState } from "../../shared/components";
+import { ThriveVitals } from "./ThriveVitals";
+import { computeWeeklyScore } from "../../core/thriveCheckin";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
@@ -16,7 +18,7 @@ interface MoodLog   { date: string; rating: number; label: string; note?: string
 interface Habit     { id: string; name: string; icon: string; category: string; done: boolean; streak: number; autoDetect?: boolean; lastCompleted?: string; }
 interface WeeklyScore {
   score: number; headline: string;
-  breakdown: { sleep: number; hydration: number; habits: number; mood: number };
+  breakdown: { sleep: number; readiness: number; activity: number; mood: number };
   wins: string[]; focus: string; affirmation: string;
   trend: string; generatedAt: number;
 }
@@ -45,32 +47,9 @@ const DEFAULT_HABITS: Habit[] = [
   { id:"gratitude",name:"3 gratitudes",           icon:"🙏", category:"mindfulness", done:false, streak:0 },
 ];
 
-// ── Weekly Score Engine per blueprint ─────────────────────────────
-function calcSleepScore(logs: SleepLog[]): number {
-  if (!logs.length) return 5;
-  const avg = logs.reduce((a,l)=>a+l.hours,0)/logs.length;
-  const qualBonus = logs.filter(l=>l.quality==="excellent").length * 0.5;
-  let base = avg>=7&&avg<=8 ? 10 : avg>=6 ? 8 : avg>=5 ? 6 : 3;
-  return Math.min(10, base + qualBonus);
-}
-
-function calcHydrationScore(logs: WaterLog[]): number {
-  if (!logs.length) return 5;
-  const avg = logs.reduce((a,l)=>a+l.glasses,0)/logs.length;
-  const ratio = avg/8;
-  return ratio>=1?10 : ratio>=0.75?8 : ratio>=0.5?6 : 4;
-}
-
-function calcHabitsScore(habits: Habit[]): number {
-  if (!habits.length) return 5;
-  const done = habits.filter(h=>h.done).length;
-  return Math.round((done/habits.length)*10*10)/10;
-}
-
-function calcMoodScore(logs: MoodLog[]): number {
-  if (!logs.length) return 5;
-  return logs.reduce((a,l)=>a+l.rating,0)/logs.length;
-}
+// Weekly score now lives in core/thriveCheckin (computeWeeklyScore) — the
+// old hydration/habits-weighted calc functions were removed with the
+// manual-logging redesign.
 
 function detectPatterns(sleepLogs: SleepLog[], moodLogs: MoodLog[]): string {
   if (sleepLogs.length < 3 || moodLogs.length < 3) return "";
@@ -264,46 +243,35 @@ export function ThriveScreen() {
   // ── Weekly Score per blueprint weighted formula ────────────────────
   const generateScore = async () => {
     setGenScore(true);
-    const sleepS = calcSleepScore(sleepHistory.slice(-7));
-    const hydraS = calcHydrationScore(waterHistory.slice(-7));
-    const habitS = calcHabitsScore(habits);
-    const moodS  = calcMoodScore(moodHistory.slice(-7));
-    // Weighted composite per blueprint: sleep 25%, hydration 15%, habits 20%, mood 25%, movement 15% (movement defaults 5)
-    const total = sleepS*0.25 + hydraS*0.15 + habitS*0.20 + moodS*0.25 + 5*0.15;
-    const pattern = detectPatterns(sleepHistory.slice(-7), moodHistory.slice(-7));
+    const hist = wearable?.history || [];
+    const moodRatings = moodHistory.slice(-7).map((m: any) => m.rating || m.value || 6);
+    const activityScores = hist.map(() => wearable?.activityScore).filter((v): v is number => v != null);
+    const { score: total, breakdown } = computeWeeklyScore(
+      hist.map(d => ({ sleepScore: d.sleepScore, sleepHours: d.sleepHours, readiness: d.readiness })),
+      activityScores,
+      moodRatings,
+    );
 
     const sys = `You are Cleo, a warm wellness coach. Generate a weekly wellness score summary.
 Return ONLY valid JSON:
 {"headline":"one punchy sentence","wins":["string","string"],"focus":"one gentle suggestion","affirmation":"one warm personal sentence","trend":"improving|stable|declining"}
-Score is ${total.toFixed(1)}/10. Sleep: ${sleepS.toFixed(1)}, Hydration: ${hydraS.toFixed(1)}, Habits: ${habitS.toFixed(1)}, Mood: ${moodS.toFixed(1)}.
-${pattern ? `Pattern detected: ${pattern}` : ""}
-User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}.`;
+Score is ${total.toFixed(1)}/10. Sleep: ${breakdown.sleep.toFixed(1)}, Readiness: ${breakdown.readiness.toFixed(1)}, Activity: ${breakdown.activity.toFixed(1)}, Mood: ${breakdown.mood.toFixed(1)} (all /10).
+User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}. Ground every claim in these numbers — never invent.`;
 
-    const moodArr = Array.isArray(moodLog) ? moodLog : [];
-    const sleepArr = Array.isArray(sleepLog) ? sleepLog : [];
-    const moodAvg = moodArr.length > 0 ? moodArr.slice(-7).reduce((a: number, l: any) => a + (l.rating||l.value||3), 0) / Math.min(7, moodArr.length) : 3;
-    const sleepAvg = sleepArr.length > 0 ? sleepArr.slice(-7).reduce((a: number, l: any) => a + (l.hours||7), 0) / Math.min(7, sleepArr.length) : 7;
-    const habitArr = Array.isArray(habits) ? habits : [];
-    const habitRate = habitArr.length > 0 ? Math.round((habitArr.filter((h: any) => h.completedToday).length / habitArr.length) * 100) : 0;
-    const result = await ai(sys, `Weekly wellness data for ${(profile as any)?.name||"user"}:
-Mood average (7 days): ${moodAvg.toFixed(1)}/5
-Sleep average (7 days): ${sleepAvg.toFixed(1)} hours
-Habit completion today: ${habitRate}%
-Recent mood: ${moodArr.slice(-3).map((l: any) => l.rating||l.value||3).join(", ")}
-Recent sleep: ${sleepArr.slice(-3).map((l: any) => (l.hours||7) + "h").join(", ")}`, "wellness_score");
+    const result = await ai(sys, `Weekly wellness for ${(profile as any)?.name||"user"}. 7-day trend from their ring:\n${hist.map(d => `${d.day}: sleep ${d.sleepHours ?? "?"}h (score ${d.sleepScore ?? "?"}), readiness ${d.readiness ?? "?"}`).join("\n")}\nRecent mood (of 9): ${moodRatings.slice(-3).join(", ") || "not logged"}`, "wellness_score");
 
     if (!result.error) {
       try {
         const data = JSON.parse(result.text.replace(/```json\s*/gi,"").replace(/```/g,"").trim());
         const ws: WeeklyScore = {
-          score: Math.round(total*10)/10,
+          score: total,
           headline: data.headline,
-          breakdown: { sleep:sleepS, hydration:hydraS, habits:habitS, mood:moodS },
+          breakdown,
           wins: data.wins||[], focus:data.focus, affirmation:data.affirmation,
           trend: data.trend||"stable", generatedAt:Date.now(),
         };
         setScore(ws);
-        await persist({ score:ws, habits, sleepLog:sleepHistory, moodLog:moodHistory, waterLog:waterHistory });
+        await persist({ score:ws, sleepLog:sleepHistory, moodLog:moodHistory });
         await bus.publish("thrive.score.generated", { score:total }, { userId:user!.uid, source:"thrive" });
       } catch { toast.error("Couldn't generate score"); }
     }
@@ -373,16 +341,16 @@ RULES:
       {/* ── TODAY ─────────────────────────────────────────────────── */}
       {tab==="today" && <>
 
-        {/* 1. Cleo's Check-in — the hero. She already knows your night. */}
+        {/* 1. Cleo's Check-in — the voice. Mood is the ONE human input. */}
         <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"22px 20px", marginBottom:12 }}>
           <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.45)", margin:"0 0 10px" }}>CLEO'S CHECK-IN</p>
           <p style={{ fontFamily:F.serif, fontStyle:"italic", fontSize:16, color:"rgba(255,255,255,0.92)", margin:"0 0 14px", lineHeight:1.6 }}>
-            {checkinText || "Reading your night..."}
+            {checkinText || (wearable ? "Reading your night..." : "I can read your body once your ring is connected — until then, how are you feeling?")}
           </p>
           {!moodLog ? (
             <div style={{ display:"flex", gap:8 }}>
               {MOOD_LEVELS.map(m=>(
-                <button key={m.value} onClick={()=>logMood(m.value)} style={{ flex:1, padding:"10px 8px", borderRadius:14, border:"1.5px solid rgba(255,255,255,0.22)", background:"rgba(255,255,255,0.08)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, touchAction:"manipulation", minHeight:44 }}>
+                <button key={m.value} onClick={()=>logMood(m.value)} aria-label={`Mood: ${m.label}`} style={{ flex:1, padding:"10px 8px", borderRadius:14, border:"1.5px solid rgba(255,255,255,0.22)", background:"rgba(255,255,255,0.08)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, touchAction:"manipulation", minHeight:44 }}>
                   <span style={{ fontSize:14, color:(m as any).color }}>{m.emoji}</span>
                   <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color:"#fff" }}>{m.label}</span>
                 </button>
@@ -395,134 +363,33 @@ RULES:
           )}
         </div>
 
-        {/* 2. Body Today — the numbers, quietly */}
-        <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-          <button onClick={()=>setShowBody(s=>!s)} style={{ flex:1, background:T.ivory, border:`1px solid ${showBody?T.gold:T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center", cursor:"pointer", touchAction:"manipulation" }}>
-            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:wearable?.readiness!=null?(wearable.readiness>=85?T.sage:wearable.readiness>=60?T.gold:T.blush):T.taupe, margin:0 }}>{wearable?.readiness ?? "—"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Readiness {wearable?.readiness!=null?"▾":""}</p>
-          </button>
-          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
-            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:T.esp, margin:0 }}>{sleepLog?`${sleepLog.hours}h`:wearable?.sleepHours!=null?`${wearable.sleepHours}h`:"—"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:8, color:sleepLog?.source&&sleepLog.source!=="manual"?T.sage:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>{sleepLog?.source&&sleepLog.source!=="manual"?"Sleep ✓ auto":"Sleep"}</p>
-          </div>
-          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
-            <p style={{ fontFamily:F.serif, fontSize:15, fontWeight:700, color:wearable?.stressDay==="restored"?T.sage:wearable?.stressDay==="stressful"?T.blush:T.esp, margin:"2px 0 0", textTransform:"capitalize" }}>{wearable?.stressDay ?? "—"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"4px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Stress</p>
-          </div>
-          <div style={{ flex:1, background:T.ivory, border:`1px solid ${T.linen}`, borderRadius:14, padding:"10px 6px", textAlign:"center" }}>
-            <p style={{ fontFamily:F.serif, fontSize:19, fontWeight:700, color:T.esp, margin:0 }}>{wearable?.steps!=null?(wearable.steps>=1000?`${(wearable.steps/1000).toFixed(1)}k`:wearable.steps):"—"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:8, color:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>Steps</p>
-          </div>
-        </div>
-
-        {/* Readiness contributors — why the number is what it is */}
-        {showBody && wearable && (
-          <Card>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>WHY {wearable.readiness ?? "—"}?</p>
-            {wearable.avgHrv!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Average HRV</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{wearable.avgHrv}ms</span></div>}
-            {wearable.restingHr!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Resting heart rate</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{wearable.restingHr}bpm</span></div>}
-            {wearable.stressHighMins!=null && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}><span style={{ fontFamily:F.sans, fontSize:12, color:T.esp }}>Stress vs recovery yesterday</span><span style={{ fontFamily:F.serif, fontSize:14, fontWeight:700, color:T.esp }}>{Math.round((wearable.stressHighMins||0)/60*10)/10}h / {Math.round((wearable.recoveryHighMins||0)/60*10)/10}h</span></div>}
-            {wearable.readinessContributors && Object.entries(wearable.readinessContributors).filter(([,v])=>typeof v==="number").slice(0,4).map(([k,v])=>(
-              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.linen}` }}>
-                <span style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, textTransform:"capitalize" }}>{k.replace(/_/g," ")}</span>
-                <span style={{ fontFamily:F.sans, fontSize:12, color:(v as number)>=80?T.sage:(v as number)>=60?T.gold:T.blush }}>{v as number}</span>
-              </div>
-            ))}
-            <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>From your Oura ring · updates each morning</p>
-          </Card>
+        {/* 2. Your body, understood — all from the ring. Or a connect prompt. */}
+        {wearable ? (
+          <ThriveVitals w={wearable} expanded={showBody} onToggle={()=>setShowBody(s=>!s)} />
+        ) : (
+          <EmptyState
+            icon="♡"
+            title="Connect your ring to see this come alive"
+            body="Thrive reads sleep, readiness, recovery and activity straight from your Oura ring or Apple Health — no logging. Connect one and your body's story shows up here each morning."
+            actionLabel="Connect a wearable ✦"
+            onAction={()=>useStore.getState().setActiveTab("connections")}
+          />
         )}
 
-        {/* 3. One nudge, max — and only when it's actionable */}
+        {/* 3. One gentle nudge, max — only when it's actionable */}
         {(() => {
-          const nudge = !nudgeDismissed ? pickNudge(wearable, water, new Date().getHours()) : null;
+          const nudge = !nudgeDismissed ? pickNudge(wearable, 8, new Date().getHours()) : null;
           return nudge ? (
             <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", gap:10, alignItems:"flex-start" }}>
-              <span style={{ fontSize:14, flexShrink:0, color:T.gold }}>✦</span>
+              <span style={{ fontSize:14, flexShrink:0, color:T.goldText }}>✦</span>
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, lineHeight:1.5, flex:1 }}>{nudge.text}</p>
-              <button onClick={()=>setNudgeDismissed(true)} style={{ background:"none", border:"none", color:T.taupe, fontSize:14, cursor:"pointer", padding:0, flexShrink:0 }}>×</button>
+              <button onClick={()=>setNudgeDismissed(true)} aria-label="Dismiss" style={{ background:"none", border:"none", color:T.taupe, fontSize:14, cursor:"pointer", padding:0, flexShrink:0 }}>×</button>
             </div>
           ) : null;
         })()}
-
-        {/* Sleep entry — only when the ring didn't already handle it */}
-        {(adjustSleep || !sleepLog || sleepLog.source === "manual") && (
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>{adjustSleep?"ADJUST SLEEP":"SLEEP LAST NIGHT"}</p>
-            {adjustSleep && <button onClick={()=>setAdjustSleep(false)} style={{ background:"none", border:"none", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer" }}>Cancel</button>}
-          </div>
-          <div style={{ display:"flex", gap:6, marginBottom:12, justifyContent:"space-between" }}>
-            {[4,5,6,7,8,9,10].map(h=>(
-              <button key={h} onClick={()=>setSleepHours(h)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepHours===h?T.esp:T.linen}`, background:sleepHours===h?`${T.esp}10`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
-                <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:T.esp }}>{h}</span>
-                <span style={{ fontFamily:F.sans, fontSize:8, color:T.taupe }}>hrs</span>
-              </button>
-            ))}
-          </div>
-          {/* Quality selector per blueprint */}
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", fontWeight:600 }}>Quality</p>
-          <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-            {SLEEP_QUALITY.map(q=>(
-              <button key={q.value} onClick={()=>setSleepQuality(q.value)} style={{ flex:1, padding:"8px 4px", borderRadius:12, border:`2px solid ${sleepQuality===q.value?q.color:T.linen}`, background:sleepQuality===q.value?`${q.color}15`:"transparent", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, touchAction:"manipulation", minHeight:52 }}>
-                <span style={{ fontSize:18 }}>{q.emoji}</span>
-                <span style={{ fontFamily:F.sans, fontSize:9, color:sleepQuality===q.value?q.color:T.taupe }}>{q.label}</span>
-              </button>
-            ))}
-          </div>
-          <button onClick={()=>{ logSleep(); setAdjustSleep(false); }} disabled={!sleepHours} style={{ width:"100%", padding:"12px", background:sleepHours?T.esp:T.linen, color:sleepHours?"#fff":T.taupe, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:600, cursor:sleepHours?"pointer":"not-allowed", minHeight:44 }}>
-            Log {sleepHours||"?"}h {sleepQuality} sleep
-          </button>
-        </Card>
-        )}
-
-        {/* 4. Tracked for you — receipt of what's already handled + the rest */}
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>TRACKED FOR YOU</p>
-            <span style={{ fontFamily:F.sans, fontSize:11, color:T.gold }}>{doneCount}/{habits.length}</span>
-          </div>
-
-          {/* Sleep receipt line (auto or manual) with Adjust */}
-          {sleepLog && (
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${T.linen}` }}>
-              <span style={{ color:T.sage, fontSize:14, width:20, textAlign:"center", flexShrink:0 }}>✓</span>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:0, flex:1 }}>
-                Sleep {sleepLog.hours}h · {sleepLog.quality}
-                <span style={{ fontSize:10 }}> — {sleepLog.source==="oura"?"Oura":sleepLog.source==="apple_health"?"Apple Health":"you"}</span>
-              </p>
-              <button onClick={()=>setAdjustSleep(true)} style={{ background:"none", border:"none", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", textDecoration:"underline", padding:0 }}>Adjust</button>
-            </div>
-          )}
-
-          {/* Habits — auto ones rendered quietly, human ones tappable */}
-          {habits.map(h=>(
-            <div key={h.id} onClick={()=>!h.autoDetect&&toggleHabit(h.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${T.linen}`, cursor:h.autoDetect?"default":"pointer", touchAction:"manipulation" }}>
-              <span style={{ fontSize:14, width:20, textAlign:"center", flexShrink:0, color:h.done?T.sage:T.linen }}>{h.done?"✓":"○"}</span>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:h.done?T.taupe:T.esp, margin:0, flex:1 }}>
-                {h.name}
-                {h.id==="move"&&wearable?.steps!=null&&h.done && <span style={{ fontSize:10, color:T.taupe }}> — {wearable.steps.toLocaleString()} steps</span>}
-                {(h.autoDetect||h.id==="move") && <span style={{ fontSize:10, color:T.sage }}> · auto</span>}
-              </p>
-              {h.streak > 0 && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold, flexShrink:0 }}>🔥 {h.streak}</span>}
-            </div>
-          ))}
-
-          {/* Water — the one tap-tracker that stays */}
-          <div style={{ padding:"12px 0 2px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0 }}>Water</p>
-              <span style={{ fontFamily:F.serif, fontSize:16, fontWeight:700, color:T.esp }}>{water}<span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>/8</span></span>
-            </div>
-            <div style={{ display:"flex", gap:4 }}>
-              {Array.from({length:8},(_,i)=>(
-                <button key={i} onClick={()=>logWater(i<water?i:i+1)} style={{ flex:1, height:30, borderRadius:8, cursor:"pointer", background:i<water?T.sky:T.skyP, border:"none", transition:"background .15s", touchAction:"manipulation" }} />
-              ))}
-            </div>
-          </div>
-        </Card>
       </>}
 
-      {/* ── WEEKLY SCORE per blueprint weighted formula ────────────── */}
+      {/* ── WEEKLY SCORE      {/* ── WEEKLY SCORE per blueprint weighted formula ────────────── */}
       {tab==="score" && <>
         {score ? (
           <>
@@ -538,10 +405,10 @@ RULES:
             <Card>
               <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>SCORE BREAKDOWN</p>
               {[
-                { label:"Sleep",      value:score.breakdown.sleep,      weight:"25%", color:T.navy },
-                { label:"Mood",       value:score.breakdown.mood,       weight:"25%", color:T.gold },
-                { label:"Habits",     value:score.breakdown.habits,     weight:"20%", color:T.sage },
-                { label:"Hydration",  value:score.breakdown.hydration,  weight:"15%", color:T.lav },
+                { label:"Sleep",      value:score.breakdown.sleep,      weight:"30%", color:T.navy },
+                { label:"Readiness",  value:score.breakdown.readiness,  weight:"30%", color:T.sage },
+                { label:"Activity",   value:score.breakdown.activity,   weight:"20%", color:T.goldText },
+                { label:"Mood",       value:score.breakdown.mood,       weight:"20%", color:T.gold },
               ].map(item=>(
                 <div key={item.label} style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>

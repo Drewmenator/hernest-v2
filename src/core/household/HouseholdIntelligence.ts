@@ -6,7 +6,8 @@ import { aiJSON } from "../ai";
 import { loadData, saveData } from "../firebase";
 import { buildMemoryContext } from "../memory";
 import { buildMemoryContextV2 } from "../memoryServiceV2";
-import { buildSpendingTrends, COMPLIANCE_DISCLAIMER } from "./DecisionEngine";
+import { buildSpendingTrends } from "./DecisionEngine";
+import { COMPLIANCE_DISCLAIMER } from "./constants";
 import type { HouseholdInsight, HouseholdSnapshot } from "../store";
 
 // ── Build prompt context ──────────────────────────────────────────

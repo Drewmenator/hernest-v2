@@ -19,7 +19,7 @@ import { saveData, loadData } from "../firebase";
 import { saveMemoryFacts } from "../memory";
 import type { HouseholdSnapshot } from "../store";
 import type { HouseholdStateResult } from "./householdStateEngine";
-import { COMPLIANCE_DISCLAIMER } from "./DecisionEngine";
+import { COMPLIANCE_DISCLAIMER } from "./constants";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES

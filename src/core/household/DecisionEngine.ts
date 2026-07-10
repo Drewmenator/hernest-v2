@@ -43,9 +43,8 @@ export interface SpendingTrend {
   explanation?: string;
 }
 
-// ── Compliance disclaimer ─────────────────────────────────────────
-export const COMPLIANCE_DISCLAIMER =
-  "This is educational budgeting guidance, not financial, legal, tax, investment, or lending advice. For complex decisions, consult a qualified professional.";
+// ── Compliance disclaimer (defined in ./constants to break a cycle) ──
+export { COMPLIANCE_DISCLAIMER } from "./constants";
 
 // ── Context builder ───────────────────────────────────────────────
 function buildScenarioContext(snapshot: HouseholdSnapshot, profileName?: string): string {

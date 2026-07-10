@@ -7,7 +7,7 @@ const base: WearableDay = {
   sleepHours: 7.2, sleepScore: 84, readiness: 78, steps: 4800,
   avgHrv: 45, restingHr: 58, readinessContributors: null,
   stressDay: "normal", stressHighMins: 60, recoveryHighMins: 90,
-  activeCalories: 300, sedentaryMins: 200, activityScore: 75,
+  activeCalories: 300, sedentaryMins: 200, activityScore: 75, history: [],
 };
 
 describe("pickNudge", () => {
@@ -67,5 +67,35 @@ describe("buildCheckinFallback", () => {
   it("acknowledges a stressful yesterday", () => {
     const t = buildCheckinFallback({ ...base, stressDay: "stressful" }, "");
     expect(t.toLowerCase()).toContain("gentler");
+  });
+});
+
+import { computeWeeklyScore } from "./thriveCheckin";
+
+describe("computeWeeklyScore — body-first (no hydration/habits)", () => {
+  const hist = [
+    { sleepScore: 80, sleepHours: 7.5, readiness: 78 },
+    { sleepScore: 90, sleepHours: 8, readiness: 85 },
+  ];
+
+  it("weights sleep 30 / readiness 30 / activity 20 / mood 20", () => {
+    const { score, breakdown } = computeWeeklyScore(hist, [70, 80], [9, 9]);
+    // sleep avg (8.0+9.0)/2=8.5, readiness (7.8+8.5)/2=8.15, activity 7.5, mood 10
+    expect(breakdown.sleep).toBeCloseTo(8.5, 1);
+    expect(breakdown.readiness).toBeCloseTo(8.15, 1);
+    expect(breakdown.activity).toBeCloseTo(7.5, 1);
+    expect(breakdown.mood).toBeCloseTo(10, 1);
+    expect(score).toBeCloseTo(8.5 * 0.3 + 8.15 * 0.3 + 7.5 * 0.2 + 10 * 0.2, 1);
+  });
+
+  it("derives sleep from hours when no Oura score", () => {
+    const { breakdown } = computeWeeklyScore([{ sleepScore: null, sleepHours: 7.5, readiness: 70 }], [], [6]);
+    expect(breakdown.sleep).toBe(10); // 7-9h band
+  });
+
+  it("neutral 5s when there's no data at all", () => {
+    const { score, breakdown } = computeWeeklyScore([], [], []);
+    expect(breakdown).toEqual({ sleep: 5, readiness: 5, activity: 5, mood: 5 });
+    expect(score).toBe(5);
   });
 });
