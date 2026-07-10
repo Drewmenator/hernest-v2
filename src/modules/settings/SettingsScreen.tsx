@@ -364,10 +364,15 @@ export function SettingsScreen() {
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 4px" }}>SUPPORT</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px" }}>We're here to help.</p>
+          <a
+            href={`mailto:support@hernest.app?subject=${encodeURIComponent("HerNest feedback")}&body=${encodeURIComponent(`What happened:\n\nWhat I expected:\n\n—\nBuild: 2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}\nScreen: ${window.innerWidth}×${window.innerHeight}\nDevice: ${navigator.userAgent}`)}`}
+            style={{ display:"block", textAlign:"center", background:T.esp, color:"#fff", borderRadius:12, padding:"12px", fontFamily:F.sans, fontSize:13, fontWeight:700, textDecoration:"none", marginBottom:12, minHeight:44, boxSizing:"border-box" }}>
+            ✦ Send feedback
+          </a>
           {[
             { label:"Email support", value:"support@hernest.app", icon:"✉️" },
             { label:"Privacy requests", value:"privacy@hernest.app", icon:"🔒" },
-            { label:"Version", value:"2.0.0", icon:"ℹ️" },
+            { label:"Version", value:`2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}`, icon:"ℹ️" },
           ].map(item=>(
             <div key={item.label} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
               <span style={{ fontSize:18 }}>{item.icon}</span>

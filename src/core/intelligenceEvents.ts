@@ -76,6 +76,13 @@ export function connectIntelligenceLayer(userId: string): () => void {
     invalidateCache(userId, ["calendar"]);
   }));
 
+  // ── 5b. Cleo/manual calendar adds → invalidate calendar cache ────
+  // Previously a dead event: after Cleo's agent added an event, her own
+  // retrieval cache stayed stale for up to 5 minutes.
+  unsubs.push(bus.subscribe("plan.calendar.event.added", async () => {
+    invalidateCache(userId, ["calendar"]);
+  }));
+
   // ── 6. Cleo conversation ended → memory writeback v2 ─────────────
   unsubs.push(bus.subscribe("cleo.conversation.ended", async (e: any) => {
     const { messages } = e.payload ?? {};

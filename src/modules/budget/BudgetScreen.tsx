@@ -16,6 +16,7 @@ import type {
   AIInsight, FinancialHealthScore, MonthlyBudgetSummary,
 } from "./budgetShared";
 import { BudgetOverviewTab } from "./BudgetOverviewTab";
+import { ReceiptsInbox, type GmailReceipt } from "./ReceiptsInbox";
 import { BudgetCFOTab } from "./BudgetCFOTab";
 import { BudgetGoalsTab } from "./BudgetGoalsTab";
 import { BudgetInsightsTab } from "./BudgetInsightsTab";
@@ -228,6 +229,26 @@ USER PROFILE: ${profile?.name || "HerNest user"}, family household
   // ═══════════════════════════════════════════════════════════════
   // ADD EXPENSE
   // ═══════════════════════════════════════════════════════════════
+
+  // Gmail receipt approved → real expense (same shape as a manual add)
+  const applyReceipt = async (r: GmailReceipt) => {
+    const catId = cats.some(c => c.id === r.category) ? r.category : "other";
+    const exp: Expense = {
+      id: crypto.randomUUID(),
+      amount: r.amount,
+      category: catId,
+      merchant: r.merchant,
+      note: "From Gmail receipt",
+      date: r.date || new Date().toISOString(),
+      method: "receipt",
+    };
+    const updatedCats = cats.map(c => c.id === catId ? { ...c, spent: c.spent + r.amount } : c);
+    const updatedExpenses = [exp, ...expenses];
+    setCats(updatedCats);
+    setExpenses(updatedExpenses);
+    await persist({ cats: updatedCats, expenses: updatedExpenses });
+    await bus.publish("budget.expense.logged", exp, { userId: user!.uid, source: "budget" }).catch(() => {});
+  };
 
   const addExpense = async () => {
     const amt = parseFloat(addExpAmount);
@@ -628,6 +649,8 @@ Maximum 50 transactions.`;
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <PageTitle eyebrow="FINANCES" title="Financial Hub" />
+
+      <ReceiptsInbox onApprove={applyReceipt} />
 
       {/* First-use: without income, Cleo's whole financial brain is blind —
           make the first step unmissable instead of showing an empty grid. */}
