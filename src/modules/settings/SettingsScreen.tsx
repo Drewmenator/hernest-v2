@@ -338,12 +338,12 @@ export function SettingsScreen() {
           {(window as any).Capacitor?.isNativePlatform?.() && (
             <button onClick={async()=>{
               const { sendTestPush } = await import("../../core/pushNotifications");
-              const r = await sendTestPush();
-              if (r && r.sent > 0) toast.success("Test notification sent ✓");
+              const r = await sendTestPush("briefing");
+              if (r && r.sent > 0) toast.success("Morning briefing sent ✓");
               else if (r) toast("No device registered yet — allow notifications first", { icon: "🔔" });
-              else toast.error("Couldn't send test notification");
+              else toast.error("Couldn't send notification");
             }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
-              Send test notification
+              Preview morning briefing
             </button>
           )}
           <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8 }}>

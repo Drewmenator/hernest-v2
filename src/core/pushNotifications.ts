@@ -41,12 +41,17 @@ export async function registerPush(uid: string): Promise<void> {
       if (e?.token) storeToken(uid, e.token).catch(() => {});
     });
 
-    // Tapping a notification deep-links via its data.screen payload (optional).
+    // Tapping a notification deep-links to a tab via its data.screen payload
+    // (e.g. "briefing"). Tabs are activeTab values, so ensure we're on the app
+    // screen and switch the tab. Late import avoids a store import cycle.
     await FirebaseMessaging.addListener("notificationActionPerformed", (e: any) => {
-      const screen = e?.notification?.data?.screen;
-      if (screen) {
-        // Late import to avoid a cycle with the store.
-        import("./store").then((m: any) => m?.useStore?.getState?.()?.setScreen?.(screen)).catch(() => {});
+      const tab = e?.notification?.data?.screen;
+      if (tab) {
+        import("./store").then((m: any) => {
+          const st = m?.useStore?.getState?.();
+          st?.setScreen?.("app");
+          st?.setActiveTab?.(tab);
+        }).catch(() => {});
       }
     });
   } catch (e) {
@@ -58,12 +63,12 @@ export async function registerPush(uid: string): Promise<void> {
 // Ask the backend to send a test push to this user's devices. Returns how many
 // were reached — used by the Settings "Send test notification" button to verify
 // the whole APNs → FCM → device chain end-to-end.
-export async function sendTestPush(): Promise<{ sent: number } | null> {
+export async function sendTestPush(action: "test" | "briefing" = "test"): Promise<{ sent: number } | null> {
   try {
     const { auth } = await import("./firebase");
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) return null;
-    const res = await fetch("/api/push?action=test", {
+    const res = await fetch(`/api/push?action=${action}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${idToken}` },
     });

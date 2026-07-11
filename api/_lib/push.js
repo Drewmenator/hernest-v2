@@ -36,3 +36,33 @@ export async function sendPushToUser(uid, { title, body, data = {} }) {
 
   return { sent: res.successCount, pruned };
 }
+
+// calendar_synced is household-scoped (partners' data under the primary uid).
+async function ownerFor(uid) {
+  try {
+    const link = await adminDb.doc(`users/${uid}/data/household_link`).get();
+    return (link.exists ? link.data()?.primaryUid : null) || uid;
+  } catch { return uid; }
+}
+
+// One-line, lightly personalized morning briefing body.
+export async function buildBriefingLine(uid) {
+  const owner = await ownerFor(uid);
+  const today = new Date().toISOString().split("T")[0];
+  try {
+    const events = ((await adminDb.doc(`users/${owner}/data/calendar_synced`).get()).data()?.events) || [];
+    const todays = events.filter(e => e.date === today);
+    if (todays.length === 0) return "A clear calendar today. Tap for your briefing.";
+    if (todays.length === 1) return `1 thing today: ${todays[0].title}. Tap for your briefing.`;
+    return `${todays.length} things on today. Tap for your briefing.`;
+  } catch {
+    return "Your morning briefing is ready.";
+  }
+}
+
+// Send the morning briefing push to one user. Reused by the cron (all users)
+// and by the manual self-test action.
+export async function sendMorningBriefingTo(uid) {
+  const body = await buildBriefingLine(uid);
+  return sendPushToUser(uid, { title: "Good morning ☀️", body, data: { screen: "briefing" } });
+}

@@ -4,7 +4,7 @@
 // Real notifications are sent server-side from cron/event handlers via
 // api/_lib/push.js sendPushToUser().
 import { applyCors, verifyAuth } from "./_lib/secure.js";
-import { sendPushToUser } from "./_lib/push.js";
+import { sendPushToUser, sendMorningBriefingTo } from "./_lib/push.js";
 
 export default async function handler(req, res) {
   if (applyCors(req, res, "POST, OPTIONS")) return;
@@ -20,6 +20,12 @@ export default async function handler(req, res) {
         body: "Push notifications are working ✓",
         data: { screen: "home" },
       });
+      return res.json({ success: true, ...result });
+    }
+    // Preview the real morning-briefing push on demand (same content the cron
+    // sends at 6:00 UTC), so it can be verified without waiting for tomorrow.
+    if (action === "briefing") {
+      const result = await sendMorningBriefingTo(uid);
       return res.json({ success: true, ...result });
     }
     return res.status(400).json({ error: "unknown_action" });

@@ -7,6 +7,7 @@
 // Auth: Vercel adds `Authorization: Bearer $CRON_SECRET` when CRON_SECRET
 // is set. We reject anything else.
 import { adminDb } from "./_lib/secure.js";
+import { sendMorningBriefingTo } from "./_lib/push.js";
 
 async function refreshGoogle(uid, data) {
   let { accessToken, refreshToken, expiresAt } = data;
@@ -80,6 +81,29 @@ async function persist(uid, events) {
   await adminDb.doc(`users/${owner}/data/calendar_synced`).set({ events: merged }, { merge: true });
 }
 
+// ── Morning briefing push ──────────────────────────────────────────
+// One "good morning" nudge per user who has a device registered, lightly
+// personalized with today's calendar count (built in _lib/push.js). Runs after
+// the calendar refresh so the count is fresh. Tapping it opens the briefing tab.
+async function sendMorningBriefings() {
+  const deviceSnap = await adminDb.collectionGroup("devices").limit(2000).get();
+  const uids = new Set();
+  for (const d of deviceSnap.docs) {
+    const uid = d.ref.parent.parent?.id;
+    if (uid) uids.add(uid);
+  }
+  let pushed = 0;
+  for (const uid of uids) {
+    try {
+      const r = await sendMorningBriefingTo(uid);
+      if (r.sent > 0) pushed++;
+    } catch (e) {
+      console.error("[Cron] briefing push failed:", e?.message);
+    }
+  }
+  return pushed;
+}
+
 export default async function handler(req, res) {
   const expected = process.env.CRON_SECRET;
   if (expected && req.headers["authorization"] !== `Bearer ${expected}`) {
@@ -107,8 +131,15 @@ export default async function handler(req, res) {
         console.error("[Cron] user sync failed:", e?.message);
       }
     }
-    console.log(`[Cron] refreshed ${refreshed}, failed ${failed}`);
-    res.json({ refreshed, failed });
+    // Morning briefing push — after the refresh so counts are fresh. Non-fatal.
+    let pushed = 0;
+    try {
+      pushed = await sendMorningBriefings();
+    } catch (e) {
+      console.error("[Cron] morning push pass failed:", e?.message);
+    }
+    console.log(`[Cron] refreshed ${refreshed}, failed ${failed}, pushed ${pushed}`);
+    res.json({ refreshed, failed, pushed });
   } catch (e) {
     console.error("[Cron] fatal:", e?.message);
     res.status(500).json({ error: "cron_failed", refreshed, failed });
