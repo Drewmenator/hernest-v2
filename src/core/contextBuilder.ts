@@ -3,7 +3,8 @@
 // v2: reads budget_v2, exposes household snapshot for intelligence layer
 
 import { loadData } from "./firebase";
-import { daysUntilBirthday } from "./dateAwareness";
+import { currencySymbol } from "../shared/utils/money";
+import { daysUntilBirthday, todayLocal } from "./dateAwareness";
 import { buildMemoryContext, loadMemoryFacts } from "./memory";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
 import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
@@ -161,7 +162,7 @@ export async function buildAppContext(
   profile: Record<string, unknown>
 ): Promise<AppContext> {
   const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = todayLocal(today);
   const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
   const daysUntilReset = daysInMonth - today.getDate();
 
@@ -420,12 +421,12 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   lines.push(`=== BUDGET ===`);
   // Include v2 data if available
   if (ctx.budget.monthlyIncome > 0) {
-    lines.push(`Monthly income: $${Math.round(ctx.budget.monthlyIncome).toLocaleString()}. Savings rate: ${ctx.budget.savingsRate.toFixed(0)}%. Financial health: ${ctx.budget.financialHealthGrade}.`);
+    lines.push(`Monthly income: ${currencySymbol()}${Math.round(ctx.budget.monthlyIncome).toLocaleString()}. Savings rate: ${ctx.budget.savingsRate.toFixed(0)}%. Financial health: ${ctx.budget.financialHealthGrade}.`);
   }
-  lines.push(`Status: ${ctx.budget.status}. Spent: $${ctx.budget.spent.toFixed(0)} of $${ctx.budget.limit} (${Math.round(ctx.budget.pct*100)}%). Remaining: $${ctx.budget.remaining.toFixed(0)}.`);
-  lines.push(`Projected month end: $${ctx.budget.projected.toFixed(0)}. ${ctx.budget.daysUntilReset} days until reset.`);
+  lines.push(`Status: ${ctx.budget.status}. Spent: ${currencySymbol()}${ctx.budget.spent.toFixed(0)} of ${currencySymbol()}${ctx.budget.limit} (${Math.round(ctx.budget.pct*100)}%). Remaining: ${currencySymbol()}${ctx.budget.remaining.toFixed(0)}.`);
+  lines.push(`Projected month end: ${currencySymbol()}${ctx.budget.projected.toFixed(0)}. ${ctx.budget.daysUntilReset} days until reset.`);
   if (ctx.budget.totalDebt > 0)
-    lines.push(`Total debt: $${ctx.budget.totalDebt.toLocaleString()}.`);
+    lines.push(`Total debt: ${currencySymbol()}${ctx.budget.totalDebt.toLocaleString()}.`);
   if (ctx.budget.categoryAlerts.length)
     lines.push(`BUDGET ALERTS: ${ctx.budget.categoryAlerts.map(c=>`${c.name} at ${c.pct}%`).join(", ")}.`);
   if (ctx.budget.savingsGoals.length)
@@ -444,7 +445,7 @@ export function buildBriefingPrompt(ctx: AppContext): string {
 
   if (ctx.trips.next) {
     lines.push(`=== TRIP ===`);
-    lines.push(`Next: ${ctx.trips.next.dest} in ${ctx.trips.next.daysUntil} days. Budget: $${ctx.trips.next.budget}. Packing: ${ctx.trips.next.packingPct}% done.`);
+    lines.push(`Next: ${ctx.trips.next.dest} in ${ctx.trips.next.daysUntil} days. Budget: ${currencySymbol()}${ctx.trips.next.budget}. Packing: ${ctx.trips.next.packingPct}% done.`);
   }
 
   if (ctx.school.urgentToday.length || ctx.school.thisWeek.length) {

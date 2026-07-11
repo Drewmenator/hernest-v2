@@ -4,6 +4,7 @@
 // Updated: full HerNestCFOResponse schema + compliance guardrails
 
 import { aiJSON } from "../ai";
+import { currencySymbol } from "../../shared/utils/money";
 import { runDecisionV2, selectDecisionMode } from "./DecisionEngineV2";
 import { saveData, loadData } from "../firebase";
 import { saveMemoryFacts } from "../memory";
@@ -51,14 +52,14 @@ function buildScenarioContext(snapshot: HouseholdSnapshot, profileName?: string)
   const f = snapshot.financial;
   return `
 HOUSEHOLD FINANCIAL SNAPSHOT:
-- Monthly income: $${Math.round(f.monthlyIncome).toLocaleString()} ${f.monthlyIncome === 0 ? "(not set — reduces confidence)" : ""}
-- Total budget: $${f.totalBudget.toLocaleString()}
-- Spent this month: $${f.totalSpent.toLocaleString()}
-- Cash remaining: $${Math.round(f.cashRemaining).toLocaleString()}
+- Monthly income: ${currencySymbol()}${Math.round(f.monthlyIncome).toLocaleString()} ${f.monthlyIncome === 0 ? "(not set — reduces confidence)" : ""}
+- Total budget: ${currencySymbol()}${f.totalBudget.toLocaleString()}
+- Spent this month: ${currencySymbol()}${f.totalSpent.toLocaleString()}
+- Cash remaining: ${currencySymbol()}${Math.round(f.cashRemaining).toLocaleString()}
 - Savings rate: ${f.savingsRate.toFixed(1)}%
-- Total debt: $${f.totalDebt.toLocaleString()}
+- Total debt: ${currencySymbol()}${f.totalDebt.toLocaleString()}
 - Debt-to-income ratio: ${f.debtToIncomeRatio.toFixed(1)}%
-- Month-end projection: $${f.projectedMonthEnd.toLocaleString()}
+- Month-end projection: ${currencySymbol()}${f.projectedMonthEnd.toLocaleString()}
 - Financial health: ${f.financialHealthGrade} (${f.financialHealthScore}/100)
 - Overspend categories: ${f.topOverspendCategories.join(", ") || "None"}
 
@@ -244,22 +245,22 @@ export function quickAffordabilityCheck(
 
   if (f.monthlyIncome === 0) return {
     affordable: cost <= available * 0.3,
-    reason: `Income not set. $${Math.round(available).toLocaleString()} available this month.`,
+    reason: `Income not set. ${currencySymbol()}${Math.round(available).toLocaleString()} available this month.`,
     confidence: "low",
   };
   if (cost <= available - buffer) return {
     affordable: true,
-    reason: `$${Math.round(available - cost).toLocaleString()} would remain — above your safety buffer.`,
+    reason: `${currencySymbol()}${Math.round(available - cost).toLocaleString()} would remain — above your safety buffer.`,
     confidence: "high",
   };
   if (cost > available) return {
     affordable: false,
-    reason: `Exceeds remaining cash by $${Math.round(cost - available).toLocaleString()}.`,
+    reason: `Exceeds remaining cash by ${currencySymbol()}${Math.round(cost - available).toLocaleString()}.`,
     confidence: "high",
   };
   return {
     affordable: false,
-    reason: `Would leave only $${Math.round(available - cost).toLocaleString()} — below recommended buffer.`,
+    reason: `Would leave only ${currencySymbol()}${Math.round(available - cost).toLocaleString()} — below recommended buffer.`,
     confidence: "medium",
   };
 }

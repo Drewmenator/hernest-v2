@@ -21,6 +21,7 @@ import { BudgetCFOTab } from "./BudgetCFOTab";
 import { BudgetGoalsTab } from "./BudgetGoalsTab";
 import { BudgetBillsTab } from "./BudgetBillsTab";
 import { BudgetInsightsTab } from "./BudgetInsightsTab";
+import { formatMoney, currencySymbol } from "../../shared/utils/money";
 
 // ═══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -198,23 +199,24 @@ export function BudgetScreen() {
   // ═══════════════════════════════════════════════════════════════
 
   const buildFinancialContext = () => {
-    const catSummary = cats.map(c => `${c.label}: $${c.spent}/$${c.budget} (${Math.round(c.spent / Math.max(c.budget, 1) * 100)}%)`).join(", ");
-    const goalSummary = goals.map(g => `${g.name}: $${g.currentAmount}/$${g.targetAmount} (${g.riskStatus})`).join(", ");
-    const debtSummary = debts.map(d => `${d.label}: $${d.balance} @ ${d.apr}% APR, paying $${d.monthlyPayment}/mo`).join(", ");
+    const cur = currencySymbol();
+    const catSummary = cats.map(c => `${c.label}: ${cur}${c.spent}/${cur}${c.budget} (${Math.round(c.spent / Math.max(c.budget, 1) * 100)}%)`).join(", ");
+    const goalSummary = goals.map(g => `${g.name}: ${cur}${g.currentAmount}/${cur}${g.targetAmount} (${g.riskStatus})`).join(", ");
+    const debtSummary = debts.map(d => `${d.label}: ${cur}${d.balance} @ ${d.apr}% APR, paying ${cur}${d.monthlyPayment}/mo`).join(", ");
     const overBudget  = cats.filter(c => c.spent > c.budget).map(c => c.label).join(", ");
     const nearLimit   = cats.filter(c => c.spent / Math.max(c.budget, 1) > 0.8 && c.spent <= c.budget).map(c => c.label).join(", ");
 
     return `
 HOUSEHOLD FINANCIAL SNAPSHOT:
-- Monthly income: $${Math.round(monthlyIncome).toLocaleString()} ${monthlyIncome === 0 ? "(not set — use your judgment)" : ""}
-- Total budget: $${totalBudget.toLocaleString()}
-- Total spent this month: $${totalSpent.toLocaleString()}
-- Cash remaining: $${Math.round(cashRemaining).toLocaleString()}
+- Monthly income: ${formatMoney(monthlyIncome)} ${monthlyIncome === 0 ? "(not set — use your judgment)" : ""}
+- Total budget: ${formatMoney(totalBudget)}
+- Total spent this month: ${formatMoney(totalSpent)}
+- Cash remaining: ${formatMoney(cashRemaining)}
 - Savings rate: ${savingsRate.toFixed(1)}%
-- Total debt: $${totalDebt.toLocaleString()}
+- Total debt: ${formatMoney(totalDebt)}
 - Debt-to-income ratio: ${dti.toFixed(1)}%
 - Days elapsed: ${daysElapsed}/${daysInMonth}
-- Month-end projection: $${projected.toLocaleString()} (${projected > totalBudget ? "over budget" : "under budget"})
+- Month-end projection: ${formatMoney(projected)} (${projected > totalBudget ? "over budget" : "under budget"})
 
 SPENDING BY CATEGORY: ${catSummary}
 ${overBudget ? `OVER BUDGET: ${overBudget}` : ""}
@@ -273,7 +275,7 @@ USER PROFILE: ${profile?.name || "HerNest user"}, family household
     if (cat && cat.spent / cat.budget > 0.8) {
       toast(`${cat.icon} ${cat.label} at ${Math.round(cat.spent / cat.budget * 100)}% of budget`, { icon: "⚠️" });
     } else {
-      toast.success(`$${amt.toFixed(2)} logged ✓`);
+      toast.success(`${formatMoney(amt)} logged ✓`);
     }
     bus.publish("budget.expense.logged", exp, { userId: user!.uid, source: "budget" });
   };
@@ -677,11 +679,11 @@ Maximum 50 transactions.`;
       {/* ── HERO ──────────────────────────────────────────────────── */}
       <HeroCard
         eyebrow="THIS MONTH"
-        title={`$${totalSpent.toLocaleString()} spent`}
+        title={`${formatMoney(totalSpent)} spent`}
         subtitle={
           monthlyIncome > 0
-            ? `$${Math.round(cashRemaining).toLocaleString()} remaining · ${savingsRate.toFixed(0)}% savings rate`
-            : `$${(totalBudget - totalSpent).toLocaleString()} remaining · ${pct}% of budget`
+            ? `${formatMoney(cashRemaining)} remaining · ${savingsRate.toFixed(0)}% savings rate`
+            : `${formatMoney(totalBudget - totalSpent)} remaining · ${pct}% of budget`
         }
         color={pct > 90 ? T.blush : pct > 70 ? "#8B6914" : T.esp}
       >
@@ -691,11 +693,11 @@ Maximum 50 transactions.`;
         {monthlyIncome > 0 && (
           <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
             <span style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,.7)" }}>
-              Income: ${Math.round(monthlyIncome).toLocaleString()}/mo
+              Income: {formatMoney(monthlyIncome)}/mo
             </span>
             {totalDebt > 0 && (
               <span style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,.7)" }}>
-                Debt: ${totalDebt.toLocaleString()}
+                Debt: {formatMoney(totalDebt)}
               </span>
             )}
           </div>

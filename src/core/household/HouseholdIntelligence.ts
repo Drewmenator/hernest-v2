@@ -3,6 +3,7 @@
 // Updated: SpendingTrend integration, compliance language, richer prompts
 
 import { aiJSON } from "../ai";
+import { currencySymbol } from "../../shared/utils/money";
 import { loadData, saveData } from "../firebase";
 import { buildMemoryContext } from "../memory";
 import { buildMemoryContextV2 } from "../memoryServiceV2";
@@ -31,14 +32,14 @@ export function buildIntelligencePromptContext(
     `HOUSEHOLD SNAPSHOT (${new Date(snapshot.lastRefreshed).toLocaleDateString()}):`,
     ``,
     `FINANCES:`,
-    `- Income: $${Math.round(f.monthlyIncome).toLocaleString()}/mo ${f.monthlyIncome === 0 ? "(not set)" : ""}`,
-    `- Spent: $${f.totalSpent.toLocaleString()} / $${f.totalBudget.toLocaleString()} budget`,
-    `- Cash remaining: $${Math.round(f.cashRemaining).toLocaleString()}`,
+    `- Income: ${currencySymbol()}${Math.round(f.monthlyIncome).toLocaleString()}/mo ${f.monthlyIncome === 0 ? "(not set)" : ""}`,
+    `- Spent: ${currencySymbol()}${f.totalSpent.toLocaleString()} / ${currencySymbol()}${f.totalBudget.toLocaleString()} budget`,
+    `- Cash remaining: ${currencySymbol()}${Math.round(f.cashRemaining).toLocaleString()}`,
     `- Savings rate: ${f.savingsRate.toFixed(1)}%`,
-    `- Total debt: $${f.totalDebt.toLocaleString()}`,
+    `- Total debt: ${currencySymbol()}${f.totalDebt.toLocaleString()}`,
     `- Financial health: ${f.financialHealthGrade} (${f.financialHealthScore}/100)`,
     `- Overspend categories: ${f.topOverspendCategories.join(", ") || "None"}`,
-    `- Month-end projection: $${f.projectedMonthEnd.toLocaleString()}`,
+    `- Month-end projection: ${currencySymbol()}${f.projectedMonthEnd.toLocaleString()}`,
   ];
 
   if (appContext?.spendingTrends?.length) {
@@ -48,7 +49,7 @@ export function buildIntelligencePromptContext(
       .slice(0, 5)
       .forEach(t => {
         const dir = t.percentageChange > 0 ? `+${t.percentageChange}%` : `${t.percentageChange}%`;
-        lines.push(`- ${t.category}: $${t.currentMonthAmount} (${dir} vs last month, ${t.riskLevel} risk)`);
+        lines.push(`- ${t.category}: ${currencySymbol()}${t.currentMonthAmount} (${dir} vs last month, ${t.riskLevel} risk)`);
       });
   }
 

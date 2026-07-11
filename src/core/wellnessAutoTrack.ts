@@ -7,6 +7,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { db, loadData, saveData } from "./firebase";
 import { bus } from "./events";
+import { todayLocal } from "./dateAwareness";
 
 export interface WearableDay {
   source: "oura" | "apple_health";
@@ -135,7 +136,7 @@ export async function autoTrackWellness(uid: string): Promise<{ wearable: Wearab
     }
 
     // Movement: steps goal reached today → complete the "move" habit
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     if (wearable.steps != null && wearable.steps >= STEPS_GOAL && wearable.date === today) {
       const base = (updates.habits as any[]) || habits;
       const move = base.find(h => h.id === "move");

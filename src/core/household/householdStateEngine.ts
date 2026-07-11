@@ -8,6 +8,7 @@
 // Multiple states can coexist (e.g. busy + financial_pressure).
 
 import type { HouseholdSnapshot } from "../store";
+import { currencySymbol } from "../../shared/utils/money";
 import type { AppContext } from "../contextBuilder";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -281,7 +282,7 @@ function buildSignals(ctx: AppContext, state: HouseholdState): string[] {
     case "financial_pressure":
       if (ctx.budget.status === "critical") signals.push("Spending at critical level");
       else if (ctx.budget.status === "warning") signals.push("Spending above budget");
-      if (ctx.budget.totalDebt > 0) signals.push(`$${ctx.budget.totalDebt.toLocaleString()} total debt`);
+      if (ctx.budget.totalDebt > 0) signals.push(`${currencySymbol()}${ctx.budget.totalDebt.toLocaleString()} total debt`);
       if (ctx.budget.savingsRate < 5) signals.push("Low savings rate");
       break;
 

@@ -3,8 +3,9 @@ import { T, F } from "../../config/theme";
 import { Card, Button, ProgressBar, Spinner } from "../../shared/components";
 import { SectionLabel } from "./BudgetWidgets";
 import { LiveHealthScoreCard } from "./LiveHealthScoreCard";
-import { computePayoffDate, computeTotalInterest, SCENARIO_PROMPTS } from "./budgetShared";
+import { computePayoffDate, computeTotalInterest, getScenarioPrompts } from "./budgetShared";
 import type { Category, Debt, FinancialGoal, Scenario } from "./budgetShared";
+import { formatMoney, currencySymbol } from "../../shared/utils/money";
 
 interface CoachMessage { role: "user" | "assistant"; content: string; }
 
@@ -84,7 +85,7 @@ export function BudgetCFOTab({
           <Card>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
               <input value={debtLabel} onChange={e => setDebtLabel(e.target.value)} placeholder="Debt name"
-                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
+                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
               <select value={debtType} onChange={e => setDebtType(e.target.value as Debt["type"])}
                 style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }}>
                 <option value="credit_card">Credit Card</option>
@@ -94,14 +95,14 @@ export function BudgetCFOTab({
                 <option value="personal">Personal Loan</option>
                 <option value="other">Other</option>
               </select>
-              <input value={debtBalance} onChange={e => setDebtBalance(e.target.value)} placeholder="Balance ($)" type="number"
-                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
+              <input value={debtBalance} onChange={e => setDebtBalance(e.target.value)} placeholder={`Balance (${currencySymbol()})`} type="number"
+                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
               <input value={debtAPR} onChange={e => setDebtAPR(e.target.value)} placeholder="APR (%)" type="number"
-                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
-              <input value={debtMin} onChange={e => setDebtMin(e.target.value)} placeholder="Min payment ($)" type="number"
-                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
-              <input value={debtMonthly} onChange={e => setDebtMonthly(e.target.value)} placeholder="Monthly payment ($)" type="number"
-                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
+                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
+              <input value={debtMin} onChange={e => setDebtMin(e.target.value)} placeholder={`Min payment (${currencySymbol()})`} type="number"
+                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
+              <input value={debtMonthly} onChange={e => setDebtMonthly(e.target.value)} placeholder={`Monthly payment (${currencySymbol()})`} type="number"
+                style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
             </div>
             <Button onClick={addDebt} disabled={!debtLabel.trim() || !debtBalance} variant="gold">Add Debt</Button>
           </Card>
@@ -142,17 +143,17 @@ export function BudgetCFOTab({
                           <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{d.label}</p>
                         </div>
                         <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>
-                          {d.apr}% APR · Min ${d.minimumPayment}/mo · Payoff {payoff}
+                          {d.apr}% APR · Min {formatMoney(d.minimumPayment)}/mo · Payoff {payoff}
                         </p>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <p style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: T.blush, margin: 0 }}>${d.balance.toLocaleString()}</p>
-                        {interest > 0 && <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "2px 0 0" }}>+${interest.toLocaleString()} interest</p>}
+                        <p style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: T.blush, margin: 0 }}>{formatMoney(d.balance)}</p>
+                        {interest > 0 && <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "2px 0 0" }}>+{formatMoney(interest)} interest</p>}
                       </div>
                     </div>
                     <ProgressBar value={d.monthlyPayment * 12} max={d.balance} color={T.teal} height={4} />
                     <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "6px 0 0" }}>
-                      Paying ${d.monthlyPayment}/mo
+                      Paying {formatMoney(d.monthlyPayment)}/mo
                     </p>
                   </Card>
                 );
@@ -160,11 +161,7 @@ export function BudgetCFOTab({
           </>
         )}
 
-        {debts.length === 0 && !showAddDebt && (<div style={{ textAlign:"center", padding:"24px 16px" }}><p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>No debt tracked yet</p><p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px" }}>Add any loans, credit cards, or lines of credit to unlock debt strategy insights.</p></div>) } {false && (
-          <div style={{ padding: "20px", textAlign: "center", background: T.sand, borderRadius: 16, border: `1px dashed ${T.linen}` }}>
-            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>No debts tracked. Add one to get payoff strategy and interest analysis.</p>
-          </div>
-        )}
+        {debts.length === 0 && !showAddDebt && (<div style={{ textAlign:"center", padding:"24px 16px" }}><p style={{ fontFamily:F.serif, fontSize:18, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>No debt tracked yet</p><p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px" }}>Add any loans, credit cards, or lines of credit to unlock debt strategy insights.</p></div>) }
       </div>
 
       {/* Scenario Planner */}
@@ -176,7 +173,7 @@ export function BudgetCFOTab({
 
         {/* Suggested prompts */}
         <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12, paddingBottom: 4, scrollbarWidth: "none" }}>
-          {SCENARIO_PROMPTS.map((p, i) => (
+          {getScenarioPrompts().map((p, i) => (
             <button key={i} onClick={() => runScenario(p)}
               style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 11, color: T.esp, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
               {p}
@@ -189,7 +186,7 @@ export function BudgetCFOTab({
           <input value={scenarioInput} onChange={e => setScenarioInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && runScenario()}
             placeholder="Ask your own what-if..."
-            style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 14, padding: "11px 14px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }} />
+            style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 14, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
           <button onClick={() => runScenario()} disabled={!scenarioInput.trim() || scenarioLoading}
             style={{ width: 44, height: 44, borderRadius: 14, background: scenarioInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: scenarioInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>
             →
@@ -271,7 +268,7 @@ export function BudgetCFOTab({
             <input value={coachInput} onChange={e => setCoachInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && askCoach()}
               placeholder="Ask your household CFO anything..."
-              style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 14, padding: "11px 14px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }} />
+              style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 14, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
             <button onClick={askCoach} disabled={!coachInput.trim() || coachLoading}
               style={{ width: 44, height: 44, borderRadius: 14, background: coachInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: coachInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>
               →

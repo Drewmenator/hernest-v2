@@ -1,4 +1,5 @@
 import { T } from "../../config/theme";
+import { currencySymbol } from "../../shared/utils/money";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -142,15 +143,15 @@ export const GOAL_TYPES = [
   { id: "other",          label: "Other",           icon: "🎯" },
 ];
 
-export const SCENARIO_PROMPTS = [
+export const getScenarioPrompts = (): string[] => [
   "Can we afford a vacation this summer?",
-  "What if rent increases by $300/month?",
+  `What if rent increases by ${currencySymbol()}300/month?`,
   "Can we hire a nanny?",
   "What if one parent stops working?",
   "Should we pay off the car loan early?",
   "Can we afford private school next year?",
-  "What happens if we add $200/month to savings?",
-  "Can we handle a $5,000 emergency right now?",
+  `What happens if we add ${currencySymbol()}200/month to savings?`,
+  `Can we handle a ${currencySymbol()}5,000 emergency right now?`,
 ];
 
 // ═══════════════════════════════════════════════════════════════════

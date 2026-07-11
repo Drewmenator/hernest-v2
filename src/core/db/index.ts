@@ -1,5 +1,6 @@
 // ─── HerNest Local Database (Dexie/IndexedDB) ────────────────────
 import Dexie, { type Table } from "dexie";
+import { todayLocal } from "../dateAwareness";
 
 // ── Types ──────────────────────────────────────────────────────────
 export interface LocalDoc {
@@ -108,7 +109,7 @@ class HerNestDB extends Dexie {
 
   getWindowKey(): string {
     const hour = new Date().getHours();
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     if (hour >= 6 && hour < 12) return `morning_${today}`;
     if (hour >= 12 && hour < 17) return `afternoon_${today}`;
     return `evening_${today}`;

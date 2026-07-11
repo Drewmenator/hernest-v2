@@ -8,6 +8,16 @@
 //   "MM-DD"      — legacy month/day only, no year (can't yield an age)
 // parseDateParts handles both so every consumer reads them correctly.
 
+// Local-time YYYY-MM-DD for "today". Use this instead of
+// `new Date().toISOString().split("T")[0]`, which returns the UTC date and is
+// a day ahead/behind for users west/east of UTC (breaks due-today/overdue math).
+export function todayLocal(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export interface DateParts { year?: number; month: number; day: number; }
 
 export function parseDateParts(s?: string | null): DateParts | null {

@@ -3,6 +3,7 @@
 // Pure logic exported for tests; AI generation with a strict
 // no-invented-data prompt and a static fallback built from real numbers.
 import type { WearableDay } from "./wellnessAutoTrack";
+import { todayLocal } from "./dateAwareness";
 
 // ── Nudge: at most ONE, priority-ordered, always skippable ─────────
 export interface Nudge { id: string; text: string; }
@@ -51,7 +52,7 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
 
   try {
     const [{ ai }, { loadData, saveData }] = await Promise.all([import("./ai"), import("./firebase")]);
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
 
     // Cache: one generation per day
     const cached = await loadData(uid, "thrive_checkin");

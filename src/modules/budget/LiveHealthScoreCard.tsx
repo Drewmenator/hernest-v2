@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { gradeScore, gradeColor } from "./budgetShared";
 import type { Category, FinancialGoal } from "./budgetShared";
 import { HealthScoreRing } from "./BudgetWidgets";
+import { formatMoney } from "../../shared/utils/money";
 
 // ── Live Health Score Card ─────────────────────────────────────────
 export function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, totalBudget, cashRemaining, savingsRate, dti, cats, goals }: {
@@ -94,7 +95,7 @@ export function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, total
           actions.push({
             action: `Increase savings rate to ${targetRate}%`,
             pts: Math.min(savingsPts, ptsNeeded),
-            detail: extraNeeded > 0 ? `Save an extra $${extraNeeded}/mo` : "Reduce monthly spending"
+            detail: extraNeeded > 0 ? `Save an extra ${formatMoney(extraNeeded)}/mo` : "Reduce monthly spending"
           });
         }
 
@@ -106,7 +107,7 @@ export function LiveHealthScoreCard({ snapshot, monthlyIncome, totalSpent, total
           actions.push({
             action: `Bring ${worstCat?.label || "overspent categories"} back on budget`,
             pts,
-            detail: worstCat ? `$${Math.round(worstCat.spent - worstCat.budget)} past plan — a small cap gets it back` : `${overSpendCount} categories running past plan`
+            detail: worstCat ? `${formatMoney(worstCat.spent - worstCat.budget)} past plan — a small cap gets it back` : `${overSpendCount} categories running past plan`
           });
         }
 

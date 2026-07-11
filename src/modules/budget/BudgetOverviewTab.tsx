@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { Card, Button, ProgressBar } from "../../shared/components";
 import { SectionLabel, StatCard } from "./BudgetWidgets";
 import type { Category, Expense, Income } from "./budgetShared";
+import { formatMoney, currencySymbol } from "../../shared/utils/money";
 
 export function BudgetOverviewTab({
   cats, expenses, incomes, monthlyIncome, cashRemaining, projected, totalBudget, savingsRate,
@@ -32,11 +33,11 @@ export function BudgetOverviewTab({
     <>
       {/* Quick stats row */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <StatCard label="Cash Left" value={`$${Math.max(0, Math.round(cashRemaining)).toLocaleString()}`}
-          sub={monthlyIncome > 0 ? `of $${Math.round(monthlyIncome).toLocaleString()} income` : "of budget"}
+        <StatCard label="Cash Left" value={formatMoney(Math.max(0, cashRemaining))}
+          sub={monthlyIncome > 0 ? `of ${formatMoney(monthlyIncome)} income` : "of budget"}
           color={cashRemaining < 0 ? T.blush : T.sage} />
-        <StatCard label="Projected" value={`$${projected.toLocaleString()}`}
-          sub={projected > totalBudget ? `⚠ $${projected - totalBudget} over` : `✓ $${totalBudget - projected} under`}
+        <StatCard label="Projected" value={formatMoney(projected)}
+          sub={projected > totalBudget ? `⚠ ${formatMoney(projected - totalBudget)} over` : `✓ ${formatMoney(totalBudget - projected)} under`}
           color={projected > totalBudget ? T.blush : T.sage} />
         {savingsRate > 0 && (
           <StatCard label="Savings Rate" value={`${savingsRate.toFixed(0)}%`}
@@ -55,7 +56,7 @@ export function BudgetOverviewTab({
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp }}>{c.label}</span>
                 <span style={{ fontFamily: F.sans, fontSize: 12, color: c.spent > c.budget ? T.blush : T.taupe }}>
-                  ${c.spent.toFixed(0)} / ${c.budget}
+                  {formatMoney(c.spent)} / {formatMoney(c.budget)}
                 </span>
               </div>
               <ProgressBar value={c.spent} max={c.budget} color={c.spent > c.budget ? "#ff6b6b" : c.color} height={5} />
@@ -72,15 +73,15 @@ export function BudgetOverviewTab({
           <Card>
             <SectionLabel>Log an Expense</SectionLabel>
             <div style={{ position: "relative", marginBottom: 10 }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontFamily: F.sans, fontSize: 18, fontWeight: 700, color: T.taupe }}>$</span>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontFamily: F.sans, fontSize: 18, fontWeight: 700, color: T.taupe }}>{currencySymbol()}</span>
               <input value={addExpAmount} onChange={e => setAddExpAmount(e.target.value)} placeholder="0.00" type="number" step="0.01"
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${addExpAmount ? T.gold : T.linen}`, borderRadius: 14, padding: "12px 12px 12px 28px", fontFamily: F.sans, fontSize: 22, fontWeight: 700, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               <input value={addExpMerchant} onChange={e => setAddExpMerchant(e.target.value)} placeholder="Where?"
-                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }} />
+                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
               <input value={addExpNote} onChange={e => setAddExpNote(e.target.value)} placeholder="Note"
-                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }} />
+                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
               {cats.map(c => (
@@ -91,7 +92,7 @@ export function BudgetOverviewTab({
               ))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <Button onClick={addExpense} disabled={!addExpAmount} variant="gold" style={{ flex: 1 }}>Log ${parseFloat(addExpAmount) > 0 ? parseFloat(addExpAmount).toFixed(2) : "0.00"}</Button>
+              <Button onClick={addExpense} disabled={!addExpAmount} variant="gold" style={{ flex: 1 }}>Log {formatMoney(parseFloat(addExpAmount) > 0 ? parseFloat(addExpAmount) : 0)}</Button>
               <Button onClick={() => setShowAddExp(false)} style={{ flex: 1 }}>Cancel</Button>
             </div>
           </Card>
@@ -112,16 +113,16 @@ export function BudgetOverviewTab({
               <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{inc.label}</p>
               <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{inc.frequency} · {inc.type}</p>
             </div>
-            <p style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: T.sage, margin: 0 }}>${inc.amount.toLocaleString()}</p>
+            <p style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: T.sage, margin: 0 }}>{formatMoney(inc.amount)}</p>
           </div>
         ))}
         {showAddIncome && (
           <Card>
             <input value={incLabel} onChange={e => setIncLabel(e.target.value)} placeholder="Income source (e.g. Salary)"
-              style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
+              style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
             <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input value={incAmount} onChange={e => setIncAmount(e.target.value)} placeholder="Amount ($)" type="number"
-                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }} />
+              <input value={incAmount} onChange={e => setIncAmount(e.target.value)} placeholder={`Amount (${currencySymbol()})`} type="number"
+                style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
               <select value={incFreq} onChange={e => setIncFreq(e.target.value as Income["frequency"])}
                 style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }}>
                 <option value="monthly">Monthly</option>
@@ -183,7 +184,7 @@ export function BudgetOverviewTab({
                     {e.note ? ` · ${e.note}` : ""}
                   </p>
                 </div>
-                <p style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: T.esp, margin: 0 }}>${e.amount.toFixed(2)}</p>
+                <p style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: T.esp, margin: 0 }}>{formatMoney(e.amount)}</p>
               </div>
             );
           })}

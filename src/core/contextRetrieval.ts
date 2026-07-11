@@ -17,8 +17,10 @@
 //   and a foundation that scales to thousands of memories.
 
 import { loadData } from "./firebase";
+import { currencySymbol } from "../shared/utils/money";
 import { createContextGraph, getRelevantContextForAI } from "./graph/GraphService";
 import type { OrchestratorFeature, AIIntent } from "./aiOrchestrator";
+import { todayLocal } from "./dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -339,14 +341,14 @@ function buildContextString(
     }, 0);
 
     lines.push(`\nFINANCES:`);
-    if (income > 0) lines.push(`Income: $${Math.round(income).toLocaleString()}/mo`);
-    lines.push(`Spent: $${spent.toLocaleString()} / $${limit.toLocaleString()} budget`);
-    lines.push(`Remaining: $${Math.max(0, limit - spent).toLocaleString()}`);
+    if (income > 0) lines.push(`Income: ${currencySymbol()}${Math.round(income).toLocaleString()}/mo`);
+    lines.push(`Spent: ${currencySymbol()}${spent.toLocaleString()} / ${currencySymbol()}${limit.toLocaleString()} budget`);
+    lines.push(`Remaining: ${currencySymbol()}${Math.max(0, limit - spent).toLocaleString()}`);
 
     if (budget === "full") {
       const debts = (b.debts as any[]) || [];
       const totalDebt = debts.reduce((a: number, d: any) => a + (d.balance || 0), 0);
-      if (totalDebt > 0) lines.push(`Total debt: $${totalDebt.toLocaleString()}`);
+      if (totalDebt > 0) lines.push(`Total debt: ${currencySymbol()}${totalDebt.toLocaleString()}`);
 
       const goals = (b.goals as any[]) || [];
       if (goals.length) {
@@ -366,7 +368,7 @@ function buildContextString(
   if (raw.calendar) {
     const c = raw.calendar as any;
     const events = (c.events as any[]) || [];
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     const todayEvents = events.filter((e: any) => e.date === today);
     const weekEvents = events.filter((e: any) => {
       const diff = (new Date(e.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
@@ -382,7 +384,7 @@ function buildContextString(
   if (raw.tasks) {
     const t = raw.tasks as any;
     const allTasks = (t.tasks as any[]) || [];
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     const overdue = allTasks.filter((t: any) => !t.done && t.dueDate && t.dueDate < today);
     const pending = allTasks.filter((t: any) => !t.done).length;
 
@@ -424,7 +426,7 @@ function buildContextString(
   // School (when present and full)
   if (budget === "full" && raw.school) {
     const s = raw.school as any;
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocal();
     const urgent = ((s.events as any[]) || []).filter((e: any) => e.date === today && e.requiresAction);
     if (urgent.length) {
       lines.push(`\nSCHOOL: ${urgent.length} urgent items today`);

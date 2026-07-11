@@ -4,6 +4,7 @@ import { Card, Button, ProgressBar } from "../../shared/components";
 import { SectionLabel } from "./BudgetWidgets";
 import { GOAL_TYPES } from "./budgetShared";
 import type { FinancialGoal } from "./budgetShared";
+import { formatMoney, currencySymbol } from "../../shared/utils/money";
 
 export function BudgetGoalsTab({
   goals, showAddGoal, setShowAddGoal,
@@ -30,7 +31,7 @@ export function BudgetGoalsTab({
         <Card>
           <SectionLabel>Create a Goal</SectionLabel>
           <input value={goalName} onChange={e => setGoalName(e.target.value)} placeholder="Goal name"
-            style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
+            style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
 
           {/* Goal type */}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -43,14 +44,14 @@ export function BudgetGoalsTab({
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <input value={goalTarget} onChange={e => setGoalTarget(e.target.value)} placeholder="Target ($)" type="number"
-              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
-            <input value={goalCurrent} onChange={e => setGoalCurrent(e.target.value)} placeholder="Already saved ($)" type="number"
-              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
-            <input value={goalMonthly} onChange={e => setGoalMonthly(e.target.value)} placeholder="Monthly contribution ($)" type="number"
-              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
+            <input value={goalTarget} onChange={e => setGoalTarget(e.target.value)} placeholder={`Target (${currencySymbol()})`} type="number"
+              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
+            <input value={goalCurrent} onChange={e => setGoalCurrent(e.target.value)} placeholder={`Already saved (${currencySymbol()})`} type="number"
+              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
+            <input value={goalMonthly} onChange={e => setGoalMonthly(e.target.value)} placeholder={`Monthly contribution (${currencySymbol()})`} type="number"
+              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
             <input value={goalDate} onChange={e => setGoalDate(e.target.value)} placeholder="Target date" type="date"
-              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none" }} />
+              style={{ background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={addGoal} disabled={!goalName.trim() || !goalTarget} variant="gold" style={{ flex: 1 }}>Create Goal ✦</Button>
@@ -81,12 +82,12 @@ export function BudgetGoalsTab({
                   </span>
                 </div>
                 <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>
-                  ${g.currentAmount.toLocaleString()} of ${g.targetAmount.toLocaleString()}
+                  {formatMoney(g.currentAmount)} of {formatMoney(g.targetAmount)}
                   {g.targetDate ? ` · by ${new Date(g.targetDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}` : ""}
                 </p>
                 {needed && g.monthlyContribution > 0 && (
                   <p style={{ fontFamily: F.sans, fontSize: 11, color: needed > g.monthlyContribution ? T.blush : T.sage, margin: "2px 0 0" }}>
-                    Need ${Math.round(needed).toLocaleString()}/mo · Contributing ${g.monthlyContribution.toLocaleString()}/mo
+                    Need {formatMoney(needed)}/mo · Contributing {formatMoney(g.monthlyContribution)}/mo
                   </p>
                 )}
               </div>
@@ -105,7 +106,7 @@ export function BudgetGoalsTab({
               {[50, 100, 250].map(amt => (
                 <button key={amt} onClick={() => addToGoal(g.id, amt)}
                   style={{ flex: 1, padding: "7px", background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 10, fontFamily: F.sans, fontSize: 12, color: T.esp, cursor: "pointer" }}>
-                  +${amt}
+                  +{formatMoney(amt)}
                 </button>
               ))}
             </div>

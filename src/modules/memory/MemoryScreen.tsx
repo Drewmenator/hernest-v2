@@ -176,7 +176,7 @@ export function MemoryScreen() {
       ) : view === "memory" ? (
         <>
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search what Cleo remembers…"
-            style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none", marginBottom: 16 }} />
+            style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16 }} />
 
           {visibleMemories.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 24px" }}>

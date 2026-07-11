@@ -4,7 +4,9 @@
 // Context pack generation for Cleo and the CFO, plus prompt formatters.
 
 import { COMPLIANCE_NOTE } from "./internals";
+import { currencySymbol } from "../../shared/utils/money";
 import type { HouseholdContextGraph, CleoContextPack, CFOContextPack, TodoItem } from "./types";
+import { todayLocal } from "../dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // 5. generateContextPackForCleo()
@@ -15,7 +17,7 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
   const calLoad = graph.calendar.find(c => c.id === "cal_load_current");
   const primaryUser = graph.people.find(p => p.isUser);
   const family = graph.people.filter(p => !p.isUser);
-  const tripNodes = graph.calendar.filter(c => c.subtype === "travel_block" && c.date && c.date > new Date().toISOString().split("T")[0]);
+  const tripNodes = graph.calendar.filter(c => c.subtype === "travel_block" && c.date && c.date > todayLocal());
   const crossModulePatterns = graph.relationships
     .filter(r => r.strength > 0.6 && r.isInferred)
     .sort((a, b) => b.strength - a.strength)
@@ -39,7 +41,7 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
     .filter(Boolean);
 
   // ── Task summary: the actual to-do list, so Cleo can act as a PA ──
-  const todayISO = new Date().toISOString().split("T")[0];
+  const todayISO = todayLocal();
   const soonISO = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
   const openTodos = graph.todos.filter(t => t.status !== "completed");
   const isUrgent = (t: TodoItem) => ["critical", "must", "high"].includes(t.priority);
@@ -79,13 +81,13 @@ export function generateContextPackForCleo(graph: HouseholdContextGraph, viewerU
       loadLevel: calLoad?.loadLevel || "normal",
       busyWeeksAhead: calLoad?.busyWeeksAhead || 0,
       upcomingEvents: graph.calendar
-        .filter(c => (c.subtype === "event" || c.subtype === "travel_block") && c.date && c.date >= new Date().toISOString().split("T")[0])
+        .filter(c => (c.subtype === "event" || c.subtype === "travel_block") && c.date && c.date >= todayLocal())
         .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
         .slice(0, 6)
         .map(c => `${c.title}${c.date ? ` (${c.date})` : ""}`),
       highLoadDays: calLoad?.highLoadDays || [],
       appointmentsThisWeek: graph.calendar
-        .filter(c => (c.subtype === "appointment" || c.subtype === "school_event") && c.date && c.date >= new Date().toISOString().split("T")[0])
+        .filter(c => (c.subtype === "appointment" || c.subtype === "school_event") && c.date && c.date >= todayLocal())
         .map(c => `${c.title} (${c.date})`),
     },
     taskSummary: {
@@ -241,9 +243,9 @@ export function formatCleoContextPackForPrompt(pack: CleoContextPack): string {
   const lines = [
     `HOUSEHOLD: ${pack.householdProfile.primaryUser}${pack.householdProfile.familyMembers.length ? `, ${pack.householdProfile.familyMembers.map(m => `${m.name} (${m.role})`).join(", ")}` : ""}`,
     pack.householdProfile.stressTriggers.length ? `STRESS TRIGGERS: ${pack.householdProfile.stressTriggers.join(", ")}` : null,
-    `FINANCES: $${Math.round(pack.financialSummary.cashRemaining).toLocaleString()} remaining · ${pack.financialSummary.savingsRate.toFixed(0)}% savings · Grade ${pack.financialSummary.healthGrade}`,
+    `FINANCES: ${currencySymbol()}${Math.round(pack.financialSummary.cashRemaining).toLocaleString()} remaining · ${pack.financialSummary.savingsRate.toFixed(0)}% savings · Grade ${pack.financialSummary.healthGrade}`,
     pack.financialSummary.topOverspendCategories.length ? `OVERSPEND: ${pack.financialSummary.topOverspendCategories.join(", ")}` : null,
-    pack.financialSummary.upcomingObligations.length ? `UPCOMING COSTS: ${pack.financialSummary.upcomingObligations.map(o => `${o.description} $${o.estimatedCost}`).join(", ")}` : null,
+    pack.financialSummary.upcomingObligations.length ? `UPCOMING COSTS: ${pack.financialSummary.upcomingObligations.map(o => `${o.description} ${currencySymbol()}${o.estimatedCost}`).join(", ")}` : null,
     `CALENDAR: ${pack.calendarSummary.loadLevel} load · ${pack.calendarSummary.busyWeeksAhead} busy week(s) ahead`,
     pack.calendarSummary.upcomingEvents.length ? `EVENTS: ${pack.calendarSummary.upcomingEvents.join(" · ")}` : null,
     pack.calendarSummary.appointmentsThisWeek.length ? `APPOINTMENTS: ${pack.calendarSummary.appointmentsThisWeek.join(", ")}` : null,
@@ -271,14 +273,14 @@ export function formatCFOContextPackForPrompt(pack: CFOContextPack): string {
   const f = pack.financialSnapshot;
   const lines = [
     `FINANCIAL SNAPSHOT:`,
-    `- Income: $${Math.round(f.monthlyIncome).toLocaleString()}/mo · Fixed: $${f.fixedExpenses.toLocaleString()} · Variable: $${f.variableExpenses.toLocaleString()}`,
-    `- Spent: $${f.totalSpent.toLocaleString()} / $${f.totalBudget.toLocaleString()} · Remaining: $${Math.round(f.cashRemaining).toLocaleString()}`,
-    `- Savings: ${f.savingsRate.toFixed(1)}% · Debt: $${f.totalDebt.toLocaleString()} · DTI: ${f.debtToIncomeRatio.toFixed(1)}% · Health: ${f.healthGrade}`,
-    `- Projection: $${f.projectedMonthEnd.toLocaleString()} month-end`,
+    `- Income: ${currencySymbol()}${Math.round(f.monthlyIncome).toLocaleString()}/mo · Fixed: ${currencySymbol()}${f.fixedExpenses.toLocaleString()} · Variable: ${currencySymbol()}${f.variableExpenses.toLocaleString()}`,
+    `- Spent: ${currencySymbol()}${f.totalSpent.toLocaleString()} / ${currencySymbol()}${f.totalBudget.toLocaleString()} · Remaining: ${currencySymbol()}${Math.round(f.cashRemaining).toLocaleString()}`,
+    `- Savings: ${f.savingsRate.toFixed(1)}% · Debt: ${currencySymbol()}${f.totalDebt.toLocaleString()} · DTI: ${f.debtToIncomeRatio.toFixed(1)}% · Health: ${f.healthGrade}`,
+    `- Projection: ${currencySymbol()}${f.projectedMonthEnd.toLocaleString()} month-end`,
     pack.spendingPatterns.filter(p => Math.abs(p.percentageChange) > 15).length ? `SPENDING TRENDS: ${pack.spendingPatterns.filter(p => Math.abs(p.percentageChange) > 15).map(p => `${p.category} ${p.percentageChange > 0 ? "+" : ""}${p.percentageChange}%${p.triggerContext ? ` (${p.triggerContext})` : ""}`).join(", ")}` : null,
-    pack.goals.length ? `GOALS: ${pack.goals.map(g => `${g.title} ${g.riskStatus} ($${g.currentAmount?.toLocaleString() || 0}/$${g.targetAmount?.toLocaleString() || 0})`).join(", ")}` : null,
-    pack.debts.length ? `DEBTS: ${pack.debts.map(d => `${d.label} $${d.balance.toLocaleString()} @ ${d.apr}%`).join(", ")}` : null,
-    pack.upcomingObligations.length ? `UPCOMING: ${pack.upcomingObligations.map(o => `${o.description} $${o.estimatedCost} on ${o.date}`).join(", ")}` : null,
+    pack.goals.length ? `GOALS: ${pack.goals.map(g => `${g.title} ${g.riskStatus} (${currencySymbol()}${g.currentAmount?.toLocaleString() || 0}/${currencySymbol()}${g.targetAmount?.toLocaleString() || 0})`).join(", ")}` : null,
+    pack.debts.length ? `DEBTS: ${pack.debts.map(d => `${d.label} ${currencySymbol()}${d.balance.toLocaleString()} @ ${d.apr}%`).join(", ")}` : null,
+    pack.upcomingObligations.length ? `UPCOMING: ${pack.upcomingObligations.map(o => `${o.description} ${currencySymbol()}${o.estimatedCost} on ${o.date}`).join(", ")}` : null,
     `CALENDAR: ${pack.calendarPressure.loadLevel} — ${pack.calendarPressure.financialRisk}`,
     pack.stressPressure.isCapacityProblem ? `STRESS: This is a CAPACITY PROBLEM — financial recommendations should account for household load` : `STRESS: ${pack.stressPressure.level}`,
     pack.crossModuleRisks.length ? `RISKS: ${pack.crossModuleRisks.slice(0, 3).join(" | ")}` : null,

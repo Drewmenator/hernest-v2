@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Pill, Button, Input } from "../../shared/components";
+import { Card, PageTitle, Pill, Button, Input, EmptyState } from "../../shared/components";
 import { saveData, loadData, db, auth } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
@@ -76,7 +76,7 @@ function SchoolNewsletterInput({ childName, userId, onEventsAdded }: {
         value={text}
         onChange={e=>setText(e.target.value)}
         placeholder={`Paste ${childName}'s school newsletter here...`}
-        style={{ width:"100%", minHeight:100, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:13, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:8 }}
+        style={{ width:"100%", minHeight:100, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:8 }}
       />
       <button
         onClick={extract}
@@ -652,7 +652,8 @@ export function CalendarScreen() {
           {safeDate(selectedDate).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
         </p>
         {selectedEvts.length===0
-          ? <Card><p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, textAlign:"center", padding:"12px 0" }}>Nothing scheduled</p></Card>
+          ? <EmptyState icon="◆" title="Nothing scheduled yet" body="Add your first event and I'll keep the day in view ✦" />
+
           : (selectedEvts||[]).map(e=>{ const meta=SOURCE_META[e.source]; return (
             <div key={e.id} style={{ display:"flex", gap:12, padding:"12px 16px", background:T.ivory, borderRadius:16, border:`1px solid ${T.linen}`, marginBottom:8, borderLeft:`4px solid ${e.color}` }}>
               <span style={{ fontSize:20, flexShrink:0 }}>{meta.icon}</span>
@@ -699,7 +700,8 @@ export function CalendarScreen() {
       {view==="list" && <>
         <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>{MONTHS[currentMonth]} {currentYear} · {monthEvts.length} events</p>
         {monthEvts.length===0
-          ? <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0" }}>No events this month</p></Card>
+          ? <EmptyState icon="◆" title="Nothing this month yet" body="Once your calendars are connected or you add an event, it'll show up here ✦" />
+
           : (monthEvts||[]).map(e=>{ const meta=SOURCE_META[e.source]; const d=safeDate(e.date); return (
             <div key={e.id} style={{ display:"flex", gap:12, padding:"12px 16px", background:T.ivory, borderRadius:16, border:`1px solid ${T.linen}`, marginBottom:8, borderLeft:`4px solid ${e.color}` }}>
               <div style={{ width:44, textAlign:"center", flexShrink:0 }}>

@@ -11,6 +11,7 @@
 // Extends existing HouseholdInsight type from store.ts
 
 import type { HouseholdInsight, InsightCategory } from "../store";
+import { currencySymbol } from "../../shared/utils/money";
 import type { AppContext } from "../contextBuilder";
 import type { HouseholdStateResult } from "../household/householdStateEngine";
 import { aiJSON } from "../ai";
@@ -352,13 +353,13 @@ const RULES: InsightRule[] = [
         id: crypto.randomUUID(),
         ruleId: "cash_flow_projection",
         title: "Month-end spending may exceed budget",
-        summary: `At this pace, spending will exceed budget by about $${Math.round(overshoot).toLocaleString()}.`,
+        summary: `At this pace, spending will exceed budget by about ${currencySymbol()}${Math.round(overshoot).toLocaleString()}.`,
         category: "cashflow" as InsightCategory,
         type: "forecast" as InsightType,
         severity: overshoot > limit * 0.15 ? "high" : "medium" as InsightSeverity,
-        observation: `Projected month-end: $${Math.round(projected).toLocaleString()} vs budget of $${limit.toLocaleString()}.`,
+        observation: `Projected month-end: ${currencySymbol()}${Math.round(projected).toLocaleString()} vs budget of ${currencySymbol()}${limit.toLocaleString()}.`,
         whyItMatters: "Adjusting one or two categories now avoids a larger shortfall at month end.",
-        recommendation: `Reduce spending in your highest variable category by ~$${Math.round(overshoot / 2).toLocaleString()} for the rest of the month.`,
+        recommendation: `Reduce spending in your highest variable category by ~${currencySymbol()}${Math.round(overshoot / 2).toLocaleString()} for the rest of the month.`,
         options: ["Review highest spend categories", "Pause discretionary spending", "Ask CFO for options"],
         confidenceLevel: 75,
         sourceModules: ["budget"] as any,

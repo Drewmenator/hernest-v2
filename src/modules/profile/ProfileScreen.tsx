@@ -263,7 +263,7 @@ export function ProfileScreen() {
           <div style={{ display:"flex", gap:8 }}>
             <Input value={partnerName} onChange={setPartnerName} placeholder="Partner's name (optional)" style={{ flex:2 }}/>
             <input type="date" value={partnerBirthday} onChange={e=>setPartnerBirthday(e.target.value)}
-              style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", fontFamily:F.sans, fontSize:14, color:T.esp, outline:"none" }}/>
+              style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none" }}/>
           </div>
         </Card>
 
@@ -277,7 +277,7 @@ export function ProfileScreen() {
               <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                 <span style={{ fontSize:22, flexShrink:0 }}>🧒</span>
                 <Input value={k.name} onChange={v=>updateChild(i,"name",v)} placeholder="Name" style={{ flex:2 }}/>
-                <input type="date" value={k.birthDate||""} onChange={e=>updateChild(i,"birthDate",e.target.value)} style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:14, color:T.esp, outline:"none", minHeight:44 }}/>
+                <input type="date" value={k.birthDate||""} onChange={e=>updateChild(i,"birthDate",e.target.value)} style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
                 <button onClick={()=>setChildren(p=>p.filter((_,ci)=>ci!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
               </div>
               <div style={{ display:"flex", gap:8, paddingLeft:30 }}>
@@ -299,7 +299,7 @@ export function ProfileScreen() {
             <div key={p.id} style={{ display:"flex", gap:8, marginBottom:8 }}>
               <span style={{ fontSize:22, flexShrink:0 }}>👩</span>
               <Input value={p.name} onChange={v=>setParents(prev=>prev.map((pa,pi)=>pi===i?{...pa,name:v}:pa))} placeholder="Name" style={{ flex:2 }}/>
-              <input type="date" value={p.birthday||""} onChange={e=>setParents(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:14, color:T.esp, outline:"none", minHeight:44 }}/>
+              <input type="date" value={p.birthday||""} onChange={e=>setParents(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
               <button onClick={()=>setParents(p=>p.filter((_,pi)=>pi!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
             </div>
           ))}
@@ -316,7 +316,7 @@ export function ProfileScreen() {
             <div key={p.id} style={{ display:"flex", gap:8, marginBottom:8 }}>
               <span style={{ fontSize:22, flexShrink:0 }}>👩</span>
               <Input value={p.name} onChange={v=>setInlaws(prev=>prev.map((pa,pi)=>pi===i?{...pa,name:v}:pa))} placeholder="Name" style={{ flex:2 }}/>
-              <input type="date" value={p.birthday||""} onChange={e=>setInlaws(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:14, color:T.esp, outline:"none", minHeight:44 }}/>
+              <input type="date" value={p.birthday||""} onChange={e=>setInlaws(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
               <button onClick={()=>setInlaws(p=>p.filter((_,pi)=>pi!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
             </div>
           ))}

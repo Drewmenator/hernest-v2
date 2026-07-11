@@ -15,6 +15,7 @@
 //                  Insight Engine, Memory Service, all modules.
 
 import { aiJSON } from "../ai";
+import { currencySymbol } from "../../shared/utils/money";
 import { saveData, loadData } from "../firebase";
 import { saveMemoryFacts } from "../memory";
 import type { HouseholdSnapshot } from "../store";
@@ -308,10 +309,10 @@ function buildDecisionContext(
   if (snapshot) {
     const f = snapshot.financial;
     lines.push(`FINANCES:`);
-    lines.push(`- Income: $${Math.round(f.monthlyIncome).toLocaleString()}/mo ${f.monthlyIncome === 0 ? "(not set)" : ""}`);
-    lines.push(`- Cash remaining: $${Math.round(f.cashRemaining).toLocaleString()}`);
+    lines.push(`- Income: ${currencySymbol()}${Math.round(f.monthlyIncome).toLocaleString()}/mo ${f.monthlyIncome === 0 ? "(not set)" : ""}`);
+    lines.push(`- Cash remaining: ${currencySymbol()}${Math.round(f.cashRemaining).toLocaleString()}`);
     lines.push(`- Savings rate: ${f.savingsRate.toFixed(1)}%`);
-    lines.push(`- Total debt: $${f.totalDebt.toLocaleString()}`);
+    lines.push(`- Total debt: ${currencySymbol()}${f.totalDebt.toLocaleString()}`);
     lines.push(`- Financial health: ${f.financialHealthGrade}`);
     if (snapshot.activeGoals.length) {
       lines.push(`GOALS: ${snapshot.activeGoals.map(g => `${g.name} (${g.riskStatus})`).join(", ")}`);

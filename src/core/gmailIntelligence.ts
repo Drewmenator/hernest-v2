@@ -6,6 +6,7 @@
 import { auth, loadData, saveData } from "./firebase";
 import { aiJSON } from "./ai";
 import { bus } from "./events";
+import { todayLocal } from "./dateAwareness";
 
 interface GmailMessage { id: string; category: string; subject: string; from: string; date: string; snippet: string; }
 
@@ -34,7 +35,7 @@ export async function scanGmail(uid: string): Promise<GmailScanResult> {
   const { messages } = (await res.json()) as { messages: GmailMessage[] };
   if (!messages?.length) return { scanned: 0, eventsAdded: 0, receiptsFound: 0 };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocal();
   const msgList = messages.map(m =>
     `[${m.category}] From: ${m.from} | Subject: ${m.subject} | Date: ${m.date} | ${m.snippet}`
   ).join("\n");

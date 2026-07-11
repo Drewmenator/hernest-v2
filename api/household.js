@@ -4,7 +4,7 @@
 //   POST /api/invite/accept → ?action=invite_accept
 //   GET  /api/partner/data  → ?action=partner_data
 import crypto from "crypto";
-import { adminDb, applyCors, verifyAuth } from "./_lib/secure.js";
+import { adminDb, applyCors, verifyAuthClaims } from "./_lib/secure.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -64,8 +64,9 @@ async function inviteSend(req, res, fromUid) {
   res.json({ success: true });
 }
 
-async function inviteAccept(req, res, partnerUid) {
+async function inviteAccept(req, res, claims) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const partnerUid = claims.uid;
   const { token } = req.body || {};
   if (!token) return res.status(400).json({ error: "Missing token" });
 
@@ -74,6 +75,14 @@ async function inviteAccept(req, res, partnerUid) {
   const invite = inviteDoc.data();
   if (invite.status !== "pending") return res.status(400).json({ error: "Invite already used" });
   if (invite.expiresAt < Date.now()) return res.status(400).json({ error: "Invite expired" });
+
+  // Bind the invite to its recipient: the accepting user's verified email must
+  // match the address it was sent to. Stops a forwarded/leaked link from letting
+  // anyone join the household and read its shared data.
+  const invitedEmail = (invite.toEmail || "").toLowerCase();
+  if (!claims.email || !claims.emailVerified || claims.email !== invitedEmail) {
+    return res.status(403).json({ error: "This invite was sent to a different email address." });
+  }
 
   const { fromUid, shareCategories, fromName } = invite;
   await adminDb.doc(`users/${partnerUid}/data/household_link`).set({
@@ -106,13 +115,14 @@ async function partnerData(req, res, uid) {
 export default async function handler(req, res) {
   if (applyCors(req, res, "GET, POST, OPTIONS")) return;
 
-  const uid = await verifyAuth(req);
-  if (!uid) return res.status(401).json({ error: "Unauthorized" });
+  const claims = await verifyAuthClaims(req);
+  if (!claims?.uid) return res.status(401).json({ error: "Unauthorized" });
+  const uid = claims.uid;
 
   const action = req.query?.action;
   try {
     if (action === "invite_send") return await inviteSend(req, res, uid);
-    if (action === "invite_accept") return await inviteAccept(req, res, uid);
+    if (action === "invite_accept") return await inviteAccept(req, res, claims);
     if (action === "partner_data") return await partnerData(req, res, uid);
   } catch (e) {
     console.error("[Household]", action, "error:", e?.message);

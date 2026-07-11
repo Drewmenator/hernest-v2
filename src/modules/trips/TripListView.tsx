@@ -1,6 +1,6 @@
 import React from "react";
 import { T, F } from "../../config/theme";
-import { Card, PageTitle } from "../../shared/components";
+import { Card, PageTitle, EmptyState } from "../../shared/components";
 import { safeDate, daysUntil, computeTripState, computeReadiness, normTrip, STATE_CONFIG } from "./tripsShared";
 import type { Trip, Traveller } from "./tripsShared";
 import { ReadinessRing } from "./ReadinessRing";
@@ -67,12 +67,12 @@ export function TripListView({
             <div>
               <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
               <input type="date" value={depDate} onChange={e => setDepDate(e.target.value)}
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", boxSizing: "border-box" }} />
+                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
               <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
               <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", boxSizing: "border-box" }} />
+                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
 
@@ -88,7 +88,7 @@ export function TripListView({
               <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total Budget</p>
               <input type="number" value={budget} onChange={e => setBudget(e.target.value)}
                 placeholder="e.g. 5000"
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", boxSizing: "border-box" }} />
+                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
 
@@ -111,7 +111,7 @@ export function TripListView({
                 <span style={{ fontSize: 18, flexShrink: 0 }}>{t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"}</span>
                 <input value={t.name} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, name: e.target.value } : tt))}
                   placeholder="Name"
-                  style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 13, color: T.esp, outline: "none", minWidth: 0 }} />
+                  style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minWidth: 0 }} />
                 <select value={t.type} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, type: e.target.value as any } : tt))}
                   style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "4px 8px", fontFamily: F.sans, fontSize: 11, color: T.taupe }}>
                   <option value="adult">Adult</option>
@@ -212,15 +212,13 @@ export function TripListView({
       )}
 
       {trips.length === 0 && !showAdd && (
-        <div style={{ textAlign: "center", padding: "40px 20px" }}>
-          <div style={{ width:64, height:64, borderRadius:"50%", background:`${T.gold}15`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:28, color:T.gold }}>→</div>
-          <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Where next?</p>
-          <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 20px" }}>Plan a trip and Cleo will help reduce the stress of every step.</p>
-          <button onClick={() => setShowAdd(true)}
-            style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "12px 24px", fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            Plan a trip ✦
-          </button>
-        </div>
+        <EmptyState
+          icon="→"
+          title="Where next?"
+          body="Plan a trip and I'll help carry the load at every step — packing, prep, and budget ✦"
+          actionLabel="Plan a trip ✦"
+          onAction={() => setShowAdd(true)}
+        />
       )}
     </div>
   );

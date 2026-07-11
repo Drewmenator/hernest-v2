@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { loadData, saveData } from "../../core/firebase";
+import { formatMoney } from "../../shared/utils/money";
 
 export interface GmailReceipt {
   merchant: string;
@@ -62,7 +63,7 @@ export function ReceiptsInbox({ onApprove }: {
         return (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.linen}` }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{r.merchant} · ${r.amount.toFixed(2)}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{r.merchant} · {formatMoney(r.amount)}</p>
               <p style={{ fontFamily: F.sans, fontSize: 10.5, color: T.taupe, margin: "1px 0 0" }}>{r.date} · {r.category}</p>
             </div>
             <button onClick={() => settle(r, "applied")} disabled={busy === key} aria-label={`Add ${r.merchant} expense`}

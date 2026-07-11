@@ -7,6 +7,7 @@
 import { now, addRelationship, indexNode, baseNode, recalculateStress } from "./internals";
 import { scheduleGraphSave } from "./persistence";
 import type { HouseholdContextGraph, ModuleEvent, Goal, CalendarContext } from "./types";
+import { todayLocal } from "../dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. updateGraphFromModuleEvent()
@@ -143,7 +144,7 @@ export async function updateGraphFromModuleEvent(
 
     case "plan.task.created": {
       const task = event.payload as any;
-      if (task.dueDate && task.dueDate < new Date().toISOString().split("T")[0]) {
+      if (task.dueDate && task.dueDate < todayLocal()) {
         graph.stress.taskBacklog = (graph.stress.taskBacklog || 0) + 1;
         const existing = graph.stress.stressSources.find(s => s.source === "plan");
         if (existing) {

@@ -5,6 +5,7 @@ import { SectionLabel } from "./BudgetWidgets";
 import { saveData, loadData } from "../../core/firebase";
 import { nextDueDate, daysUntilDue } from "../../core/bills";
 import type { Bill } from "./budgetShared";
+import { formatMoney } from "../../shared/utils/money";
 import toast from "react-hot-toast";
 
 const CADENCES: { id: Bill["cadence"]; label: string }[] = [
@@ -102,7 +103,7 @@ export function BudgetBillsTab({ uid }: { uid: string }) {
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe }}>Monthly bills</span>
-            <span style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: T.esp }}>${monthlyTotal.toLocaleString()}</span>
+            <span style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: T.esp }}>{formatMoney(monthlyTotal)}</span>
           </div>
         </Card>
       )}
@@ -152,7 +153,7 @@ export function BudgetBillsTab({ uid }: { uid: string }) {
                   {st.text}{b.autopay ? " · autopay" : ""}{nextDueDate(b) ? ` · ${nextDueDate(b)}` : ""}
                 </p>
               </div>
-              <p style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: T.esp, margin: 0, whiteSpace: "nowrap" }}>${b.amount.toLocaleString()}</p>
+              <p style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: T.esp, margin: 0, whiteSpace: "nowrap" }}>{formatMoney(b.amount)}</p>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {!b.autopay && <button onClick={() => markPaid(b)} style={{ flex: 1, padding: "8px", background: `${T.sage}15`, border: `1px solid ${T.sage}40`, borderRadius: 10, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, cursor: "pointer", minHeight: 36 }}>Mark paid</button>}

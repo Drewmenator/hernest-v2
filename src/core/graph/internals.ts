@@ -3,6 +3,7 @@
 //
 // Shared constants + helper functions used across the graph modules.
 
+import { todayLocal } from "../dateAwareness";
 import type {
   HouseholdContextGraph, GraphNode, ContextRelationship,
   Person, HouseholdStressContext, Memory, Insight,
@@ -67,10 +68,10 @@ export function buildStressNode(thriveData: any, tasksData: any, calendarData: a
   // `!task.done` check was always true (no `done` field), so completed-but-overdue
   // tasks were wrongly counted as backlog.
   const isOpen = (task: any) => (task.status ? task.status !== "completed" : !task.done);
-  const taskBacklog = allTasks.filter((task: any) => isOpen(task) && task.dueDate && task.dueDate < new Date().toISOString().split("T")[0]).length;
+  const taskBacklog = allTasks.filter((task: any) => isOpen(task) && task.dueDate && task.dueDate < todayLocal()).length;
 
   const events = (calendarData?.events as any[]) || [];
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayLocal();
   const nextWeekStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const upcomingCount = events.filter((e: any) => e.date >= todayStr && e.date <= nextWeekStr).length;
   const loadLevel = upcomingCount >= 10 ? "critical" : upcomingCount >= 6 ? "heavy" : upcomingCount >= 3 ? "normal" : "light";

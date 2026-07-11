@@ -5,6 +5,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Button } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
+import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
 import { signOut, deleteUser } from "firebase/auth";
 import { auth } from "../../core/firebase";
 import { bus } from "../../core/events";
@@ -14,7 +15,7 @@ const SECTIONS = ["partner","privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];
 
 export function SettingsScreen() {
-  const { user, profile, reset } = useStore();
+  const { user, profile, reset, setProfile } = useStore();
   const [section, setSection] = useState<Section>("partner");
 
   // Partner sharing
@@ -324,6 +325,24 @@ export function SettingsScreen() {
 
       {/* ── ACCOUNT ─────────────────────────────────────────────── */}
       {section==="account" && <>
+        <Card>
+          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>CURRENCY</p>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {SUPPORTED_CURRENCIES.map(c => {
+              const active = ((profile as any)?.currency || "USD") === c.code;
+              return (
+                <button key={c.code} onClick={async()=>{
+                  setProfile({ ...(profile as any), currency: c.code });
+                  if (user?.uid) { try { await saveData(user.uid, "profile", { currency: c.code }); } catch { /* non-fatal */ } }
+                  toast.success(`Currency set to ${c.code}`);
+                }} style={{ padding:"7px 12px", borderRadius:16, border:`1.5px solid ${active?T.gold:T.linen}`, background:active?`${T.gold}20`:"#fff", color:active?"#8B6914":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:active?700:400, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"10px 0 0" }}>Cleo and every screen will show money in this currency.</p>
+        </Card>
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ACCOUNT INFO</p>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>

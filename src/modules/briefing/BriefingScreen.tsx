@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { displayAge } from "../../core/dateAwareness";
-import { Card, PageTitle, Pill, AIBadge, Spinner } from "../../shared/components";
+import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { ai } from "../../core/ai";
 import { db as localDb } from "../../core/db";
 import { buildAppContext, buildBriefingPrompt, selectFocusWord, TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
@@ -218,13 +218,13 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
   if (!briefing) return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle eyebrow="YOUR DAILY BRIEFING" title={getTimeWindow()==="morning"?"Good Morning":getTimeWindow()==="afternoon"?"Good Afternoon":"Good Evening"}/>
-      <div style={{ background:T.ivory, borderRadius:24, padding:"32px 24px", textAlign:"center", border:`1px solid ${T.linen}` }}>
-        <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>
-  {getTimeWindow()==="morning"?"Good morning ✦":getTimeWindow()==="afternoon"?"Good afternoon ✦":"Good evening ✦"}
-</p>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px" }}>Cleo couldn't prepare your briefing. She's probably still waking up.</p>
-        <button onClick={generate} style={{ background:T.esp, color:"#fff", border:"none", borderRadius:14, padding:"12px 24px", fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", minHeight:48 }}>Try Again</button>
-      </div>
+      <EmptyState
+        icon="☀"
+        title="No briefing just yet"
+        body="Once there's a little of your day for me to read, I'll pull it together into one calm briefing. Tap below and I'll try now ✦"
+        actionLabel="Prepare my briefing"
+        onAction={generate}
+      />
     </div>
   );
 

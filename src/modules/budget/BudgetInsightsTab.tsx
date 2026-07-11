@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { ProgressBar, Spinner } from "../../shared/components";
 import { SectionLabel, StatCard, InsightCard } from "./BudgetWidgets";
 import type { AIInsight, Category, Expense } from "./budgetShared";
+import { formatMoney } from "../../shared/utils/money";
 
 export function BudgetInsightsTab({
   cats, expenses, insights, insightsLoading, generateInsights,
@@ -41,7 +42,7 @@ export function BudgetInsightsTab({
               </div>
               <ProgressBar value={c.spent} max={c.budget} color={isOver ? "#ff6b6b" : isHigh ? T.gold : c.color} height={4} />
               <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>
-                ${c.spent.toFixed(0)} of ${c.budget} · ${Math.max(0, c.budget - c.spent).toFixed(0)} left
+                {formatMoney(c.spent)} of {formatMoney(c.budget)} · {formatMoney(Math.max(0, c.budget - c.spent))} left
               </p>
             </div>
             {isOver && <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.blush, flexShrink: 0 }}>OVER</span>}
@@ -93,10 +94,10 @@ export function BudgetInsightsTab({
           <div style={{ marginTop: 16, padding: "14px 16px", background: `${T.lav}15`, borderRadius: 16, border: `1px solid ${T.lav}40` }}>
             <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.lav, margin: "0 0 6px" }}>SUBSCRIPTION TRACKER</p>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 4px" }}>
-              ${subTotal.toFixed(2)}/mo in subscriptions tracked
+              {formatMoney(subTotal)}/mo in subscriptions tracked
             </p>
             <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>
-              That's ${(subTotal * 12).toFixed(0)}/year. Review regularly for unused services.
+              That's {formatMoney(subTotal * 12)}/year. Review regularly for unused services.
             </p>
           </div>
         );
@@ -109,14 +110,14 @@ export function BudgetInsightsTab({
             <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 4px" }}>CASH FLOW FORECAST</p>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: projected > totalBudget ? T.blush : T.sage, margin: 0 }}>
               {projected > totalBudget
-                ? `Trending $${(projected - totalBudget).toLocaleString()} past plan — small trims now beat big cuts later`
-                : `✓ On track to save $${(totalBudget - projected).toLocaleString()}`}
+                ? `Trending ${formatMoney(projected - totalBudget)} past plan — small trims now beat big cuts later`
+                : `✓ On track to save ${formatMoney(totalBudget - projected)}`}
             </p>
           </div>
-          <p style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: projected > totalBudget ? T.blush : T.sage, margin: 0 }}>${projected.toLocaleString()}</p>
+          <p style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: projected > totalBudget ? T.blush : T.sage, margin: 0 }}>{formatMoney(projected)}</p>
         </div>
         <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "6px 0 0" }}>
-          ${dailyRate.toFixed(2)}/day · {daysInMonth - daysElapsed} days left this month
+          {formatMoney(dailyRate)}/day · {daysInMonth - daysElapsed} days left this month
         </p>
       </div>
     </>

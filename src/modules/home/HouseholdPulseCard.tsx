@@ -10,6 +10,7 @@ import { createActionsFromInsight, executeRecommendedAction } from "../../core/r
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
+import { formatMoney } from "../../shared/utils/money";
 
 // ── NEW: Household Pulse Card ─────────────────────────────────────
 export function HouseholdPulseCard() {
@@ -144,7 +145,7 @@ export function HouseholdPulseCard() {
           <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe }}>Budget this month</span>
           <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700,
             color: pct > 90 ? T.blush : pct > 70 ? T.gold : T.sage }}>
-            {pct}% · ${Math.round(f.cashRemaining).toLocaleString()} left
+            {pct}% · {formatMoney(f.cashRemaining)} left
           </span>
         </div>
         <div style={{ height: 4, background: T.linen, borderRadius: 4, overflow: "hidden" }}>

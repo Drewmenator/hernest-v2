@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge } from "../../shared/components";
+import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, EmptyState } from "../../shared/components";
+import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
@@ -41,12 +42,15 @@ const ENERGY_ICONS: Record<string,string> = { high:"⚡", medium:"◦", low:"�
 
 const DAYS_OF_WEEK = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
+// Friendly short date (e.g. "Jul 3") from an ISO yyyy-mm-dd string.
+const fmtDate = (d: string) => { try { return new Date(d+"T00:00:00").toLocaleDateString("en-GB",{month:"short",day:"numeric"}); } catch { return d; } };
+
 // ── Priority scoring per blueprint ─────────────────────────────────
 function scoreTask(t: Task, energyPattern: string): number {
   let score = 0;
   const priorityScore: Record<string,number> = { must:80, nice:30, critical:100, high:75, medium:50, low:25 };
   score += priorityScore[t.priority] || 50;
-  if (t.dueDate && t.dueDate < new Date().toISOString().split("T")[0]) score += 50; // overdue
+  if (t.dueDate && t.dueDate < todayLocal()) score += 50; // overdue
   if (t.source === "school") score += 20;
   const h = new Date().getHours();
   const isMorning = h < 12;
@@ -79,7 +83,7 @@ export function PlanScreen() {
   const [generatingMeals, setGeneratingMeals] = useState(false);
   const [showShopping, setShowShopping] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocal();
   const done = tasks.filter(t=>t.status==="completed").length;
   const total = tasks.length;
   const pending = tasks.filter(t=>t.status==="pending");
@@ -316,17 +320,17 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                 {c}
               </button>
             ))}
-            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:11, color:T.bark, outline:"none" }}/>
+            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:16, color:T.bark, outline:"none" }}/>
           </div>
         </Card>
 
         {/* Task list sorted by priority score per blueprint */}
         {filteredTasks.length===0 ? (
-          <div style={{ textAlign:"center", padding:"32px 16px" }}>
-            <p style={{ fontSize:40, marginBottom:12 }}>✓</p>
-            <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>{filter==="done" ? "Nothing completed yet" : "Your list is clear"}</p>
-            <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 20px", lineHeight:1.6 }}>{filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Cleo to extract tasks from a message."}</p>
-          </div>
+          <EmptyState
+            icon={filter==="done" ? "✓" : "◈"}
+            title={filter==="done" ? "Nothing completed yet" : "Your list is clear"}
+            body={filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Cleo to pull tasks from a message — I'll keep them in order for you ✦"}
+          />
         ) : filteredTasks.map(t=>(
           <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:t.status==="completed"?"#fff":t.priority==="must"?`${T.esp}06`:`${T.sage}06`, borderRadius:16, border:`1.5px solid ${t.status==="completed"?T.linen:t.priority==="must"?`${T.esp}20`:`${T.sage}20`}`, marginBottom:8 }}>
             <button onClick={()=>toggleTask(t.id)} style={{ width:24, height:24, borderRadius:7, border:`2px solid ${t.status==="completed"?T.sage:PRIORITY_COLORS[t.priority]||T.linen}`, background:t.status==="completed"?T.sage:"transparent", flexShrink:0, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, minHeight:24, touchAction:"manipulation" }}>
@@ -337,7 +341,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
               <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap", alignItems:"center" }}>
                 <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:t.priority==="must"?T.esp:T.sage, padding:"2px 8px", borderRadius:10, background:t.priority==="must"?`${T.esp}10`:`${T.sage}10` }}>{t.priority==="must"?"✦ must":t.priority==="nice"?"◦ nice":t.priority}</span>
                 <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>{t.category}</span>
-                {t.dueDate && <span style={{ fontFamily:F.sans, fontSize:10, color:t.dueDate<today?"#dc2626":T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?"⚠ overdue":"due "}{t.dueDate}</span>}
+                {t.dueDate && <span style={{ fontFamily:F.sans, fontSize:10, color:t.dueDate<today?T.taupe:T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?`was due ${fmtDate(t.dueDate)}`:`due ${fmtDate(t.dueDate)}`}</span>}
                 {t.source!=="manual" && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold }}>✦ {t.source}</span>}
               </div>
             </div>
@@ -354,7 +358,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       {tab==="school" && <>
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>PASTE NEWSLETTER TEXT</p>
-          <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:13, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
+          <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
           <Button onClick={extractFromNewsletter} disabled={!newsletterText.trim()||extracting} variant="gold">
             {extracting?"✦ Cleo is reading...":"✦ Extract Events & Actions"}
           </Button>
@@ -379,7 +383,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                         {e.type && <span style={{ color:typeColors[e.type]||T.taupe }}> · {e.type}</span>}
                       </p>
                       {e.actionDeadline && e.actionDeadline!==e.date && (
-                        <p style={{ fontFamily:F.sans, fontSize:11, color:"#dc2626", margin:"2px 0 0" }}>Action deadline: {e.actionDeadline}</p>
+                        <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>Needs action by {fmtDate(e.actionDeadline)}</p>
                       )}
                     </div>
                     {e.requiresAction && (

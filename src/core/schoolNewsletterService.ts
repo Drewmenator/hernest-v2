@@ -7,6 +7,7 @@
 import { ai } from "./ai";
 import { loadData, saveData } from "./firebase";
 import { bus } from "./events";
+import { todayLocal } from "./dateAwareness";
 
 export interface SchoolEvent {
   id: string;
@@ -58,7 +59,7 @@ export async function extractSchoolEvents(
   text: string,
   childName?: string
 ): Promise<ExtractionResult> {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocal();
   const sys = `You are Cleo extracting school events${childName ? ` for ${childName}` : ""}. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated. Return ONLY valid JSON array:
 ${PROMPT_SCHEMA}
 Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;

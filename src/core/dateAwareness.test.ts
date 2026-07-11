@@ -1,8 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseDateParts, computeAge, daysUntilBirthday, isBirthdayToday, turningAge, displayAge } from "./dateAwareness";
+import { parseDateParts, computeAge, daysUntilBirthday, isBirthdayToday, turningAge, displayAge, todayLocal } from "./dateAwareness";
 
 // Fixed "now" so tests are deterministic: 2026-07-11.
 const NOW = new Date(2026, 6, 11);
+
+describe("todayLocal", () => {
+  it("formats the local date (not UTC-shifted)", () => {
+    expect(todayLocal(new Date(2026, 6, 11))).toBe("2026-07-11");
+    expect(todayLocal(new Date(2026, 0, 5))).toBe("2026-01-05");
+  });
+});
 
 describe("parseDateParts", () => {
   it("parses YYYY-MM-DD (date-picker format)", () => {

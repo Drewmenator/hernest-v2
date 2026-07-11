@@ -26,6 +26,7 @@ import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo,
 import { useStore }                  from "./store";
 import { getHouseholdId }            from "./identity";
 import { FLAGS }                     from "../config";
+import { todayLocal } from "./dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -532,7 +533,7 @@ ${stateAddendum}`;
       }
     } else if (FLAGS.CLEO_AGENT && classification.feature === "cleo_chat") {
       // ── Cleo v2 agent (Phase 2): tool loop so she can ACT, not just answer ──
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = todayLocal();
       const agentSystem = `${systemPrompt}
 
 === ACTIONS YOU CAN TAKE ===

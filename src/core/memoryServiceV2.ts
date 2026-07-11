@@ -16,6 +16,7 @@
 import { saveData, loadData } from "./firebase";
 import { invalidateCache } from "./contextRetrieval";
 import type { MemoryFact } from "./memory";
+import { todayLocal } from "./dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -367,7 +368,7 @@ export async function proposeMemory(
       if (m.id !== dedup.existingMemory?.id) return m;
       const newEvidence: MemoryEvidence = {
         description: candidate.evidenceDescription,
-        observedAt: new Date().toISOString().split("T")[0],
+        observedAt: todayLocal(),
         sourceModule: candidate.sourceModule,
       };
       // Boost confidence if repeated

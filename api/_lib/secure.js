@@ -47,3 +47,16 @@ export async function verifyAuth(req) {
   }
 }
 
+// Like verifyAuth but returns the decoded claims we need for authorization
+// checks (uid + verified email). Used to bind an invite to its recipient.
+export async function verifyAuthClaims(req) {
+  const idToken = req.headers["authorization"]?.split("Bearer ")[1];
+  if (!idToken) return null;
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    return { uid: decoded.uid, email: (decoded.email || "").toLowerCase(), emailVerified: !!decoded.email_verified };
+  } catch {
+    return null;
+  }
+}
+

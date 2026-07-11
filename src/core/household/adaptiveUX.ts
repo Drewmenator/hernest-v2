@@ -17,6 +17,7 @@ import { useMemo } from "react";
 import type { HouseholdStateResult, HouseholdState } from "./householdStateEngine";
 import { computeStateFromSnapshot } from "./householdStateEngine";
 import type { HouseholdSnapshot } from "../store";
+import { todayLocal } from "../dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -341,7 +342,7 @@ export function filterTasksForDisplay<T extends { priority?: string; dueDate?: s
   tasks: T[],
   config: AdaptiveConfig
 ): T[] {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocal();
 
   return tasks
     .filter(t => !t.done)

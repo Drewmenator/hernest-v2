@@ -125,8 +125,8 @@ function IntelligenceCard() {
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
             <div onClick={() => useStore.getState().setActiveTab("plan")} style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: data.overdue > 0 ? "#dc2626" : T.esp, margin: "0 0 2px" }}>{data.pending || 0}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tasks{data.overdue > 0 ? ` · ${data.overdue} late` : ""}</p>
+              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: data.overdue > 0 ? T.taupe : T.esp, margin: "0 0 2px" }}>{data.pending || 0}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tasks{data.overdue > 0 ? ` · ${data.overdue} to catch up on` : ""}</p>
             </div>
             <div onClick={() => useStore.getState().setActiveTab("calendar")} style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
               <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{data.todayEvents || 0}</p>

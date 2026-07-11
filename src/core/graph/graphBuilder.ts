@@ -4,7 +4,7 @@
 // createContextGraph(): builds a fresh graph from all Firestore module data.
 
 import { loadData } from "../firebase";
-import { daysUntilBirthday, displayAge } from "../dateAwareness";
+import { daysUntilBirthday, displayAge, todayLocal } from "../dateAwareness";
 import {
   now, addRelationship, indexNode, baseNode,
   buildStressNode, getAgeGroup, mapRiskToStatus, mapCategoryToInsightType,
@@ -308,7 +308,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
 
   // ── Calendar ──────────────────────────────────────────────────
   const calEvents = mergedCalEvents;
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayLocal();
   const nextWeekStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const upcoming = calEvents.filter((e: any) => e.date >= todayStr && e.date <= nextWeekStr);
   const loadLevel = upcoming.length >= 10 ? "critical" : upcoming.length >= 6 ? "heavy" : upcoming.length >= 3 ? "normal" : "light";
