@@ -100,6 +100,17 @@ const EPHEMERAL_EVENTS = new Set<EventType>([
   "intelligence.insight.requested",
 ]);
 
+// Household push: which shared actions are worth interrupting a partner for,
+// and how to phrase them. Deliberately excludes high-frequency/low-signal
+// events (e.g. every logged expense). Title is the actor's name (server-set).
+const HOUSEHOLD_PUSH: Partial<Record<EventType, { screen: string; summary: (p: any) => string }>> = {
+  "plan.task.created":          { screen: "plan",     summary: (p) => `added a task${p?.title || p?.text ? `: ${p.title || p.text}` : ""}` },
+  "plan.calendar.event.added":  { screen: "calendar", summary: (p) => `added to the calendar${p?.title ? `: ${p.title}` : ""}` },
+  "trips.trip.created":         { screen: "trips",    summary: (p) => `started planning a trip${p?.destination || p?.name ? ` to ${p.destination || p.name}` : ""}` },
+  "plan.school.newsletter.parsed": { screen: "plan",  summary: () => `added school events to the calendar` },
+  "budget.savings.goal.created": { screen: "budget",  summary: (p) => `set a savings goal${p?.name ? `: ${p.name}` : ""}` },
+};
+
 function toLoggedEvent(e: HerNestEvent): LoggedEvent {
   return {
     id: e.id,
@@ -168,6 +179,14 @@ class EventBus {
       } catch (e) {
         console.error(`[EventBus] persist failed for ${type}:`, e);
       }
+    }
+
+    // ── Household push (best-effort) — tell partners about shared actions ──
+    const hp = HOUSEHOLD_PUSH[type];
+    if (hp && (event.visibility === "partners" || event.visibility === "household")) {
+      import("../pushNotifications")
+        .then((m) => m.notifyHousehold(hp.summary(payload), hp.screen))
+        .catch(() => {});
     }
 
     // Specific handlers

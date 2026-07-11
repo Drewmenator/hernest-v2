@@ -79,6 +79,22 @@ export async function sendTestPush(action: "test" | "briefing" = "test"): Promis
   }
 }
 
+// Notify the other members of this household that the current user did something
+// (added a task, planned a trip…). Best-effort, fire-and-forget. Not gated on
+// platform — the actor may be on web while a partner is on the native app.
+export async function notifyHousehold(summary: string, screen = "home"): Promise<void> {
+  try {
+    const { auth } = await import("./firebase");
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+    await fetch("/api/push?action=household", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ summary, screen }),
+    });
+  } catch { /* best-effort */ }
+}
+
 // On full sign-out, drop this device's token so it stops receiving pushes.
 export async function unregisterPush(uid: string): Promise<void> {
   if (!isNative()) return;

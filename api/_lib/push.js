@@ -134,6 +134,36 @@ export async function sendBirthdayPushes(uid, now = new Date()) {
   return { sent };
 }
 
+// All uids in a user's household (primary + partners), for cross-notifying.
+// Membership: a partner's users/{uid}/data/household_link points at primaryUid.
+export async function householdMemberUids(uid) {
+  const link = await docData(`users/${uid}/data/household_link`);
+  const primaryUid = link.primaryUid || uid;
+  const members = new Set([primaryUid]);
+  try {
+    // household_link docs live in the per-user `data` subcollection; only they
+    // carry primaryUid, so a collection-group filter returns just those.
+    const snap = await adminDb.collectionGroup("data").where("primaryUid", "==", primaryUid).get();
+    for (const d of snap.docs) {
+      if (d.id !== "household_link") continue;
+      const memberUid = d.ref.parent.parent?.id;
+      if (memberUid) members.add(memberUid);
+    }
+  } catch { /* no index / solo user — just the primary */ }
+  return [...members];
+}
+
+// Notify every household member EXCEPT the actor of something they did.
+export async function notifyHousehold(actorUid, { title, body, data }) {
+  const members = await householdMemberUids(actorUid);
+  let sent = 0;
+  for (const m of members) {
+    if (m === actorUid) continue;
+    try { sent += (await sendPushToUser(m, { title, body, data })).sent; } catch { /* skip */ }
+  }
+  return { sent };
+}
+
 // Everything a user should get in the morning: birthday celebrations first,
 // then the digest. Used by the daily cron.
 export async function sendDailyPushesTo(uid, now = new Date()) {

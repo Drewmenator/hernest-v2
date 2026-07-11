@@ -3,8 +3,8 @@
 // devices (used to verify the APNs → FCM → device chain end-to-end).
 // Real notifications are sent server-side from cron/event handlers via
 // api/_lib/push.js sendPushToUser().
-import { applyCors, verifyAuth } from "./_lib/secure.js";
-import { sendPushToUser, sendMorningBriefingTo } from "./_lib/push.js";
+import { adminDb, applyCors, verifyAuth } from "./_lib/secure.js";
+import { sendPushToUser, sendMorningBriefingTo, notifyHousehold } from "./_lib/push.js";
 
 export default async function handler(req, res) {
   if (applyCors(req, res, "POST, OPTIONS")) return;
@@ -26,6 +26,23 @@ export default async function handler(req, res) {
     // sends at 6:00 UTC), so it can be verified without waiting for tomorrow.
     if (action === "briefing") {
       const result = await sendMorningBriefingTo(uid);
+      return res.json({ success: true, ...result });
+    }
+    // Notify the OTHER household members of something the caller just did.
+    // Body: { summary: "added a task: buy milk", screen?: "plan" }.
+    if (action === "household") {
+      const { summary, screen } = req.body || {};
+      if (!summary) return res.status(400).json({ error: "missing_summary" });
+      let name = "Someone";
+      try {
+        const p = (await adminDb.doc(`users/${uid}/data/profile`).get()).data();
+        name = p?.name || name;
+      } catch { /* default */ }
+      const result = await notifyHousehold(uid, {
+        title: name,
+        body: String(summary).slice(0, 140),
+        data: { screen: screen || "home" },
+      });
       return res.json({ success: true, ...result });
     }
     return res.status(400).json({ error: "unknown_action" });
