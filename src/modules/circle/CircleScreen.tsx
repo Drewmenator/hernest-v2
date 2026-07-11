@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
+import { daysUntilBirthday, displayAge } from "../../core/dateAwareness";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
@@ -63,15 +64,8 @@ const daysSince = (date?: string) => {
   return Math.floor((Date.now() - (isNaN(new Date(date||"").getTime())?Date.now():new Date(date).getTime())) / (1000*60*60*24));
 };
 
-const daysUntilBirthday = (birthday?: string) => {
-  if (!birthday) return null;
-  const today = new Date();
-  const yr = today.getFullYear();
-  const [m,d] = birthday.split("-").map(Number);
-  const next = new Date(yr, (m||1)-1, d||1);
-  if (next < today) next.setFullYear(yr+1);
-  return Math.ceil((next.getTime() - today.getTime()) / (1000*60*60*24));
-};
+// daysUntilBirthday + age come from ../../core/dateAwareness (imported at top),
+// which correctly handles both "YYYY-MM-DD" (date-picker) and legacy "MM-DD".
 
 // ── Suggested actions per blueprint ───────────────────────────────
 function suggestAction(contact: Contact): string {
@@ -163,7 +157,7 @@ export function CircleScreen() {
 Generate 5 specific, personal gift ideas with prices. Format as numbered list with brief "why" for each.
 Be specific — not generic. Think about their personality and history.`;
 
-    const prompt = `Gift ideas for ${contact.name} (${contact.age||"unknown age"}, ${contact.relationship}). Budget consciousness: moderate. Occasion: ${contact.birthday && daysUntilBirthday(contact.birthday) !== null && (daysUntilBirthday(contact.birthday) ?? 999) <= 30 ? "upcoming birthday" : "general"}. Their interests: ${contact.notes || "not specified"}.
+    const prompt = `Gift ideas for ${contact.name} (${displayAge({ birthDate: contact.birthday, age: contact.age }) ?? "unknown age"}, ${contact.relationship}). Budget consciousness: moderate. Occasion: ${contact.birthday && daysUntilBirthday(contact.birthday) !== null && (daysUntilBirthday(contact.birthday) ?? 999) <= 30 ? "upcoming birthday" : "general"}. Their interests: ${contact.notes || "not specified"}.
 ${interests?"Interests: "+interests+".":""}
 ${history?"Previously loved gifts: "+history+".":""}
 Budget: flexible but thoughtful.`;

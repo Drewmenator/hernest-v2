@@ -7,7 +7,7 @@
 // Auth: Vercel adds `Authorization: Bearer $CRON_SECRET` when CRON_SECRET
 // is set. We reject anything else.
 import { adminDb } from "./_lib/secure.js";
-import { sendMorningBriefingTo } from "./_lib/push.js";
+import { sendDailyPushesTo } from "./_lib/push.js";
 
 async function refreshGoogle(uid, data) {
   let { accessToken, refreshToken, expiresAt } = data;
@@ -95,10 +95,10 @@ async function sendMorningBriefings() {
   let pushed = 0;
   for (const uid of uids) {
     try {
-      const r = await sendMorningBriefingTo(uid);
-      if (r.sent > 0) pushed++;
+      const r = await sendDailyPushesTo(uid);
+      if (r.digest > 0 || r.birthday > 0) pushed++;
     } catch (e) {
-      console.error("[Cron] briefing push failed:", e?.message);
+      console.error("[Cron] daily push failed:", e?.message);
     }
   }
   return pushed;

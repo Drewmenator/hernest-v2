@@ -4,6 +4,7 @@ import { useStore, FamilyMember, SchoolInfo }  from "../../core/store";
 import { Card, PageTitle, Pill, Spinner, EmptyState } from "../../shared/components";
 import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
+import { displayAge } from "../../core/dateAwareness";
 import { ai } from "../../core/ai";
 import toast from "react-hot-toast";
 
@@ -92,6 +93,7 @@ export function FamilyScreen() {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<FamilyMember["role"]>("child");
   const [newAge, setNewAge] = useState("");
+  const [newBirthDate, setNewBirthDate] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [schoolEditId, setSchoolEditId] = useState<string|null>(null);
@@ -101,7 +103,23 @@ export function FamilyScreen() {
     if (!user?.uid) return;
     loadData(user.uid, "family").then(async d => {
       if (d?.members && (d.members as any[]).length > 0) {
-        setFamilyMembers(d.members as FamilyMember[]);
+        // Backfill birthDate onto members that predate date-of-birth tracking,
+        // matching profile kids by name. This makes ages self-correct (a child
+        // saved as "6" gets their real DOB and computes the current age live).
+        let members = d.members as FamilyMember[];
+        try {
+          const profileData = await loadData(user.uid, "profile");
+          const kids = ((profileData?.kids || profileData?.children || []) as any[]);
+          let changed = false;
+          members = members.map(m => {
+            if (m.birthDate || !m.name) return m;
+            const kid = kids.find(k => k?.name?.trim().toLowerCase() === m.name.trim().toLowerCase() && k?.birthDate);
+            if (kid) { changed = true; return { ...m, birthDate: kid.birthDate }; }
+            return m;
+          });
+          if (changed) await saveData(user.uid, "family", JSON.parse(JSON.stringify({ members, tasks: d.tasks || [], meals: d.meals || [] })));
+        } catch { /* non-fatal */ }
+        setFamilyMembers(members);
       } else {
         // Seed from profile if no family members yet
         const profileData = await loadData(user.uid, "profile");
@@ -124,12 +142,13 @@ export function FamilyScreen() {
           const kids = (profileData.kids || profileData.children || []) as any[];
           for (const k of kids) {
             if (!k.name) continue;
-            const age = k.birthDate ? Math.floor((Date.now() - new Date(k.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : undefined;
             seeded.push({
               id: k.id || crypto.randomUUID(),
               name: k.name,
               role: "child",
-              age,
+              // Store the DOB, not a frozen age — age is computed live on display.
+              birthDate: k.birthDate || undefined,
+              age: typeof k.age === "number" ? k.age : undefined,
               notes: [k.school, (k.allergies||[]).join(", ")].filter(Boolean).join(" · ") || undefined,
               color: colors[ci++ % colors.length],
             });
@@ -167,7 +186,7 @@ export function FamilyScreen() {
     let updated: FamilyMember[];
     if (editingId) {
       updated = familyMembers.map(m => m.id === editingId
-        ? { ...m, name: newName.trim(), role: newRole, age: newAge ? parseInt(newAge) : undefined, notes: newNotes || undefined }
+        ? { ...m, name: newName.trim(), role: newRole, birthDate: newBirthDate || undefined, age: newAge ? parseInt(newAge) : undefined, notes: newNotes || undefined }
         : m
       );
     } else {
@@ -175,6 +194,7 @@ export function FamilyScreen() {
         id: crypto.randomUUID(),
         name: newName.trim(),
         role: newRole,
+        birthDate: newBirthDate || undefined,
         age: newAge ? parseInt(newAge) : undefined,
         notes: newNotes || undefined,
         color: MEMBER_COLORS[familyMembers.length % MEMBER_COLORS.length],
@@ -183,7 +203,7 @@ export function FamilyScreen() {
     }
     setFamilyMembers(updated);
     await persistAll(updated, tasks, meals);
-    setShowAdd(false); setNewName(""); setNewRole("child"); setNewAge(""); setNewNotes(""); setEditingId(null);
+    setShowAdd(false); setNewName(""); setNewRole("child"); setNewAge(""); setNewBirthDate(""); setNewNotes(""); setEditingId(null);
     toast.success(editingId ? "Updated ✓" : "Family member added ✓");
   };
 
@@ -195,7 +215,7 @@ export function FamilyScreen() {
 
   const startEdit = (m: FamilyMember) => {
     setEditingId(m.id); setNewName(m.name); setNewRole(m.role);
-    setNewAge(m.age?.toString() || ""); setNewNotes(m.notes || "");
+    setNewAge(m.age?.toString() || ""); setNewBirthDate(m.birthDate || ""); setNewNotes(m.notes || "");
     setShowAdd(true);
   };
 
@@ -229,7 +249,7 @@ export function FamilyScreen() {
     const sys = `You are Cleo. Return ONLY valid JSON array of 7 objects:
 [{"day":"Monday","dinner":"meal name under 6 words"}]
 Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
-    const familyCtx = familyMembers.map((m: any) => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""})`).join(", ");
+    const familyCtx = familyMembers.map((m: any) => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""})`; }).join(", ");
     const result = await ai(sys, `Plan this week's family dinners. Family: ${familyCtx || "not specified"}. Keep it practical and family-friendly.`, "meal_plan");
     if (!result.error) {
       try {
@@ -245,7 +265,7 @@ Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}
   const askCleo = async () => {
     if (!cleoInput.trim() || cleoLoading) return;
     setCleoLoading(true);
-    const roster = familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})`).join("; ");
+    const roster = familyMembers.map(m => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""}${m.notes ? ", " + m.notes : ""})`; }).join("; ");
     const taskList = tasks.filter((t: any) => !t.done).slice(0, 5).map((t: any) => `- ${t.title}${t.assignedTo ? " → " + t.assignedTo : ""}`).join("\n") || "No tasks";
     const mealList = meals.slice(0, 3).map((m: any) => `${m.dayName}: ${m.dinner}`).join(", ") || "No meals planned";
     const sys = `You are Cleo, family AI chief of staff for ${(profile as any)?.name || "this household"}.
@@ -298,7 +318,7 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
             <div style={{ flex: 1 }}>
               <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{m.name}</p>
               <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>
-                {m.role}{m.age ? ` · age ${m.age}` : ""}{m.notes ? ` · ${m.notes}` : ""}
+                {m.role}{displayAge(m) != null ? ` · age ${displayAge(m)}` : ""}{m.notes ? ` · ${m.notes}` : ""}
               </p>
             </div>
             {m.role === "child" && (
@@ -379,7 +399,9 @@ Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentence
                 </button>
               ))}
             </div>
-            <input value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="Age (optional)" type="number" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
+            <label style={{ display: "block", fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 4px 2px" }}>Date of birth (keeps age up to date)</label>
+            <input value={newBirthDate} onChange={e => setNewBirthDate(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
+            {!newBirthDate && <input value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="Age (optional, if no date of birth)" type="number" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />}
             <input value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Notes e.g. nut allergy, soccer Tuesdays (optional)" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={saveMember} disabled={!newName.trim()} style={{ flex: 1, padding: "12px", background: newName.trim() ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 12, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: newName.trim() ? "pointer" : "not-allowed", minHeight: 48 }}>

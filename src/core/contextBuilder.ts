@@ -3,6 +3,7 @@
 // v2: reads budget_v2, exposes household snapshot for intelligence layer
 
 import { loadData } from "./firebase";
+import { daysUntilBirthday } from "./dateAwareness";
 import { buildMemoryContext, loadMemoryFacts } from "./memory";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
 import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
@@ -284,23 +285,15 @@ export async function buildAppContext(
 
   // ── Circle ──────────────────────────────────────────────────────
   const contacts = (circleData?.contacts as any[]) || [];
-  const yr = today.getFullYear();
+  // Kids store `birthDate`, contacts/parents store `birthday` — accept either.
+  // daysUntilBirthday handles both "YYYY-MM-DD" and legacy "MM-DD".
   const birthdaysSoon = [
     ...contacts,
     ...((profile.kids as any[])||[]),
     ...((profile.parents as any[])||[]),
-  ].filter((p:any)=>{
-    if (!p.birthday) return false;
-    const [m,d] = p.birthday.split("-").map(Number);
-    const next = new Date(yr,m-1,d);
-    if (next<today) next.setFullYear(yr+1);
-    return Math.ceil((next.getTime()-today.getTime())/(1000*60*60*24))<=14;
-  }).map((p:any)=>{
-    const [m,d] = p.birthday.split("-").map(Number);
-    const next = new Date(yr,m-1,d);
-    if (next<today) next.setFullYear(yr+1);
-    return { name:p.name, daysUntil:Math.ceil((next.getTime()-today.getTime())/(1000*60*60*24)) };
-  });
+  ].map((p:any)=>({ name: p.name, daysUntil: daysUntilBirthday(p.birthday || p.birthDate, today) }))
+   .filter((b)=> b.daysUntil != null && b.daysUntil <= 14)
+   .map((b)=>({ name: b.name, daysUntil: b.daysUntil as number }));
 
   const overdueCheckins = contacts.filter((c:any)=>{
     if (!c.lastContact) return true;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
+import { displayAge } from "../../core/dateAwareness";
 import { Card, PageTitle, Pill, AIBadge, Spinner } from "../../shared/components";
 import { ai } from "../../core/ai";
 import { db as localDb } from "../../core/db";
@@ -109,7 +110,7 @@ export function BriefingScreen() {
       const focusData  = selectFocusWord(appCtx.tone);
 
       const familyRoster = familyMembers.length > 0
-        ? "Family: " + familyMembers.map(m => `${m.name} (${m.role}${m.age ? ", age " + m.age : ""}${m.notes ? ", " + m.notes : ""})` ).join("; ")
+        ? "Family: " + familyMembers.map(m => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""}${m.notes ? ", " + m.notes : ""})`; }).join("; ")
         : "";
 
       const date = new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" });

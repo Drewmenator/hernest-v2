@@ -4,6 +4,7 @@
 // createContextGraph(): builds a fresh graph from all Firestore module data.
 
 import { loadData } from "../firebase";
+import { daysUntilBirthday, displayAge } from "../dateAwareness";
 import {
   now, addRelationship, indexNode, baseNode,
   buildStressNode, getAgeGroup, mapRiskToStatus, mapCategoryToInsightType,
@@ -97,7 +98,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
       ...baseNode(`person_child_${k.id || k.name}`, "person", "family", 1, ["child"]) as any,
       name: k.name,
       role: "child",
-      ageGroup: getAgeGroup(k.age),
+      ageGroup: getAgeGroup(displayAge({ birthDate: k.birthDate, age: k.age }) ?? undefined),
       isUser: false,
       preferences: {},
       responsibilities: [],
@@ -127,7 +128,7 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
       ...baseNode(`person_family_${m.id || nm}`, "person", "family", 0.9, [m.role || "member"]) as any,
       name: nm,
       role,
-      ageGroup: isChild ? getAgeGroup(m.age) : "adult",
+      ageGroup: isChild ? getAgeGroup(displayAge(m) ?? undefined) : "adult",
       isUser: false,
       preferences: {},
       responsibilities: [],
@@ -425,16 +426,16 @@ export async function createContextGraph(userId: string): Promise<HouseholdConte
 
   // ── Circle: upcoming birthdays (as appointments) ──────────────
   const contacts = (circleData?.contacts as any[]) || [];
-  const yr = new Date().getFullYear();
+  // Kids store `birthDate`, contacts/parents store `birthday` — accept either;
+  // daysUntilBirthday handles "YYYY-MM-DD" and legacy "MM-DD".
   [...contacts, ...kids, ...((profileData?.parents as any[]) || [])]
-    .filter((p: any) => p?.birthday)
     .map((p: any) => {
-      const [mm, dd] = String(p.birthday).split("-").map(Number);
-      let next = new Date(yr, (mm || 1) - 1, dd || 1);
-      if (next < new Date()) next = new Date(yr + 1, (mm || 1) - 1, dd || 1);
-      return { name: p.name as string, days: Math.ceil((next.getTime() - Date.now()) / 86400000), date: next.toISOString().split("T")[0] };
+      const days = daysUntilBirthday(p?.birthday || p?.birthDate);
+      if (days == null) return null;
+      const date = new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
+      return { name: p.name as string, days, date };
     })
-    .filter((b) => b.days >= 0 && b.days <= 21)
+    .filter((b): b is { name: string; days: number; date: string } => !!b && b.days >= 0 && b.days <= 21)
     .slice(0, 6)
     .forEach((b) => {
       const bdayNode: CalendarContext = {

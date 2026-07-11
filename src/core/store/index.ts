@@ -16,6 +16,10 @@ export interface FamilyMember {
   id: string;
   name: string;
   role: "partner" | "child" | "parent" | "inlaw" | "other";
+  // birthDate (full YYYY-MM-DD) is the source of truth — age is computed live
+  // from it via displayAge(). `age` is a fallback for members entered without
+  // a date of birth; it does NOT update over time.
+  birthDate?: string;
   age?: number;
   notes?: string;
   color: string;
