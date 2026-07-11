@@ -16,7 +16,11 @@ export function LoginScreen() {
       // surface everything else as a retry prompt.
       const cancelled = e?.code === "auth/popup-closed-by-user" || e?.code === "1"; // native cancel
       if (!cancelled) {
-        setError("Sign in failed — please try again");
+        // Include the error code so on-device failures are diagnosable without
+        // a debugger attached (e.g. auth/operation-not-allowed, network errors).
+        const detail = e?.code || e?.message || "unknown";
+        setError(`Sign in failed (${detail}) — please try again`);
+        console.error("[Auth] sign-in failed:", e);
       }
     }
     setLoading(false);

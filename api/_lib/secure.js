@@ -17,8 +17,10 @@ export const adminDb = getFirestore();
 export const adminAuth = getAuth();
 
 // ── CORS ───────────────────────────────────────────────────────────
+// capacitor://localhost (iOS) and https://localhost (Android) are the native
+// Capacitor shell's origin — the app calls this API cross-origin from there.
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
-  "https://hernest-v2.vercel.app,http://localhost:5173,http://localhost:5174"
+  "https://hernest-v2.vercel.app,http://localhost:5173,http://localhost:5174,capacitor://localhost,https://localhost"
 ).split(",").map(o => o.trim());
 
 export function applyCors(req, res, methods = "GET, POST, OPTIONS") {

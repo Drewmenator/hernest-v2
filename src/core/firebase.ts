@@ -2,7 +2,7 @@
 // ─── Firebase Config ─────────────────────────────────────────────
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { initializeFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { isHouseholdCollection, getHouseholdId } from "./identity";
 import { FLAGS } from "../config";
 
@@ -18,7 +18,16 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db   = getFirestore(app);
+
+// Firestore transport: the default streaming (fetch/WebChannel) transport is
+// unreliable inside the native iOS WKWebView — reads can hang forever, which
+// looks like the app freezing right after sign-in. Forcing long-polling on
+// native fixes that; the web build keeps auto-detection (fast path when it works).
+const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+export const db = initializeFirestore(app, isNative
+  ? { experimentalForceLongPolling: true }
+  : { experimentalAutoDetectLongPolling: true });
+
 export const googleProvider = new GoogleAuthProvider();
 
 // ── Household scoping (migration Step 1) ──────────────────────────
