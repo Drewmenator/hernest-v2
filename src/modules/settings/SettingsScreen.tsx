@@ -10,6 +10,7 @@ import { signOut, deleteUser } from "firebase/auth";
 import { auth } from "../../core/firebase";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 const SECTIONS = ["partner","privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];
@@ -142,7 +143,7 @@ export function SettingsScreen() {
             <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>WHAT TO SHARE</p>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
               {SHARE_OPTIONS.map(opt=>(
-                <div key={opt.id} onClick={()=>toggleShare(opt.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:shareCategories.includes(opt.id)?T.goldP:T.sand, border:`1.5px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, borderRadius:12, cursor:"pointer", touchAction:"manipulation" }}>
+                <div key={opt.id} onClick={()=>toggleShare(opt.id)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle sharing: ${opt.label}`} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:shareCategories.includes(opt.id)?T.goldP:T.sand, border:`1.5px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, borderRadius:12, cursor:"pointer", touchAction:"manipulation" }}>
                   <span style={{ fontSize:18 }}>{opt.icon}</span>
                   <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, flex:1 }}>{opt.label}</p>
                   <div style={{ width:22, height:22, borderRadius:7, border:`2px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, background:shareCategories.includes(opt.id)?T.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13 }}>

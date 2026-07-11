@@ -10,6 +10,7 @@ import { bus } from "../../core/events";
 import { buildMemoryContext } from "../../core/memory";
 import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import toast from "react-hot-toast";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 // ── Types per blueprint ────────────────────────────────────────────
 interface Task {
@@ -449,7 +450,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                     {items.map((item,idx)=>{
                       const globalIdx = mealPlan.shoppingList.indexOf(item);
                       return (
-                        <div key={idx} onClick={()=>toggleShoppingItem(globalIdx)} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", cursor:"pointer", touchAction:"manipulation" }}>
+                        <div key={idx} onClick={()=>toggleShoppingItem(globalIdx)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle bought: ${item.item}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", cursor:"pointer", touchAction:"manipulation" }}>
                           <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12 }}>{item.checked?"✓":""}</div>
                           <span style={{ fontFamily:F.sans, fontSize:13, color:item.checked?T.taupe:T.esp, textDecoration:item.checked?"line-through":"none" }}>
                             {item.quantity} {item.item}

@@ -166,7 +166,7 @@ export const useStore = create<AppStore>()(
   immer((set) => ({
     user: null, authChecked: false, profile: null, activeTab: "home",
     screen: "loading", showMore: false, showSettings: false, showUpgrade: false, isPro: false,
-    isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 10,
+    isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 500,
     householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
     currentHouseholdId: null, householdRole: null, householdMembers: [],
     setUser: (user) => set((s) => { s.user = user; }),

@@ -14,8 +14,10 @@ export const EMAILS = {
 export const AI = {
   HAIKU: "claude-haiku-4-5",
   SONNET: "claude-sonnet-4-5",
-  FREE_LIMIT: 10,
-  PRO_LIMIT: 1000,
+  // Display-only mirror of the server's authoritative limit (api/claude.js
+  // FREE_DAILY_AI_LIMIT, default 500). The server enforces; keep these in sync.
+  FREE_LIMIT: 500,
+  PRO_LIMIT: 100000,
 };
 
 export const FLAGS = {

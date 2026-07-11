@@ -7,6 +7,7 @@ import { daysUntilBirthday, displayAge } from "../../core/dateAwareness";
 import { ai } from "../../core/ai";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 // ── Types per blueprint ────────────────────────────────────────────
 interface Contact {
@@ -467,7 +468,7 @@ CRITICAL RULES:
         </div>
 
         {COMPANIONS.map(c=>(
-          <div key={c.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"16px", background:T.ivory, borderRadius:20, border:`1px solid ${T.linen}`, marginBottom:10, cursor:"pointer", touchAction:"manipulation" }} onClick={()=>startCompanion(c)}>
+          <div key={c.id} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Chat with ${c.name}`} style={{ display:"flex", alignItems:"center", gap:14, padding:"16px", background:T.ivory, borderRadius:20, border:`1px solid ${T.linen}`, marginBottom:10, cursor:"pointer", touchAction:"manipulation" }} onClick={()=>startCompanion(c)}>
             <div style={{ width:56, height:56, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}30,${T.esp}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, flexShrink:0 }}>{c.avatar}</div>
             <div style={{ flex:1 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>

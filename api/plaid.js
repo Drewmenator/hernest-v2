@@ -9,14 +9,21 @@
 //      APP_URL. Unset → 503 (client falls back to "needs setup"), same as Stripe.
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret } from "./_lib/secure.js";
 
+// Plaid retired the "development" environment — only sandbox and production
+// remain. Live bank data requires PLAID_ENV=production AND production Plaid
+// credentials (client_id/secret) set in the environment, plus Plaid having
+// approved the app for production access.
 const PLAID_HOST = {
   sandbox: "https://sandbox.plaid.com",
-  development: "https://development.plaid.com",
   production: "https://production.plaid.com",
 };
 
+function isProd() {
+  return (process.env.PLAID_ENV || "sandbox").toLowerCase() === "production";
+}
+
 function plaidBase() {
-  return PLAID_HOST[process.env.PLAID_ENV || "sandbox"] || PLAID_HOST.sandbox;
+  return isProd() ? PLAID_HOST.production : PLAID_HOST.sandbox;
 }
 
 async function plaid(path, body) {

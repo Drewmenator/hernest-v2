@@ -10,6 +10,7 @@ import { createActionsFromInsight, executeRecommendedAction } from "../../core/r
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 // ── Briefing Hero Card (unchanged) ────────────────────────────────
 const getWindow = () => {
@@ -53,7 +54,7 @@ export function BriefingHero({ onExpand }: { onExpand: () => void }) {
   }, [user?.uid]);
 
   if (!briefing) return (
-    <div onClick={onExpand} style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }}>
+    <div onClick={onExpand} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Generate your briefing" style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }}>
       <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>{getWindow().label}</p>
       <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: "#fff", margin: "0 0 4px" }}>{getWindow().icon} {getWindow().greeting}</p>
       <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0 }}>Tap to generate your {getWindow().id} briefing →</p>
@@ -61,7 +62,7 @@ export function BriefingHero({ onExpand }: { onExpand: () => void }) {
   );
 
   return (
-    <div style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+    <div role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={expanded ? "Collapse briefing" : "Expand full briefing"} style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 12, cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div>
           <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 4px" }}>{getWindow().label}</p>

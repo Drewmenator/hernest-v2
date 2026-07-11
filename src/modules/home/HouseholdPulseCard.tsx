@@ -11,6 +11,7 @@ import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
 import { formatMoney } from "../../shared/utils/money";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 // ── NEW: Household Pulse Card ─────────────────────────────────────
 export function HouseholdPulseCard() {
@@ -111,6 +112,7 @@ export function HouseholdPulseCard() {
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {/* Financial health */}
         <div onClick={() => useStore.getState().setActiveTab("budget")}
+          role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Open budget"
           style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
           <p style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: gradeColor(f.financialHealthGrade), margin: "0 0 2px" }}>
             {f.financialHealthGrade}
@@ -120,6 +122,7 @@ export function HouseholdPulseCard() {
 
         {/* Calendar load */}
         <div onClick={() => useStore.getState().setActiveTab("calendar")}
+          role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Open schedule"
           style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
           <p style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: loadColor(snap.calendarLoad), margin: "0 0 2px" }}>
             {loadLabel(snap.calendarLoad)}
@@ -129,6 +132,7 @@ export function HouseholdPulseCard() {
 
         {/* Household stress */}
         <div onClick={() => useStore.getState().setActiveTab("briefing")}
+          role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Open briefing"
           style={{ flex: 1, padding: "10px 8px", background: "#fff", borderRadius: 14, border: `1px solid ${T.linen}`, textAlign: "center", cursor: "pointer" }}>
           <p style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700,
             color: snap.householdStressLevel === "high" ? T.blush : snap.householdStressLevel === "moderate" ? T.gold : T.sage,

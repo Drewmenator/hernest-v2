@@ -11,6 +11,7 @@ import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
 import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
 import { SEV_COLOR, SEV_RANK, SOURCE_TAB, cc_str } from "./homeShared";
+import { onEnterSpace } from "../../shared/utils/a11y";
 import { loadHomeDocs } from "./homeData";
 
 // ── Today's Intelligence Card (unchanged) ─────────────────────────
@@ -99,6 +100,7 @@ export function CommandCenterCard() {
           const color = SEV_COLOR[it.severity];
           return (
             <div key={it.id} onClick={() => setActiveTab(it.tab)}
+              role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={it.label}
               style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "10px 12px", background: "rgba(255,255,255,0.06)", borderRadius: 12, marginBottom: 7, cursor: "pointer", borderLeft: `3px solid ${color}` }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 5 }} />
               <div style={{ flex: 1, minWidth: 0 }}>

@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { Card, AIBadge, Spinner, ProgressBar, Button } from "../../shared/components";
 import { estimateBudgetBreakdown, normTrip } from "./tripsShared";
 import type { Trip, ReadinessScore } from "./tripsShared";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 const CATEGORY_ICONS: Record<string, string> = {
   booking: "◈", document: "◎", health: "◦", packing: "🧳", home: "◉", notification: "◆",
@@ -75,6 +76,7 @@ export function TripDetailTabs({
               const statusColor = { needed: T.blush, ready: T.sage, expired: "#dc2626" }[doc.status];
               return (
                 <div key={i} onClick={() => toggleDoc(i)}
+                  role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle ${doc.type} status`}
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.linen}`, cursor: "pointer" }}>
                   <span style={{ fontSize: 18 }}>{doc.type === "passport" ? "◈" : doc.type === "insurance" ? "◉" : "◎"}</span>
                   <div style={{ flex: 1 }}>
@@ -187,6 +189,7 @@ export function TripDetailTabs({
                     <div style={{ marginTop: 10 }}>
                       {sec.items.map((item, ii) => (
                         <div key={ii} onClick={() => togglePacking(si, ii)}
+                          role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle packed: ${item.name}`}
                           style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.linen}`, cursor: "pointer", touchAction: "manipulation" }}>
                           <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${item.checked ? T.sage : item.essential ? "#dc2626" : T.linen}`, background: item.checked ? T.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13 }}>
                             {item.checked ? "✓" : ""}
@@ -225,6 +228,7 @@ export function TripDetailTabs({
           <div style={{ marginTop: 16 }}>
             {trip.preDeparture.map((task, i) => (
               <div key={i} onClick={() => toggleTask(i)}
+                role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle task: ${task.task}`}
                 style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.linen}`, cursor: "pointer", touchAction: "manipulation" }}>
                 <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${task.completed ? T.sage : T.linen}`, background: task.completed ? T.sage : "transparent", flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13 }}>
                   {task.completed ? "✓" : ""}

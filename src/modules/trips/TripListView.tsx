@@ -4,6 +4,7 @@ import { Card, PageTitle, EmptyState } from "../../shared/components";
 import { safeDate, daysUntil, computeTripState, computeReadiness, normTrip, STATE_CONFIG } from "./tripsShared";
 import type { Trip, Traveller } from "./tripsShared";
 import { ReadinessRing } from "./ReadinessRing";
+import { onEnterSpace } from "../../shared/utils/a11y";
 
 export function TripListView({
   trips, householdSnapshot, showAdd, setShowAdd,
@@ -157,6 +158,7 @@ export function TripListView({
             const readiness = computeReadiness(trip);
             return (
               <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
+                role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}
                 style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
@@ -194,6 +196,7 @@ export function TripListView({
           <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>PAST</p>
           {past.map(trip => (
             <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
+              role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}
               style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 8, cursor: "pointer", opacity: 0.85 }}>
               <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: T.esp, margin: "0 0 2px" }}>{trip.destination}</p>
               <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>
