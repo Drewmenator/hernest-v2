@@ -32,9 +32,15 @@ export const auth = isNativePlatform
 // looks like the app freezing right after sign-in. Forcing long-polling on
 // native fixes that; the web build keeps auto-detection (fast path when it works).
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-export const db = initializeFirestore(app, isNative
-  ? { experimentalForceLongPolling: true }
-  : { experimentalAutoDetectLongPolling: true });
+// ignoreUndefinedProperties: optional event fields (e.g. subjectMemberId) are
+// often undefined; Firestore rejects undefined values with invalid-argument
+// unless told to drop them. Dropping is exactly what we want here.
+export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+  ...(isNative
+    ? { experimentalForceLongPolling: true }
+    : { experimentalAutoDetectLongPolling: true }),
+});
 
 export const googleProvider = new GoogleAuthProvider();
 
