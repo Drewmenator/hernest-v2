@@ -312,8 +312,15 @@ export function CalendarScreen() {
            // Convert to iCal-like text for pending modal
         const icalText = ["BEGIN:VCALENDAR", ...events.map((ev: any) => ["BEGIN:VEVENT",`SUMMARY:${ev.title}`,`DTSTART:${(ev.date||"").replace(/-/g,"")}`,`DTEND:${(ev.endDate||ev.date||"").replace(/-/g,"")}`, "END:VEVENT"].join("\n")), "END:VCALENDAR"].join("\n");      setPendingIcal({ text: icalText, filename: file.name });
         setUploadingSchool(false);
-      } else if (["csv","xlsx","xls"].includes(ext)) {
-        toast.error("CSV/Excel support coming soon — please use .ics or PDF for now");
+      } else if (ext === "csv" || ext === "tsv") {
+        const { parseCsvEvents } = await import("./csvImport");
+        const parsed = parseCsvEvents(await file.text());
+        if (!parsed.length) { toast.error("Couldn't read that CSV — it needs a header row with a title and a date column."); e.target.value = ""; return; }
+        const icalText = ["BEGIN:VCALENDAR", ...parsed.map(ev => ["BEGIN:VEVENT", `SUMMARY:${ev.title}`, `DTSTART:${ev.date.replace(/-/g, "")}`, `DTEND:${(ev.endDate || ev.date).replace(/-/g, "")}`, "END:VEVENT"].join("\n")), "END:VCALENDAR"].join("\n");
+        setPendingIcal({ text: icalText, filename: file.name });
+        toast.success(`Found ${parsed.length} event${parsed.length === 1 ? "" : "s"} ✓`);
+      } else if (["xlsx","xls"].includes(ext)) {
+        toast("Excel isn't supported directly — in your spreadsheet choose File → Save As → CSV, then upload that.", { icon: "📄", duration: 6000 });
         e.target.value = "";
         return;
       } else {

@@ -78,10 +78,10 @@ export function UpgradeScreen() {
 
       {/* Hero */}
       <div style={{ background:`linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius:24, padding:"32px 24px", marginBottom:20, textAlign:"center" }}>
-        <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>COMING SOON</p>
+        <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>HERNEST PRO</p>
         <p style={{ fontFamily:F.serif, fontSize:30, fontStyle:"italic", color:"#fff", margin:"0 0 12px", fontWeight:500 }}>Your household deserves a real chief of staff</p>
         <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
-          HerNest Pro is almost ready. Join the waitlist and you'll be first to know — with a founding member discount.
+          Unlimited Cleo, her full memory, every connector, and shared briefings for your whole household.
         </p>
       </div>
 
@@ -117,7 +117,7 @@ export function UpgradeScreen() {
       )}
 
       <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, textAlign:"center", margin:"8px 0 0", lineHeight:1.6 }}>
-        No credit card required. We'll email you when Pro launches.
+        Cancel anytime · Secure checkout
       </p>
     </div>
   );
