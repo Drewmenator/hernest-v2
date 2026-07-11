@@ -51,20 +51,29 @@ async function docData(path) {
   try { return (await adminDb.doc(path).get()).data() || {}; } catch { return {}; }
 }
 
-// Everyone with a birthday the user tracks: profile kids/parents/inlaws/partner
-// + circle contacts. `date` may be YYYY-MM-DD or legacy MM-DD.
+// Everyone with a birthday the user tracks: household family roster (has full
+// DOBs) + profile kids/parents/inlaws/partner + circle contacts. Deduped by
+// name, preferring a full "YYYY-MM-DD" so we can compute the age they turn.
+// family/circle are household-scoped, so read them from the household owner.
 async function birthdayPeople(uid) {
-  const people = [];
+  const owner = await ownerFor(uid);
+  const map = new Map();
+  const add = (name, date) => {
+    if (!name || !date) return;
+    const key = String(name).trim().toLowerCase();
+    const cur = map.get(key);
+    if (!cur || (String(date).length >= 10 && String(cur.date).length < 10)) map.set(key, { name, date });
+  };
+  const family = await docData(`users/${owner}/data/family`);
+  for (const m of (family.members || [])) add(m?.name, m?.birthDate || m?.birthday);
   const profile = await docData(`users/${uid}/data/profile`);
-  for (const k of (profile.kids || profile.children || [])) {
-    if (k?.name && (k.birthDate || k.birthday)) people.push({ name: k.name, date: k.birthDate || k.birthday });
-  }
-  for (const p of (profile.parents || [])) if (p?.name && p.birthday) people.push({ name: p.name, date: p.birthday });
-  for (const p of (profile.inlaws || [])) if (p?.name && p.birthday) people.push({ name: p.name, date: p.birthday });
-  if (profile.partner?.name && profile.partner?.birthday) people.push({ name: profile.partner.name, date: profile.partner.birthday });
-  const circle = await docData(`users/${uid}/data/circle`);
-  for (const c of (circle.contacts || [])) if (c?.name && c.birthday) people.push({ name: c.name, date: c.birthday });
-  return people;
+  for (const k of (profile.kids || profile.children || [])) add(k?.name, k?.birthDate || k?.birthday);
+  for (const p of (profile.parents || [])) add(p?.name, p?.birthday);
+  for (const p of (profile.inlaws || [])) add(p?.name, p?.birthday);
+  if (profile.partner) add(profile.partner.name, profile.partner.birthday);
+  const circle = await docData(`users/${owner}/data/circle`);
+  for (const c of (circle.contacts || [])) add(c?.name, c?.birthday);
+  return [...map.values()];
 }
 
 // Enriched morning digest: today's events, tasks due, school deadlines, and the
@@ -80,12 +89,12 @@ export async function buildBriefingLine(uid, now = new Date()) {
     else if (todays.length > 1) bits.push(`${todays.length} events`);
   } catch { /* skip */ }
   try {
-    const tasks = ((await docData(`users/${uid}/data/tasks`)).tasks) || [];
+    const tasks = ((await docData(`users/${owner}/data/tasks`)).tasks) || [];
     const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed");
     if (due.length) bits.push(`${due.length} task${due.length > 1 ? "s" : ""} due`);
   } catch { /* skip */ }
   try {
-    const school = ((await docData(`users/${uid}/data/school`)).events) || [];
+    const school = ((await docData(`users/${owner}/data/school`)).events) || [];
     const soon = school.filter(e => {
       const d = e.actionDeadline || e.date;
       if (!d || !e.requiresAction) return false;
