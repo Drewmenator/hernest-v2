@@ -21,6 +21,7 @@ import { useStore } from "./store";
 export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "budget",
   "budget_v2",
+  "bills",
   "tasks",
   "calendar",
   "calendar_synced",   // events fetched from connected providers (Google/Apple/Outlook)

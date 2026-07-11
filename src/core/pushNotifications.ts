@@ -24,33 +24,56 @@ let registered = false;
 
 // Call once after sign-in. Requests permission, gets the FCM token, persists it,
 // and wires listeners for token refresh + notification taps.
+//
+// Called after sign-in — but does NOT prompt for permission (Apple's guidance
+// is to ask in context, not on first launch). It only completes registration
+// if the user has ALREADY granted permission. Use enablePush() for the ask.
 export async function registerPush(uid: string): Promise<void> {
   if (!isNative() || registered) return;
-  registered = true;
   try {
     const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+    const perm = await FirebaseMessaging.checkPermissions().catch(() => null);
+    if (perm?.receive === "granted") await completeRegistration(uid, FirebaseMessaging);
+  } catch (e) {
+    console.warn("[Push] check failed (non-fatal):", e);
+  }
+}
 
+// The explicit opt-in: prompt for permission (from a Settings toggle or a
+// contextual soft-ask), then register. Returns whether push is now enabled.
+export async function enablePush(uid: string): Promise<boolean> {
+  if (!isNative()) return false;
+  try {
+    const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
     const perm = await FirebaseMessaging.requestPermissions();
-    if (perm.receive !== "granted") return; // user declined — respect it
+    if (perm.receive !== "granted") return false;
+    await completeRegistration(uid, FirebaseMessaging);
+    return true;
+  } catch (e) {
+    console.warn("[Push] enable failed (non-fatal):", e);
+    return false;
+  }
+}
 
+// Shared registration once permission is confirmed granted. No prompting here.
+async function completeRegistration(uid: string, FirebaseMessaging: any): Promise<void> {
+  if (registered) return;
+  registered = true;
+  try {
     const { token } = await FirebaseMessaging.getToken();
     if (token) await storeToken(uid, token);
 
-    // Token can rotate; keep Firestore current.
     await FirebaseMessaging.addListener("tokenReceived", (e: any) => {
       if (e?.token) storeToken(uid, e.token).catch(() => {});
     });
 
-    // On-device wellness notifications: a standing evening check-in reminder
-    // and tap-routing for local notifications (both native-only, no-op web).
+    // On-device wellness notifications: standing evening check-in reminder +
+    // tap routing (permission is already granted, so these won't prompt).
     import("./localNotifications").then(l => {
       l.ensureDailyCheckinReminder();
       l.initLocalNotificationTaps();
     }).catch(() => {});
 
-    // Tapping a notification deep-links to a tab via its data.screen payload
-    // (e.g. "briefing"). Tabs are activeTab values, so ensure we're on the app
-    // screen and switch the tab. Late import avoids a store import cycle.
     await FirebaseMessaging.addListener("notificationActionPerformed", (e: any) => {
       const tab = e?.notification?.data?.screen;
       if (tab) {
@@ -62,7 +85,7 @@ export async function registerPush(uid: string): Promise<void> {
       }
     });
   } catch (e) {
-    // Non-fatal: push just won't work until the APNs key + capability are set up.
+    registered = false;
     console.warn("[Push] registration failed (non-fatal):", e);
   }
 }

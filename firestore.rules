@@ -25,7 +25,7 @@ service cloud.firestore {
     // until per-member consent lands in migration Step 5.)
     function householdShared() {
       return [
-        'budget', 'budget_v2', 'tasks', 'calendar', 'trips',
+        'budget', 'budget_v2', 'bills', 'tasks', 'calendar', 'trips',
         'school', 'circle', 'household_insights', 'household_graph'
       ];
     }

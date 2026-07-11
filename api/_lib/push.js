@@ -104,7 +104,7 @@ export async function buildBriefingLine(uid, now = new Date()) {
     if (soon.length) bits.push(`${soon.length} school deadline${soon.length > 1 ? "s" : ""}`);
   } catch { /* skip */ }
   try {
-    const bills = ((await docData(`users/${uid}/data/bills`)).bills) || [];
+    const bills = ((await docData(`users/${owner}/data/bills`)).bills) || [];
     const due = bills
       .map(b => ({ name: b.name, amount: b.amount, days: daysUntilDue(b, now), autopay: b.autopay }))
       .filter(b => b.days != null && b.days >= 0 && b.days <= 5)

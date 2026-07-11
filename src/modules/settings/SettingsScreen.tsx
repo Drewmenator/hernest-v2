@@ -336,15 +336,25 @@ export function SettingsScreen() {
             </div>
           </div>
           {(window as any).Capacitor?.isNativePlatform?.() && (
-            <button onClick={async()=>{
-              const { sendTestPush } = await import("../../core/pushNotifications");
-              const r = await sendTestPush("briefing");
-              if (r && r.sent > 0) toast.success("Morning briefing sent ✓");
-              else if (r) toast("No device registered yet — allow notifications first", { icon: "🔔" });
-              else toast.error("Couldn't send notification");
-            }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
-              Preview morning briefing
-            </button>
+            <>
+              <button onClick={async()=>{
+                const { enablePush } = await import("../../core/pushNotifications");
+                const ok = await enablePush(user!.uid);
+                if (ok) toast.success("Notifications on ✓");
+                else toast("Enable notifications in iOS Settings to get reminders", { icon: "🔔" });
+              }} style={{ width:"100%", padding:"12px", background:T.esp, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#fff", cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
+                🔔 Turn on notifications
+              </button>
+              <button onClick={async()=>{
+                const { sendTestPush } = await import("../../core/pushNotifications");
+                const r = await sendTestPush("briefing");
+                if (r && r.sent > 0) toast.success("Morning briefing sent ✓");
+                else if (r) toast("Turn on notifications first", { icon: "🔔" });
+                else toast.error("Couldn't send notification");
+              }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
+                Preview morning briefing
+              </button>
+            </>
           )}
           <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8 }}>
             Sign out of HerNest

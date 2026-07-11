@@ -16,13 +16,11 @@ function isNative(): boolean {
 const NUDGE_ID = 1001;
 const CHECKIN_ID = 2001;
 
-async function ensurePermission(LN: any): Promise<boolean> {
-  try {
-    const p = await LN.checkPermissions();
-    if (p.display === "granted") return true;
-    const r = await LN.requestPermissions();
-    return r.display === "granted";
-  } catch { return false; }
+// Check-only — never prompts. The single permission ask lives in
+// pushNotifications.enablePush() (iOS shares one notification permission across
+// push + local), so these on-app-open paths must not trigger a cold prompt.
+async function hasPermission(LN: any): Promise<boolean> {
+  try { return (await LN.checkPermissions()).display === "granted"; } catch { return false; }
 }
 
 function todayKey(): string {
@@ -42,7 +40,7 @@ export async function maybeScheduleWellnessNudge(uid: string): Promise<void> {
     if (localStorage.getItem(dedupKey)) return;
 
     const { LocalNotifications } = await import("@capacitor/local-notifications");
-    if (!(await ensurePermission(LocalNotifications))) return;
+    if (!(await hasPermission(LocalNotifications))) return;
     await LocalNotifications.schedule({
       notifications: [{
         id: NUDGE_ID,
@@ -66,7 +64,7 @@ export async function ensureDailyCheckinReminder(): Promise<void> {
   try {
     if (localStorage.getItem("hn_checkin_reminder_set")) return;
     const { LocalNotifications } = await import("@capacitor/local-notifications");
-    if (!(await ensurePermission(LocalNotifications))) return;
+    if (!(await hasPermission(LocalNotifications))) return;
     await LocalNotifications.schedule({
       notifications: [{
         id: CHECKIN_ID,

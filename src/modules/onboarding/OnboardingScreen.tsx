@@ -14,22 +14,23 @@ interface SetupData {
   challenge?: string;
 }
 
-type SetupStep = "intro" | "name" | "income" | "kids" | "goal" | "debt" | "challenge" | "done";
+type SetupStep = "intro" | "name" | "income" | "kids" | "kidDates" | "goal" | "debt" | "challenge" | "done";
 
 const NORA_QUESTIONS: Record<SetupStep, (data: SetupData) => string> = {
   intro:     () => "",
   name:      () => "First things first — what's your name?",
   income:    (d) => `Lovely to meet you, ${d.name} ✦\n\nTo help you properly, I need to understand your household finances. What's your combined monthly household income? (Approximate is completely fine — you can update this any time.)`,
   kids:      () => "Do you have children? If yes, tell me their names and ages — I'll use this to personalise your experience. If not, just say 'no kids'.",
+  kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate 🎂 — totally optional, tap Continue to skip.",
   goal:      (d) => d.kids && d.kids.toLowerCase() !== "no kids" ? `Thank you — knowing about your family helps me a lot.\n\nWhat's your biggest financial goal right now? For example: build an emergency fund, pay off debt, save for a holiday, or something else entirely.` : `Got it.\n\nWhat's your biggest financial goal right now? For example: build an emergency fund, pay off debt, save for a holiday, or something else entirely.`,
   debt:      (d) => `${d.goal ? `"${d.goal}" — that's a great focus.\n\n` : ""}One more financial question, and you can skip this one. Do you have any existing debt? Credit cards, loans, car finance? Just give me a rough total, or say 'skip'.`,
   challenge: () => "Almost done.\n\nWhat's the biggest thing weighing on you right now — the thing that takes up most of your mental energy?",
   done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you manage your finances, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,
 };
 
-const STEP_ORDER: SetupStep[] = ["name", "income", "kids", "goal", "debt", "challenge", "done"];
+const STEP_ORDER: SetupStep[] = ["name", "income", "kids", "kidDates", "goal", "debt", "challenge", "done"];
 
-function parseKids(input: string): Array<{name: string; age: number}> {
+function parseKids(input: string): Array<{id: string; name: string; age: number}> {
   if (input.toLowerCase().includes("no kid") || input.toLowerCase() === "none" || input.toLowerCase() === "no") return [];
   // Try to extract names and ages like "Emma 8, Jake 5"
   const parts = input.split(/,|and/i).map(s => s.trim()).filter(Boolean);
@@ -48,6 +49,8 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
   const [data, setData] = useState<SetupData>({});
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  // Parsed kids held between the "kids" text step and the "kidDates" picker step.
+  const [kidsList, setKidsList] = useState<Array<{ id: string; name: string; age?: number; birthDate?: string }>>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +78,15 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
+  // Advance from the birthday-picker step to the goal question.
+  const finishKidDates = () => {
+    setStep("goal");
+    setTimeout(() => {
+      setMsgs(prev => [...prev, { role: "cleo", text: NORA_QUESTIONS.goal(data) }]);
+      inputRef.current?.focus();
+    }, 300);
+  };
+
   const send = async () => {
     if (!input.trim() || loading || done) return;
     const userMsg = input.trim();
@@ -96,7 +108,10 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
       nextStep = "kids";
     } else if (step === "kids") {
       newData.kids = userMsg;
-      nextStep = "goal";
+      const parsed = parseKids(userMsg);
+      setKidsList(parsed);
+      // Offer the optional birthday picker only if we actually found kids.
+      nextStep = parsed.length > 0 ? "kidDates" : "goal";
     } else if (step === "goal") {
       newData.goal = userMsg;
       nextStep = "debt";
@@ -126,7 +141,8 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
         // Save everything
         try {
-          const kids = parseKids(newData.kids || "");
+          // Prefer the picker list (carries birthDate); fall back to re-parsing.
+          const kids = kidsList.length ? kidsList : parseKids(newData.kids || "");
           const profile = {
             uid:           user?.uid || "",
             name:          newData.name || "",
@@ -234,8 +250,29 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Birthday picker (optional structured step) */}
+      {!done && step === "kidDates" && (
+        <div style={{ padding: "12px 16px 32px", borderTop: `1px solid ${T.linen}`, background: T.cream }}>
+          {kidsList.map((k, i) => (
+            <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ flex: 1, fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp }}>{k.name}</span>
+              <input
+                type="date"
+                max={new Date().toISOString().split("T")[0]}
+                value={k.birthDate || ""}
+                onChange={e => setKidsList(list => list.map((x, j) => j === i ? { ...x, birthDate: e.target.value } : x))}
+                style={{ background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }}
+              />
+            </div>
+          ))}
+          <button onClick={finishKidDates} style={{ width: "100%", marginTop: 8, padding: "13px", background: T.esp, border: "none", color: "#fff", borderRadius: 14, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 48 }}>
+            Continue
+          </button>
+        </div>
+      )}
+
       {/* Input */}
-      {!done && (
+      {!done && step !== "kidDates" && (
         <div style={{ padding: "12px 16px 32px", borderTop: `1px solid ${T.linen}`, background: T.cream, display: "flex", gap: 10 }}>
           <input
             ref={inputRef}
