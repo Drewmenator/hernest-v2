@@ -190,6 +190,8 @@ export default function App() {
         // never reasons over stale data (previously only synced on the
         // Calendar screen).
         import("./core/connectorSync").then(m => m.syncAllConnectors(u.uid)).catch(() => {});
+        // Native push: register this device for FCM (no-op on web). Fire-and-forget.
+        import("./core/pushNotifications").then(m => m.registerPush(u.uid)).catch(() => {});
         setScreen(isOnboarded(profileData) ? "app" : "onboarding");
       } else {
         setUser(null);
