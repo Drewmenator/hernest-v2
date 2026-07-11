@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Configure Firebase natively BEFORE Capacitor loads plugins. The Firebase
+        // auth plugin adds an auth-state listener in its load(); if the default
+        // FirebaseApp isn't configured first, that throws and takes down the
+        // webview (seen on device as sign-in hanging then reloading to login).
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
         return true
     }
 
