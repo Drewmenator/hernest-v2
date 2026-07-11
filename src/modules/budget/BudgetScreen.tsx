@@ -19,6 +19,7 @@ import { BudgetOverviewTab } from "./BudgetOverviewTab";
 import { ReceiptsInbox, type GmailReceipt } from "./ReceiptsInbox";
 import { BudgetCFOTab } from "./BudgetCFOTab";
 import { BudgetGoalsTab } from "./BudgetGoalsTab";
+import { BudgetBillsTab } from "./BudgetBillsTab";
 import { BudgetInsightsTab } from "./BudgetInsightsTab";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -27,7 +28,7 @@ import { BudgetInsightsTab } from "./BudgetInsightsTab";
 
 export function BudgetScreen() {
   const { user, profile, householdSnapshot } = useStore();
-  const [tab, setTab] = useState<"overview" | "cfo" | "goals" | "insights">("overview");
+  const [tab, setTab] = useState<"overview" | "bills" | "cfo" | "goals" | "insights">("overview");
   const [hasLoaded, setHasLoaded] = useState(false);
 
   // ── Core financial data ──────────────────────────────────────────
@@ -705,6 +706,7 @@ Maximum 50 transactions.`;
       <div style={{ display: "flex", gap: 8, marginBottom: 16, justifyContent: "center", flexWrap: "wrap" }}>
         {[
           { id: "overview", label: "Overview" },
+          { id: "bills",    label: "💳 Bills" },
           { id: "cfo",      label: "✦ CFO" },
           { id: "goals",    label: "🎯 Goals" },
           { id: "insights", label: "💡 Insights" },
@@ -737,6 +739,11 @@ Maximum 50 transactions.`;
           handleCSV={handleCSV}
         />
       )}
+
+      {/* ════════════════════════════════════════════════════════════
+          TAB: BILLS
+      ════════════════════════════════════════════════════════════ */}
+      {tab === "bills" && user?.uid && <BudgetBillsTab uid={user.uid} />}
 
       {/* ════════════════════════════════════════════════════════════
           TAB: HOUSEHOLD CFO

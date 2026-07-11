@@ -4,6 +4,7 @@
 import { getMessaging } from "firebase-admin/messaging";
 import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
+import { daysUntilDue } from "./bills.js";
 
 // Send one notification to every device registered under users/{uid}/devices.
 // Returns { sent, pruned }. Safe to call when the user has no devices.
@@ -92,6 +93,18 @@ export async function buildBriefingLine(uid, now = new Date()) {
       return days >= 0 && days <= 3;
     });
     if (soon.length) bits.push(`${soon.length} school deadline${soon.length > 1 ? "s" : ""}`);
+  } catch { /* skip */ }
+  try {
+    const bills = ((await docData(`users/${uid}/data/bills`)).bills) || [];
+    const due = bills
+      .map(b => ({ name: b.name, amount: b.amount, days: daysUntilDue(b, now), autopay: b.autopay }))
+      .filter(b => b.days != null && b.days >= 0 && b.days <= 5)
+      .sort((a, b) => a.days - b.days);
+    if (due.length) {
+      const b = due[0];
+      const when = b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
+      bits.push(`${b.name} ($${Math.round(b.amount).toLocaleString()}) ${when}${b.autopay ? " (autopay)" : ""}`);
+    }
   } catch { /* skip */ }
   try {
     const soon = (await birthdayPeople(uid))

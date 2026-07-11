@@ -42,6 +42,18 @@ export interface Debt {
   payoffDate?: string; // computed
 }
 
+export interface Bill {
+  id: string;
+  name: string;
+  amount: number;
+  cadence: "monthly" | "yearly" | "weekly" | "once";
+  dueDay?: number;      // 1–31, for monthly
+  dueDate?: string;     // YYYY-MM-DD anchor, for once/yearly/weekly
+  category?: string;
+  autopay?: boolean;
+  lastPaidDate?: string; // YYYY-MM-DD
+}
+
 export interface FinancialGoal {
   id: string;
   name: string;
