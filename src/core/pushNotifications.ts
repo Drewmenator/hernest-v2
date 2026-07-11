@@ -41,6 +41,13 @@ export async function registerPush(uid: string): Promise<void> {
       if (e?.token) storeToken(uid, e.token).catch(() => {});
     });
 
+    // On-device wellness notifications: a standing evening check-in reminder
+    // and tap-routing for local notifications (both native-only, no-op web).
+    import("./localNotifications").then(l => {
+      l.ensureDailyCheckinReminder();
+      l.initLocalNotificationTaps();
+    }).catch(() => {});
+
     // Tapping a notification deep-links to a tab via its data.screen payload
     // (e.g. "briefing"). Tabs are activeTab values, so ensure we're on the app
     // screen and switch the tab. Late import avoids a store import cycle.

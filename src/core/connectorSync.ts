@@ -76,7 +76,12 @@ export async function syncAllConnectors(uid: string): Promise<void> {
       await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
     } catch { /* health written server-side */ }
   }
-  import("./wellnessAutoTrack").then(m => m.autoTrackWellness(uid)).catch(() => {});
+  import("./wellnessAutoTrack").then(async m => {
+    await m.autoTrackWellness(uid);
+    // With fresh wearable data, deliver a wellness nudge as a local notification
+    // if one applies right now (native only, deduped per type per day).
+    import("./localNotifications").then(l => l.maybeScheduleWellnessNudge(uid)).catch(() => {});
+  }).catch(() => {});
 }
 
 // ── OAuth connect: fetch the signed auth URL with a Bearer token, then
