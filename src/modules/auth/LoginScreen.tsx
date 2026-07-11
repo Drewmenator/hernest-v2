@@ -5,12 +5,14 @@ import { signInWithGoogle } from "../../core/nativeAuth";
 export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  const [status, setStatus]   = useState("");
 
   const signIn = async () => {
     setLoading(true);
     setError("");
+    setStatus("");
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(setStatus);
     } catch (e: any) {
       // Ignore user-initiated cancels (web popup close or native sheet dismiss);
       // surface everything else as a retry prompt.
@@ -19,7 +21,7 @@ export function LoginScreen() {
         // Include the error code so on-device failures are diagnosable without
         // a debugger attached (e.g. auth/operation-not-allowed, network errors).
         const detail = e?.code || e?.message || "unknown";
-        setError(`Sign in failed (${detail}) — please try again`);
+        setError(`Sign in failed: ${detail}`);
         console.error("[Auth] sign-in failed:", e);
       }
     }
@@ -50,7 +52,9 @@ export function LoginScreen() {
           </span>
         </button>
 
-        {error && <p style={{ fontFamily:F.sans, fontSize:13, color:T.blush, textAlign:"center", marginTop:16 }}>{error}</p>}
+        {loading && status && <p style={{ fontFamily:F.sans, fontSize:12, color:"rgba(255,255,255,0.6)", textAlign:"center", marginTop:16 }}>{status}</p>}
+
+        {error && <p style={{ fontFamily:F.sans, fontSize:13, color:T.blush, textAlign:"center", marginTop:16, wordBreak:"break-word" }}>{error}</p>}
 
         <p style={{ fontFamily:F.sans, fontSize:11, color:"rgba(255,255,255,0.25)", textAlign:"center", marginTop:32, lineHeight:1.6 }}>
           By continuing you agree to our Terms of Service and Privacy Policy.

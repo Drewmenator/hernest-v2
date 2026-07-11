@@ -12,21 +12,32 @@ function isNative(): boolean {
   return !!(window as any).Capacitor?.isNativePlatform?.();
 }
 
-export async function signInWithGoogle(): Promise<void> {
+// Wrap a promise so a silent hang becomes a visible, timed-out error instead of
+// leaving the user staring at a spinner forever.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${label}`)), ms)),
+  ]);
+}
+
+// onStatus surfaces each step to the UI so on-device failures are diagnosable
+// without a debugger — the login screen shows the last status reached.
+export async function signInWithGoogle(onStatus?: (s: string) => void): Promise<void> {
   if (!isNative()) {
     await signInWithPopup(auth, googleProvider);
     return;
   }
 
-  // Native path — loaded dynamically so the web bundle never pulls the plugin.
+  onStatus?.("opening Google…");
   const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
-  const result = await FirebaseAuthentication.signInWithGoogle();
+  const result = await withTimeout(FirebaseAuthentication.signInWithGoogle(), 60_000, "google");
+
+  onStatus?.("got token, verifying…");
   const idToken = result.credential?.idToken;
-  if (!idToken) {
-    // No token means the user cancelled or the handshake failed before issuing
-    // one — surface as a normal failure so the caller shows its retry copy.
-    throw new Error("native-google-signin-no-token");
-  }
+  if (!idToken) throw new Error("no-idtoken");
+
   const credential = GoogleAuthProvider.credential(idToken);
-  await signInWithCredential(auth, credential);
+  await withTimeout(signInWithCredential(auth, credential), 30_000, "firebase");
+  onStatus?.("signed in ✓");
 }

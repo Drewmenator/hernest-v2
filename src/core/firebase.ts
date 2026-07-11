@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 // ─── Firebase Config ─────────────────────────────────────────────
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, GoogleAuthProvider } from "firebase/auth";
 import { initializeFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { isHouseholdCollection, getHouseholdId } from "./identity";
 import { FLAGS } from "../config";
@@ -17,7 +17,15 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+// Auth persistence: the default getAuth() prefers IndexedDB, which can hang
+// inside the native iOS WKWebView (served from capacitor://localhost) and leave
+// sign-in stuck forever. On native we initialize with an explicit fallback chain
+// (IndexedDB → localStorage → in-memory) so a blocked store degrades instead of
+// hanging. Web keeps the default getAuth().
+const isNativePlatform = !!(window as any).Capacitor?.isNativePlatform?.();
+export const auth = isNativePlatform
+  ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence] })
+  : getAuth(app);
 
 // Firestore transport: the default streaming (fetch/WebChannel) transport is
 // unreliable inside the native iOS WKWebView — reads can hang forever, which
