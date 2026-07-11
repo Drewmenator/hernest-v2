@@ -32,7 +32,7 @@ const CONNECTORS: Connector[] = [
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
   { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "google_classroom", name: "Google Classroom", category: "School", blurb: "Assignments & school deadlines", icon: "◷", kind: "soon" },
-  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "accessToken" },
+  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "connected" },
   { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
   { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];

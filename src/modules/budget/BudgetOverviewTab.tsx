@@ -9,7 +9,7 @@ export function BudgetOverviewTab({
   showAddExp, setShowAddExp, addExpAmount, setAddExpAmount, addExpMerchant, setAddExpMerchant,
   addExpNote, setAddExpNote, addExpCat, setAddExpCat, addExpense,
   showAddIncome, setShowAddIncome, incLabel, setIncLabel, incAmount, setIncAmount, incFreq, setIncFreq, addIncome,
-  bankConnected, bankBusy, connectBank, refreshBank, handleCSV,
+  bankConnected, bankCount, bankBusy, connectBank, refreshBank, handleCSV,
 }: {
   cats: Category[]; expenses: Expense[]; incomes: Income[];
   monthlyIncome: number; cashRemaining: number; projected: number; totalBudget: number; savingsRate: number;
@@ -24,7 +24,7 @@ export function BudgetOverviewTab({
   incAmount: string; setIncAmount: React.Dispatch<React.SetStateAction<string>>;
   incFreq: Income["frequency"]; setIncFreq: React.Dispatch<React.SetStateAction<Income["frequency"]>>;
   addIncome: () => Promise<void>;
-  bankConnected: boolean; bankBusy: boolean;
+  bankConnected: boolean; bankCount: number; bankBusy: boolean;
   connectBank: () => Promise<void>; refreshBank: () => Promise<void>;
   handleCSV: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
 }) {
@@ -139,9 +139,15 @@ export function BudgetOverviewTab({
       <div style={{ marginTop: 12, padding: "12px 16px", background: bankConnected ? `${T.sage}12` : T.sand, borderRadius: 16, border: `1px solid ${bankConnected ? `${T.sage}40` : T.linen}`, display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ fontSize: 20 }}>◎</span>
         <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{bankConnected ? "Bank connected" : "Connect your bank"}</p>
+          <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{bankConnected ? (bankCount > 1 ? `${bankCount} banks connected` : "Bank connected") : "Connect your bank"}</p>
           <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{bankConnected ? "Transactions sync automatically & categorize" : "Live transactions, auto-categorized by Cleo"}</p>
         </div>
+        {bankConnected && (
+          <button onClick={connectBank} disabled={bankBusy} aria-label="Add another bank"
+            style={{ background: "none", color: T.esp, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: bankBusy ? "default" : "pointer", minHeight: 32, marginRight: 8 }}>
+            + Add
+          </button>
+        )}
         <button onClick={bankConnected ? refreshBank : connectBank} disabled={bankBusy}
           style={{ background: bankConnected ? "none" : T.esp, color: bankConnected ? T.esp : "#fff", border: bankConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "6px 14px", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: bankBusy ? "default" : "pointer", minHeight: 32 }}>
           {bankBusy ? "..." : bankConnected ? "↺ Sync" : "Connect"}

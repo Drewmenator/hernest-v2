@@ -82,37 +82,58 @@ export default async function handler(req, res) {
     }
 
     if (action === "exchange") {
-      const { public_token } = req.body || {};
+      const { public_token, institution } = req.body || {};
       if (!public_token) return res.status(400).json({ error: "missing_public_token" });
       const data = await plaid("/item/public_token/exchange", { public_token });
-      await adminDb.doc(`users/${uid}/integrations/plaid`).set({
+      // Each Plaid Item = one bank login. Store one doc per bank so connecting a
+      // second bank never overwrites the first. Keyed by item_id (idempotent:
+      // re-linking the same bank updates in place rather than duplicating).
+      await adminDb.doc(`users/${uid}/integrations/plaid/items/${data.item_id}`).set({
         accessToken: encryptSecret(data.access_token),
         itemId: data.item_id,
+        institutionName: (institution && String(institution).slice(0, 80)) || "Bank",
         cursor: null,
         connectedAt: Date.now(),
+        lastError: null,
       }, { merge: true });
+      await writeSummary(uid);
       return res.json({ success: true });
     }
 
     if (action === "sync") {
-      const snap = await adminDb.doc(`users/${uid}/integrations/plaid`).get();
-      if (!snap.exists) return res.status(404).json({ error: "Not connected" });
-      const { accessToken, cursor } = snap.data();
-      const access_token = decryptSecret(accessToken);
+      const items = await getItems(uid);
+      if (!items.length) return res.status(404).json({ error: "Not connected" });
 
       let added = [];
-      let nextCursor = cursor || null;
-      let hasMore = true;
-      // Bound the loop — a fresh connection can page a few times.
-      for (let i = 0; hasMore && i < 5; i++) {
-        const data = await plaid("/transactions/sync", {
-          access_token,
-          cursor: nextCursor || undefined,
-          count: 100,
-        });
-        added = added.concat(data.added || []);
-        nextCursor = data.next_cursor;
-        hasMore = data.has_more;
+      let anyReauth = false;
+      for (const item of items) {
+        const access_token = decryptSecret(item.accessToken);
+        let nextCursor = item.cursor || null;
+        let hasMore = true;
+        try {
+          // Bound the loop — a fresh connection can page a few times.
+          for (let i = 0; hasMore && i < 5; i++) {
+            const data = await plaid("/transactions/sync", {
+              access_token,
+              cursor: nextCursor || undefined,
+              count: 100,
+            });
+            added = added.concat(data.added || []);
+            nextCursor = data.next_cursor;
+            hasMore = data.has_more;
+          }
+          await adminDb.doc(`users/${uid}/integrations/plaid/items/${item.itemId}`).set({
+            cursor: nextCursor, lastSyncedAt: Date.now(), lastError: null,
+          }, { merge: true });
+        } catch (e) {
+          // One bank failing (e.g. needs re-login) must not block the others.
+          const reauth = String(e?.message).includes("ITEM_LOGIN_REQUIRED");
+          if (reauth) anyReauth = true;
+          await adminDb.doc(`users/${uid}/integrations/plaid/items/${item.itemId}`).set({
+            lastError: reauth ? "reauth_required" : "sync_failed",
+          }, { merge: true });
+          console.error("[Plaid] sync item", item.itemId, "error:", e?.message);
+        }
       }
 
       const transactions = added
@@ -125,23 +146,54 @@ export default async function handler(req, res) {
           date: t.date,
         }));
 
-      await adminDb.doc(`users/${uid}/integrations/plaid`).set({
-        cursor: nextCursor,
-        lastSyncedAt: Date.now(),
-        itemCount: transactions.length,
-        lastError: null,
-      }, { merge: true });
-
-      return res.json({ transactions });
+      await writeSummary(uid);
+      // Surface reauth as a soft flag (not a hard 401) since other banks may
+      // have synced fine — the client shows a "reconnect X" nudge.
+      return res.json({ transactions, reauthRequired: anyReauth });
     }
 
     return res.status(400).json({ error: "unknown_action" });
   } catch (e) {
     console.error("[Plaid]", action, "error:", e?.message);
-    if (String(e?.message).includes("ITEM_LOGIN_REQUIRED")) {
-      await adminDb.doc(`users/${uid}/integrations/plaid`).set({ lastError: "reauth_required" }, { merge: true });
-      return res.status(401).json({ error: "reauth_required" });
-    }
     return res.status(500).json({ error: "plaid_request_failed" });
   }
+}
+
+// ── Multi-bank helpers ─────────────────────────────────────────────
+// Read every connected bank. Migrates a pre-multi-bank single `plaid` doc
+// into the collection on first read so existing connections keep working.
+async function getItems(uid) {
+  const col = await adminDb.collection(`users/${uid}/integrations/plaid/items`).get();
+  if (!col.empty) return col.docs.map(d => d.data());
+
+  const legacy = await adminDb.doc(`users/${uid}/integrations/plaid`).get();
+  if (legacy.exists && legacy.data()?.accessToken && legacy.data()?.itemId) {
+    const d = legacy.data();
+    const migrated = {
+      accessToken: d.accessToken, itemId: d.itemId,
+      institutionName: "Bank", cursor: d.cursor || null,
+      connectedAt: d.connectedAt || Date.now(), lastError: null,
+    };
+    await adminDb.doc(`users/${uid}/integrations/plaid/items/${d.itemId}`).set(migrated, { merge: true });
+    return [migrated];
+  }
+  return [];
+}
+
+// Maintain a secret-free summary doc at integrations/plaid so the client and
+// the connections screen can read connection state without touching tokens.
+async function writeSummary(uid) {
+  const items = await getItems(uid);
+  await adminDb.doc(`users/${uid}/integrations/plaid`).set({
+    connected: items.length > 0,
+    bankCount: items.length,
+    banks: items.map(i => ({
+      itemId: i.itemId,
+      institutionName: i.institutionName || "Bank",
+      lastError: i.lastError || null,
+    })),
+    lastSyncedAt: Date.now(),
+    // No secrets here — this doc is client-readable. Full replace (no merge) so a
+    // migrated legacy doc's encrypted accessToken/itemId fields are cleared out.
+  });
 }

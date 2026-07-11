@@ -52,11 +52,13 @@ export async function connectBank(): Promise<"connected" | "cancelled" | "not_co
   return new Promise((resolve) => {
     const handler = Plaid.create({
       token: link_token,
-      onSuccess: async (public_token: string) => {
+      onSuccess: async (public_token: string, metadata: any) => {
         const exRes = await fetch("/api/plaid?action=exchange", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ public_token }),
+          // Pass the bank's display name (best-effort) so we can label each
+          // connected bank in the UI. The server treats it as untrusted display text.
+          body: JSON.stringify({ public_token, institution: metadata?.institution?.name || null }),
         }).catch(() => null);
         resolve(exRes && exRes.ok ? "connected" : "error");
       },
@@ -66,8 +68,10 @@ export async function connectBank(): Promise<"connected" | "cancelled" | "not_co
   });
 }
 
-// Pull categorized transactions since the last sync.
-export async function syncBankTransactions(): Promise<{ transactions: PlaidTxn[]; error?: string }> {
+// Pull categorized transactions since the last sync, across ALL connected banks.
+// reauthRequired is a soft flag: some banks may have synced fine while one needs
+// reconnecting, so we still return whatever transactions came through.
+export async function syncBankTransactions(): Promise<{ transactions: PlaidTxn[]; error?: string; reauthRequired?: boolean }> {
   const token = await idToken();
   if (!token) return { transactions: [], error: "not_authenticated" };
   const res = await fetch("/api/plaid?action=sync", {
@@ -75,8 +79,7 @@ export async function syncBankTransactions(): Promise<{ transactions: PlaidTxn[]
   }).catch(() => null);
   if (!res) return { transactions: [], error: "network" };
   if (res.status === 404) return { transactions: [], error: "not_connected" };
-  if (res.status === 401) return { transactions: [], error: "reauth_required" };
   if (!res.ok) return { transactions: [], error: "sync_failed" };
   const data = await res.json();
-  return { transactions: data.transactions || [] };
+  return { transactions: data.transactions || [], reauthRequired: !!data.reauthRequired };
 }

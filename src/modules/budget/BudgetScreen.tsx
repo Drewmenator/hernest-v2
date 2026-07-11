@@ -570,6 +570,7 @@ Maximum 50 transactions.`;
   // ═══════════════════════════════════════════════════════════════
 
   const [bankConnected, setBankConnected] = useState(false);
+  const [bankCount, setBankCount] = useState(0);
   const [bankBusy, setBankBusy] = useState(false);
 
   useEffect(() => {
@@ -579,7 +580,12 @@ Maximum 50 transactions.`;
       const { db } = await import("../../core/firebase");
       try {
         const snap = await getDoc(doc(db, "users", user.uid, "integrations", "plaid"));
-        setBankConnected(snap.exists() && !!snap.data()?.accessToken);
+        const d = snap.exists() ? snap.data() : null;
+        // New multi-bank summary uses `connected`/`bankCount`; fall back to the
+        // legacy single-doc `accessToken` so a pre-migration connection still shows.
+        const count = d?.bankCount ?? (d?.accessToken ? 1 : 0);
+        setBankCount(count);
+        setBankConnected(!!(d?.connected || count > 0));
       } catch { /* non-fatal */ }
     });
   }, [user?.uid]);
@@ -588,9 +594,10 @@ Maximum 50 transactions.`;
   // deduped by transaction id — mirrors the CSV importer.
   const applyBankTransactions = async () => {
     const { syncBankTransactions } = await import("../../core/plaidService");
-    const { transactions, error } = await syncBankTransactions();
-    if (error === "reauth_required") { toast.error("Bank needs reconnecting"); return 0; }
+    const { transactions, error, reauthRequired } = await syncBankTransactions();
     if (error && error !== "not_connected") { toast.error("Couldn't sync transactions"); return 0; }
+    // Soft reauth: one bank needs reconnecting, but others may have synced.
+    if (reauthRequired) toast("One bank needs reconnecting — tap Add to re-link it", { icon: "🔑" });
     if (!transactions.length) return 0;
 
     const existingIds = new Set(expenses.map(e => e.id));
@@ -618,6 +625,7 @@ Maximum 50 transactions.`;
       if (result === "cancelled") return;
       if (result !== "connected") { toast.error("Couldn't connect — try again"); return; }
       setBankConnected(true);
+      setBankCount(c => c + 1);
       toast("Cleo is pulling your transactions...", { icon: "✦" });
       const n = await applyBankTransactions();
       toast.success(n > 0 ? `Imported ${n} transaction${n === 1 ? "" : "s"} ✓` : "Bank connected ✓");
@@ -724,7 +732,7 @@ Maximum 50 transactions.`;
           incAmount={incAmount} setIncAmount={setIncAmount}
           incFreq={incFreq} setIncFreq={setIncFreq}
           addIncome={addIncome}
-          bankConnected={bankConnected} bankBusy={bankBusy}
+          bankConnected={bankConnected} bankCount={bankCount} bankBusy={bankBusy}
           connectBank={connectBank} refreshBank={refreshBank}
           handleCSV={handleCSV}
         />
