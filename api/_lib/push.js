@@ -145,14 +145,17 @@ export async function sendBirthdayPushes(uid, now = new Date()) {
   const nextSent = Object.fromEntries(Object.entries(prevSent).filter(([k]) => k.endsWith(`:${yr}`)));
   let sent = 0;
   for (const p of todays) {
-    const key = `${p.name}:${yr}`;
+    // Firestore map keys can't contain . $ [ ] / # — sanitize the name so the
+    // dedup write never fails on a name like "Dr. Smith" or "Ann/Marie".
+    const key = `${String(p.name).replace(/[.$[\]/#]/g, "_")}:${yr}`;
     if (nextSent[key]) continue;
     const age = turningAge(p.date, now);
     const body = age != null ? `${p.name} turns ${age} today 🎂` : `It's ${p.name}'s birthday today 🎂`;
     const r = await sendPushToUser(uid, { title: "Happy birthday!", body, data: { screen: "circle" } });
     if (r.sent > 0) { sent += r.sent; nextSent[key] = true; }
   }
-  if (sent) await stateRef.set({ birthdaySent: nextSent }, { merge: true });
+  // Never let a state-write error abort the caller (which would skip the digest).
+  if (sent) { try { await stateRef.set({ birthdaySent: nextSent }, { merge: true }); } catch (e) { console.error("[Push] push_state write failed:", uid, e?.message); } }
   return { sent };
 }
 
@@ -189,7 +192,13 @@ export async function notifyHousehold(actorUid, { title, body, data }) {
 // Everything a user should get in the morning: birthday celebrations first,
 // then the digest. Used by the daily cron.
 export async function sendDailyPushesTo(uid, now = new Date()) {
-  const b = await sendBirthdayPushes(uid, now);
-  const d = await sendMorningBriefingTo(uid, now);
-  return { birthday: b.sent, digest: d.sent };
+  // Isolate the two: a failure in one (e.g. a birthday state-write error) must
+  // never stop the other from sending. This was the cause of "got the birthday
+  // push but not the morning brief".
+  let birthday = 0, digest = 0;
+  try { birthday = (await sendBirthdayPushes(uid, now)).sent; }
+  catch (e) { console.error("[Push] birthday failed:", uid, e?.message); }
+  try { digest = (await sendMorningBriefingTo(uid, now)).sent; }
+  catch (e) { console.error("[Push] digest failed:", uid, e?.message); }
+  return { birthday, digest };
 }
