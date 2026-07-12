@@ -26,11 +26,19 @@ async function inviteSend(req, res, fromUid) {
   });
 
   const acceptUrl = `${APP_URL}?invite=${token}`;
+
+  // The invite is now valid regardless of email — always hand the link back so
+  // the client can offer "copy & share" (works even without Resend configured,
+  // and is the better flow when partners are in the same house).
+  if (!process.env.RESEND_API_KEY) {
+    return res.json({ success: true, acceptUrl, emailSent: false });
+  }
+
   const emailRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
     body: JSON.stringify({
-      from: "HerNest <onboarding@resend.dev>",
+      from: process.env.INVITE_FROM_EMAIL || "HerNest <onboarding@resend.dev>",
       to: [toEmail],
       subject: `${fromName || "Your partner"} invited you to HerNest`,
       html: `
@@ -56,12 +64,13 @@ async function inviteSend(req, res, fromUid) {
         </div>`,
     }),
   });
-  const emailData = await emailRes.json();
+  const emailData = await emailRes.json().catch(() => ({}));
   if (!emailRes.ok) {
+    // Don't fail the invite — the link still works; the client shares it manually.
     console.error("[Household] Resend error:", emailData?.message || emailRes.status);
-    return res.status(500).json({ error: "Failed to send email" });
+    return res.json({ success: true, acceptUrl, emailSent: false });
   }
-  res.json({ success: true });
+  res.json({ success: true, acceptUrl, emailSent: true });
 }
 
 async function inviteAccept(req, res, claims) {

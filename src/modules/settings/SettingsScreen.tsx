@@ -23,6 +23,7 @@ export function SettingsScreen() {
   const [partnerEmail, setPartnerEmail] = useState("");
   const [shareCategories, setShareCategories] = useState<string[]>(["tasks","calendar","budget"]);
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
 
   // Delete account
@@ -72,10 +73,11 @@ export function SettingsScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send");
       await bus.publish("partner.invite.sent", { email: partnerEmail }, { userId: user.uid, source: "settings" });
+      if (data.acceptUrl) setInviteLink(data.acceptUrl);
       setInviteSent(true);
-      toast.success(`Invite sent to ${partnerEmail} ✓`);
+      toast.success(data.emailSent ? `Invite sent to ${partnerEmail} ✓` : "Invite ready — share the link below");
     } catch (e: any) {
-      toast.error(e.message || "Failed to send invite — try again");
+      toast.error(e.message || "Couldn't create invite — try again");
     }
     setSendingInvite(false);
   };
@@ -157,10 +159,19 @@ export function SettingsScreen() {
             </Button>
           </> : (
             <div style={{ textAlign:"center", padding:"16px 0" }}>
-              <div style={{ fontSize:48, marginBottom:12 }}>✉️</div>
-              <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Invite sent!</p>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px" }}>We've sent a link to {partnerEmail}. They'll be able to see: {shareCategories.join(", ")}.</p>
-              <button onClick={()=>setInviteSent(false)} style={{ background:"none", border:`1px solid ${T.linen}`, borderRadius:12, padding:"8px 20px", fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:40 }}>Send another</button>
+              <div style={{ fontSize:48, marginBottom:12 }}>✦</div>
+              <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Invite ready!</p>
+              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px" }}>Share this link with {partnerEmail}. When they open it and sign in, they'll see: {shareCategories.join(", ")}.</p>
+              {inviteLink && <>
+                <div style={{ background:T.sand, border:`1px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", marginBottom:12, wordBreak:"break-all", fontFamily:F.sans, fontSize:11, color:T.bark, textAlign:"left" }}>{inviteLink}</div>
+                <button onClick={async()=>{
+                  try {
+                    if ((navigator as any).share) { await (navigator as any).share({ title:"Join my HerNest household", url: inviteLink }); }
+                    else { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); }
+                  } catch { try { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); } catch { toast("Long-press the link above to copy", { icon:"🔗" }); } }
+                }} style={{ width:"100%", background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"13px", fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", minHeight:48, marginBottom:8, touchAction:"manipulation" }}>Copy / share link</button>
+              </>}
+              <button onClick={()=>{ setInviteSent(false); setInviteLink(""); }} style={{ background:"none", border:`1px solid ${T.linen}`, borderRadius:12, padding:"8px 20px", fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:40 }}>Send another</button>
             </div>
           )}
         </Card>
