@@ -21,15 +21,16 @@ const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 // ── Signed OAuth state — prevents binding a provider account to someone
 //    else's uid (previously state was a raw, unauthenticated uid).
 function stateKey() { return process.env.CREDENTIALS_ENCRYPTION_KEY || "missing-key"; }
-function signState(provider, uid) {
-  const sig = crypto.createHmac("sha256", stateKey()).update(`${provider}:${uid}`).digest("hex").slice(0, 24);
-  return `${provider}:${uid}:${sig}`;
+function signState(provider, uid, native) {
+  const n = native ? "1" : "0";
+  const sig = crypto.createHmac("sha256", stateKey()).update(`${provider}:${uid}:${n}`).digest("hex").slice(0, 24);
+  return `${provider}:${uid}:${n}:${sig}`;
 }
 function verifyState(state) {
-  const [provider, uid, sig] = String(state || "").split(":");
-  if (!provider || !uid || !sig) return null;
-  const expect = crypto.createHmac("sha256", stateKey()).update(`${provider}:${uid}`).digest("hex").slice(0, 24);
-  return sig === expect ? { provider, uid } : null;
+  const [provider, uid, n, sig] = String(state || "").split(":");
+  if (!provider || !uid || n === undefined || !sig) return null;
+  const expect = crypto.createHmac("sha256", stateKey()).update(`${provider}:${uid}:${n}`).digest("hex").slice(0, 24);
+  return sig === expect ? { provider, uid, native: n === "1" } : null;
 }
 
 async function writeMeta(uid, doc, meta) {
@@ -86,6 +87,10 @@ async function handleAuth(req, res, provider) {
   const uid = await verifyAuth(req);
   if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
+  // Native shell opens this in an in-app browser; the callback must return to a
+  // static "connected" page (not the SPA, which would demand its own login).
+  const native = req.query?.native === "1";
+
   if (provider === "google" || provider === "gmail") {
     if (!process.env.GOOGLE_CLIENT_ID) return res.status(503).json({ error: "google_not_configured" });
     const params = new URLSearchParams({
@@ -95,7 +100,7 @@ async function handleAuth(req, res, provider) {
       scope: OAUTH[provider].scopes.join(" "),
       access_type: "offline",
       prompt: "consent",
-      state: signState(provider, uid),
+      state: signState(provider, uid, native),
     });
     return res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
   }
@@ -108,7 +113,7 @@ async function handleAuth(req, res, provider) {
       redirect_uri: `${APP_URL}/api/auth/outlook/callback`,
       response_type: "code",
       scope: "https://graph.microsoft.com/Calendars.Read offline_access",
-      state: signState("outlook", uid),
+      state: signState("outlook", uid, native),
     });
     return res.json({ url: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}` });
   }
@@ -120,7 +125,7 @@ async function handleAuth(req, res, provider) {
       redirect_uri: `${APP_URL}/api/auth/oura/callback`,
       response_type: "code",
       scope: "daily personal",
-      state: signState("oura", uid),
+      state: signState("oura", uid, native),
     });
     return res.json({ url: `https://cloud.ouraring.com/oauth/authorize?${params}` });
   }
@@ -157,6 +162,13 @@ async function handleAppleAuth(req, res) {
 async function handleCallback(req, res) {
   const { code, state } = req.query;
   const parsed = verifyState(state);
+  const isNative = parsed?.native;
+  // Native opened this in an in-app browser sheet → land on a static success
+  // page that says "return to HerNest" instead of the SPA (which would show a
+  // login screen). Web keeps returning to the SPA so its toast fires.
+  const okUrl = (name) => isNative ? `${APP_URL}/connected.html?provider=${name}` : `${APP_URL}?calendar_connected=${name}`;
+  const errUrl = (e) => isNative ? `${APP_URL}/connected.html?error=${e}` : `${APP_URL}?calendar_error=${e}`;
+
   if (!code || !parsed) return res.redirect(`${APP_URL}?calendar_error=missing_params`);
   const { provider, uid } = parsed;
 
@@ -181,7 +193,7 @@ async function handleCallback(req, res) {
         expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
         connectedAt: Date.now(),
       });
-      return res.redirect(`${APP_URL}?calendar_connected=${OAUTH[provider].done}`);
+      return res.redirect(okUrl(OAUTH[provider].done));
     }
 
     if (provider === "outlook") {
@@ -206,7 +218,7 @@ async function handleCallback(req, res) {
         expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
         connectedAt: Date.now(),
       });
-      return res.redirect(`${APP_URL}?calendar_connected=outlook`);
+      return res.redirect(okUrl("outlook"));
     }
 
     if (provider === "oura") {
@@ -229,13 +241,13 @@ async function handleCallback(req, res) {
         expiresAt: Date.now() + (tokens.expires_in || 86400) * 1000,
         connectedAt: Date.now(),
       });
-      return res.redirect(`${APP_URL}?connected=oura`);
+      return res.redirect(okUrl("oura"));
     }
 
-    return res.redirect(`${APP_URL}?calendar_error=unknown_provider`);
+    return res.redirect(errUrl("unknown_provider"));
   } catch (e) {
     console.error("[Connectors] callback error:", e?.message);
-    return res.redirect(`${APP_URL}?calendar_error=oauth_failed`);
+    return res.redirect(errUrl("oauth_failed"));
   }
 }
 

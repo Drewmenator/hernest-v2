@@ -89,10 +89,29 @@ export async function syncAllConnectors(uid: string): Promise<void> {
 export async function connectOAuth(provider: "google" | "gmail" | "outlook" | "oura"): Promise<boolean> {
   const token = await idToken();
   if (!token) return false;
+  const native = !!(window as any).Capacitor?.isNativePlatform?.();
   try {
-    const res = await fetch(`/api/auth/${provider}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/auth/${provider}${native ? "?native=1" : ""}`, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
-    if (data.url) { window.location.href = data.url; return true; }
+    if (!data.url) return false;
+
+    // Native: open the provider sign-in in an in-app browser sheet so the app's
+    // own webview isn't navigated away (which used to strand the user on the web
+    // login screen). Resolve once they close the sheet; the caller re-reads health.
+    if (native) {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: data.url });
+      await new Promise<void>((resolve) => {
+        let handle: any;
+        Browser.addListener("browserFinished", () => { handle?.remove?.(); resolve(); })
+          .then((h) => { handle = h; });
+      });
+      return true;
+    }
+
+    // Web: full-page redirect returns to the SPA (same session) as before.
+    window.location.href = data.url;
+    return true;
   } catch (e) { console.warn("[ConnectorSync] auth start failed:", e); }
   return false;
 }

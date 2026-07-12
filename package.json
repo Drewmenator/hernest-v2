@@ -18,6 +18,7 @@
     "@anthropic-ai/sdk": "^0.95.1",
     "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor-firebase/messaging": "^8.3.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.4.1",
     "@capacitor/ios": "^8.4.1",
     "@capacitor/local-notifications": "^8.2.0",

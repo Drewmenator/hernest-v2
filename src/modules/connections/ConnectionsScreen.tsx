@@ -88,6 +88,10 @@ export function ConnectionsScreen() {
     if (c.kind === "oauth" && c.oauthProvider) {
       const ok = await connectOAuth(c.oauthProvider);
       if (!ok) toast.error("Couldn't start the connection — try again");
+      // On native, connectOAuth resolves after the in-app sheet closes — refresh
+      // so a just-completed connection shows immediately. (On web the page has
+      // already navigated away, so this only runs in the native flow.)
+      else if (user?.uid) { await loadHealth(user.uid); syncAllConnectors(user.uid).catch(() => {}); }
     } else if (c.kind === "deeplink" && c.tab) {
       setActiveTab(c.tab);
     } else if (c.kind === "health") {

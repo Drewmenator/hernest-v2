@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>HerNest — Connected</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, #2A1F18 0%, #2e1a0e 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 32px 24px; box-sizing: border-box;
+    }
+    .card { text-align: center; max-width: 340px; }
+    .ring {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: rgba(201,169,97,0.15); border: 1.5px solid rgba(201,169,97,0.4);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; font-size: 34px;
+    }
+    h1 { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 500;
+         color: #C9A961; font-size: 26px; margin: 0 0 10px; }
+    p { color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.6; margin: 0; }
+    .hint { color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="ring" id="icon">✓</div>
+    <h1 id="title">Connected</h1>
+    <p id="msg">You're all set. Tap <b>Done</b> (top-left) to return to HerNest — your data will start syncing shortly.</p>
+    <p class="hint">You can close this window.</p>
+  </div>
+  <script>
+    var params = new URLSearchParams(location.search);
+    var provider = params.get("provider");
+    var error = params.get("error");
+    var names = { google: "Google Calendar", gmail: "Gmail", outlook: "Outlook", oura: "Oura" };
+    if (error) {
+      document.getElementById("icon").textContent = "!";
+      document.getElementById("title").textContent = "Couldn't connect";
+      document.getElementById("msg").innerHTML = "Something went wrong. Tap <b>Done</b> to return to HerNest and try again.";
+    } else if (provider && names[provider]) {
+      document.getElementById("title").textContent = names[provider] + " connected";
+    }
+    // Best-effort auto-close (works when opened via window.open on web).
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 2500);
+  </script>
+</body>
+</html>
