@@ -4,6 +4,7 @@ import { useStore } from "../../core/store";
 import { PageTitle } from "../../shared/components";
 import { saveData, auth } from "../../core/firebase";
 import toast from "react-hot-toast";
+import { Capacitor } from "@capacitor/core";
 
 const PRO_FEATURES = [
   { icon:"✦", label:"Unlimited AI requests" },
@@ -15,6 +16,13 @@ const PRO_FEATURES = [
   { icon:"🎨", label:"Full Style AI" },
   { icon:"◎", label:"Priority support" },
 ];
+
+// Inside the iOS app, Apple requires In-App Purchase for digital
+// subscriptions (guideline 3.1.1), so the Stripe checkout and price must not
+// appear there, nor a link to buy elsewhere. Web keeps Stripe.
+function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform();
+}
 
 export function UpgradeScreen() {
   const { user, profile, isPro } = useStore();
@@ -96,6 +104,14 @@ export function UpgradeScreen() {
         ))}
       </div>
 
+      {isNativeApp() ? (
+        <div style={{ background:T.sand, borderRadius:16, padding:"18px 20px", textAlign:"center", border:`1px solid ${T.linen}` }}>
+          <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 6px" }}>Pro isn't available in the app yet</p>
+          <p style={{ fontFamily:F.sans, fontSize:12.5, color:T.taupe, margin:0, lineHeight:1.6 }}>
+            If your account already has Pro, it's active here automatically.
+          </p>
+        </div>
+      ) : (<>
       {/* Pricing hint */}
       <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:20, textAlign:"center", border:`1px solid ${T.linen}` }}>
         <p style={{ fontFamily:F.serif, fontSize:22, fontStyle:"italic", color:T.esp, margin:"0 0 4px" }}>From $12/month</p>
@@ -119,6 +135,7 @@ export function UpgradeScreen() {
       <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, textAlign:"center", margin:"8px 0 0", lineHeight:1.6 }}>
         Cancel anytime · Secure checkout
       </p>
+      </>)}
     </div>
   );
 }

@@ -12,8 +12,10 @@ export const EMAILS = {
 };
 
 export const AI = {
-  HAIKU: "claude-haiku-4-5",
-  SONNET: "claude-sonnet-4-5",
+  // Tier names, not model IDs: the server (api/_lib/claudeRequest.js) maps
+  // each tier to the current model and ignores anything else.
+  HAIKU: "haiku",
+  SONNET: "sonnet",
   // Display-only mirror of the server's authoritative limit (api/claude.js
   // FREE_DAILY_AI_LIMIT, default 500). The server enforces; keep these in sync.
   FREE_LIMIT: 500,

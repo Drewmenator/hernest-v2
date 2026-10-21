@@ -3,7 +3,7 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-export { encryptSecret, decryptSecret } from "./cryptoUtil.js";
+export { encryptSecret, decryptSecret, openToken, isSealed } from "./cryptoUtil.js";
 
 if (!getApps().length) {
   initializeApp({ credential: cert({

@@ -94,6 +94,29 @@ describe("household sharing", () => {
   });
 });
 
+describe("server-only records", () => {
+  it("owner CANNOT self-grant Pro by writing her own subscription", async () => {
+    await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "data", "subscription"), { status: "active" }));
+  });
+
+  it("owner can still read her own subscription", async () => {
+    await assertSucceeds(getDoc(doc(as(ALICE), "users", ALICE, "data", "subscription")));
+  });
+
+  it("owner CANNOT reset her AI usage counter", async () => {
+    await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "usage", "2026-10-21"), { count: 0 }));
+  });
+
+  it("owner reads but CANNOT write her integration docs", async () => {
+    await assertSucceeds(getDoc(doc(as(ALICE), "users", ALICE, "integrations", "oura")));
+    await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "integrations", "oura"), { accessToken: "forged" }));
+  });
+
+  it("owner still writes her own devices (push tokens)", async () => {
+    await assertSucceeds(setDoc(doc(as(ALICE), "users", ALICE, "devices", "tok"), { platform: "ios" }));
+  });
+});
+
 describe("household roster + event log", () => {
   it("member writes own roster entry only", async () => {
     await assertSucceeds(setDoc(doc(as(BOB), "households", ALICE, "members", BOB), { role: "partner" }));

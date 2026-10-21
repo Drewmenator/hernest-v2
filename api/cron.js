@@ -6,13 +6,14 @@
 //
 // Auth: Vercel adds `Authorization: Bearer $CRON_SECRET` when CRON_SECRET
 // is set. We reject anything else.
-import { adminDb } from "./_lib/secure.js";
+import { adminDb, encryptSecret, openToken } from "./_lib/secure.js";
 import { sendDailyPushesTo } from "./_lib/push.js";
 
 async function refreshGoogle(uid, data) {
-  let { accessToken, refreshToken, expiresAt } = data;
+  let accessToken = openToken(data.accessToken);
+  const refreshToken = openToken(data.refreshToken);
   if (!refreshToken) return null;
-  if (Date.now() > (expiresAt || 0) - 60000) {
+  if (Date.now() > (data.expiresAt || 0) - 60000) {
     const r = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -26,8 +27,11 @@ async function refreshGoogle(uid, data) {
     const refreshed = await r.json().catch(() => ({}));
     if (!refreshed.access_token) return null;
     accessToken = refreshed.access_token;
-    expiresAt = Date.now() + (refreshed.expires_in || 3600) * 1000;
-    await adminDb.doc(`users/${uid}/integrations/google_calendar`).update({ accessToken, expiresAt });
+    await adminDb.doc(`users/${uid}/integrations/google_calendar`).update({
+      accessToken: encryptSecret(accessToken),
+      refreshToken: encryptSecret(refreshToken),
+      expiresAt: Date.now() + (refreshed.expires_in || 3600) * 1000,
+    });
   }
   return accessToken;
 }

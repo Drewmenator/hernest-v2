@@ -21,9 +21,10 @@ const config: CapacitorConfig = {
     // the Google handshake, and skipNativeAuth: true means it hands the ID token
     // back to JS — we exchange it for a Firebase credential on the same JS auth
     // instance the whole app already reads from, so nothing downstream changes.
+    // Sign in with Apple works the same way (App Store guideline 4.8).
     FirebaseAuthentication: {
       skipNativeAuth: true,
-      providers: ["google.com"],
+      providers: ["google.com", "apple.com"],
     },
   },
 };

@@ -5,7 +5,7 @@
 // exchange the returned ID token for a Firebase credential on the SAME JS auth
 // instance the rest of the app observes. So auth state, listeners, and the
 // onboarding gate all behave identically to web — only the first hop differs.
-import { GoogleAuthProvider, signInWithPopup, signInWithCredential } from "firebase/auth";
+import { GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithCredential } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 
 function isNative(): boolean {
@@ -38,6 +38,35 @@ export async function signInWithGoogle(onStatus?: (s: string) => void): Promise<
   if (!idToken) throw new Error("no-idtoken");
 
   const credential = GoogleAuthProvider.credential(idToken);
+  await withTimeout(signInWithCredential(auth, credential), 30_000, "firebase");
+  onStatus?.("signed in ✓");
+}
+
+// ─── Sign in with Apple ──────────────────────────────────────────────
+// Required by App Store guideline 4.8 because we offer Google sign-in. Same
+// pattern as Google: native runs Apple's sheet through the plugin (which
+// returns Apple's ID token plus the raw nonce it hashed into the request),
+// then we exchange that for a Firebase credential on the JS auth instance.
+export async function signInWithApple(onStatus?: (s: string) => void): Promise<void> {
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
+
+  if (!isNative()) {
+    await signInWithPopup(auth, provider);
+    return;
+  }
+
+  onStatus?.("opening Apple…");
+  const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
+  const result = await withTimeout(FirebaseAuthentication.signInWithApple(), 60_000, "apple");
+
+  onStatus?.("got token, verifying…");
+  const idToken = result.credential?.idToken;
+  const rawNonce = result.credential?.nonce;
+  if (!idToken || !rawNonce) throw new Error("no-idtoken");
+
+  const credential = provider.credential({ idToken, rawNonce });
   await withTimeout(signInWithCredential(auth, credential), 30_000, "firebase");
   onStatus?.("signed in ✓");
 }

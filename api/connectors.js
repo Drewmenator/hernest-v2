@@ -13,14 +13,18 @@
 // Every sync writes health metadata (lastSyncedAt, itemCount, lastError)
 // to users/{uid}/integrations/{doc} so the app can show freshness.
 import crypto from "crypto";
-import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret } from "./_lib/secure.js";
+import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret, openToken, isSealed } from "./_lib/secure.js";
 import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory } from "./_lib/oura.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
 // ── Signed OAuth state — prevents binding a provider account to someone
 //    else's uid (previously state was a raw, unauthenticated uid).
-function stateKey() { return process.env.CREDENTIALS_ENCRYPTION_KEY || "missing-key"; }
+function stateKey() {
+  const key = process.env.CREDENTIALS_ENCRYPTION_KEY;
+  if (!key) throw new Error("CREDENTIALS_ENCRYPTION_KEY not set");
+  return key;
+}
 function signState(provider, uid, native) {
   const n = native ? "1" : "0";
   const sig = crypto.createHmac("sha256", stateKey()).update(`${provider}:${uid}:${n}`).digest("hex").slice(0, 24);
@@ -43,8 +47,10 @@ async function writeMeta(uid, doc, meta) {
 async function freshGoogleToken(uid, doc) {
   const snap = await adminDb.doc(`users/${uid}/integrations/${doc}`).get();
   if (!snap.exists) return { error: "not_connected" };
-  let { accessToken, refreshToken, expiresAt } = snap.data();
-  if (Date.now() > (expiresAt || 0) - 60000 && refreshToken) {
+  const stored = snap.data();
+  let accessToken = openToken(stored.accessToken);
+  const refreshToken = openToken(stored.refreshToken);
+  if (Date.now() > (stored.expiresAt || 0) - 60000 && refreshToken) {
     const r = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -61,10 +67,26 @@ async function freshGoogleToken(uid, doc) {
       return { error: "reauth_required" };
     }
     accessToken = refreshed.access_token;
-    expiresAt = Date.now() + (refreshed.expires_in || 3600) * 1000;
-    await adminDb.doc(`users/${uid}/integrations/${doc}`).update({ accessToken, expiresAt });
+    await adminDb.doc(`users/${uid}/integrations/${doc}`).update({
+      accessToken: encryptSecret(accessToken),
+      refreshToken: encryptSecret(refreshToken),
+      expiresAt: Date.now() + (refreshed.expires_in || 3600) * 1000,
+    });
+  } else if (!isSealed(stored.accessToken) || (stored.refreshToken && !isSealed(stored.refreshToken))) {
+    await sealLegacyTokens(uid, doc, stored);
   }
   return { accessToken };
+}
+
+// Re-encrypt tokens saved in plaintext before encryption was added.
+async function sealLegacyTokens(uid, doc, stored) {
+  try {
+    await adminDb.doc(`users/${uid}/integrations/${doc}`).update({
+      accessToken: stored.accessToken ? encryptSecret(openToken(stored.accessToken)) : null,
+      refreshToken: stored.refreshToken ? encryptSecret(openToken(stored.refreshToken)) : null,
+      connected: true,
+    });
+  } catch (e) { console.error("[Connectors] token re-encrypt failed:", e?.message); }
 }
 
 // ═══ AUTH ═══════════════════════════════════════════════════════════
@@ -188,8 +210,9 @@ async function handleCallback(req, res) {
       const tokens = await tokenRes.json();
       if (!tokens.access_token) throw new Error("no access token");
       await adminDb.doc(`users/${uid}/integrations/${OAUTH[provider].doc}`).set({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || null,
+        accessToken: encryptSecret(tokens.access_token),
+        refreshToken: tokens.refresh_token ? encryptSecret(tokens.refresh_token) : null,
+        connected: true,
         expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
         connectedAt: Date.now(),
       });
@@ -213,8 +236,9 @@ async function handleCallback(req, res) {
       const tokens = await tokenRes.json();
       if (!tokens.access_token) throw new Error("no access token");
       await adminDb.doc(`users/${uid}/integrations/outlook_calendar`).set({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || null,
+        accessToken: encryptSecret(tokens.access_token),
+        refreshToken: tokens.refresh_token ? encryptSecret(tokens.refresh_token) : null,
+        connected: true,
         expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
         connectedAt: Date.now(),
       });
@@ -397,7 +421,9 @@ async function syncApple(req, res, uid) {
 async function syncOutlook(req, res, uid) {
   const doc = await adminDb.doc(`users/${uid}/integrations/outlook_calendar`).get();
   if (!doc.exists) return res.status(404).json({ error: "Not connected" });
-  const { accessToken } = doc.data();
+  const stored = doc.data();
+  const accessToken = openToken(stored.accessToken);
+  if (!isSealed(stored.accessToken)) await sealLegacyTokens(uid, "outlook_calendar", stored);
   const now = new Date();
   const data = await (await fetch(
     `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${now.toISOString()}&endDateTime=${new Date(now.getTime() + 60 * 86400000).toISOString()}&$orderby=start/dateTime&$top=50`,
