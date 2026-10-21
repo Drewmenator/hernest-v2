@@ -3,8 +3,10 @@
 //   POST /api/invite/send   → ?action=invite_send
 //   POST /api/invite/accept → ?action=invite_accept
 //   GET  /api/partner/data  → ?action=partner_data
+//   POST /api/account/delete → ?action=delete_account
 import crypto from "crypto";
-import { adminDb, applyCors, verifyAuthClaims } from "./_lib/secure.js";
+import { adminDb, adminAuth, applyCors, verifyAuthClaims } from "./_lib/secure.js";
+import { deleteAccount } from "./_lib/accountDeletion.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -121,6 +123,27 @@ async function partnerData(req, res, uid) {
   res.json({ primaryUid, shareCategories, data: sharedData });
 }
 
+// Real, server-side account deletion. The client must send {confirm:"DELETE"}.
+async function deleteAccountAction(req, res, uid) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.body?.confirm !== "DELETE") return res.status(400).json({ error: "confirmation_required" });
+  let stripe = null;
+  if (process.env.STRIPE_SECRET_KEY) {
+    const { default: Stripe } = await import("stripe");
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  const plaidProd = (process.env.PLAID_ENV || "sandbox").toLowerCase() === "production";
+  await deleteAccount({
+    uid, db: adminDb, auth: adminAuth, stripe,
+    plaid: {
+      clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET,
+      host: plaidProd ? "https://production.plaid.com" : "https://sandbox.plaid.com",
+    },
+  });
+  console.log("[Household] account deleted", uid);
+  res.json({ success: true });
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res, "GET, POST, OPTIONS")) return;
 
@@ -133,6 +156,7 @@ export default async function handler(req, res) {
     if (action === "invite_send") return await inviteSend(req, res, uid);
     if (action === "invite_accept") return await inviteAccept(req, res, claims);
     if (action === "partner_data") return await partnerData(req, res, uid);
+    if (action === "delete_account") return await deleteAccountAction(req, res, uid);
   } catch (e) {
     console.error("[Household]", action, "error:", e?.message);
     return res.status(500).json({ error: "request_failed" });

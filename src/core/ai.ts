@@ -1,6 +1,5 @@
 // ─── HerNest AI Client ────────────────────────────────────────────
 import { auth } from "./firebase";
-import { AI } from "../config";
 
 export type Feature =
   | "cleo_chat" | "morning_briefing" | "style_stylist"
@@ -10,28 +9,8 @@ export type Feature =
   | "sunday_reset" | "travel_brief" | "wellness_score"
   | "circle_match" | "debrief" | "household_cfo" | "gmail_extract" | "cleo_checkin";
 
-const MODEL_MAP: Record<Feature, string> = {
-  morning_briefing: AI.SONNET,
-  cleo_chat:        AI.SONNET,
-  trip_planner:     AI.SONNET,
-  style_stylist:    AI.SONNET,
-  school_calendar:  AI.HAIKU,
-  meal_plan:        AI.HAIKU,
-  budget_coach:     AI.HAIKU,
-  wellness_coach:   AI.HAIKU,
-  wellness_score:   AI.HAIKU,
-  receipt_scanner:  AI.HAIKU,
-  csv_import:       AI.HAIKU,
-  gift_advisor:     AI.HAIKU,
-  briefing_ask:     AI.HAIKU,
-  sunday_reset:     AI.SONNET,
-  travel_brief:     AI.HAIKU,
-  circle_match:     AI.HAIKU,
-  debrief:          AI.HAIKU,
-  household_cfo:    AI.SONNET,
-  gmail_extract:    AI.HAIKU,
-  cleo_checkin:     AI.HAIKU,
-};
+// Model choice and output limits live on the server (api/_lib/claudeRequest.js),
+// keyed by feature. The client only says which feature it is.
 
 async function getIdToken(): Promise<string | null> {
   try {
@@ -63,8 +42,6 @@ export async function ai(
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
 
-  const model = MODEL_MAP[feature] || AI.HAIKU;
-
   // Build a valid messages array. It MUST start with a "user" turn and MUST end
   // with the current message — previously only `history` was sent, so once a
   // conversation existed the current message was dropped and the model was asked
@@ -87,9 +64,7 @@ export async function ai(
         system,
         prompt,
         feature,
-        model,
         messages,
-        max_tokens: ["morning_briefing", "trip_planner", "meal_plan", "style_stylist", "cleo_chat", "household_cfo", "wellness_coach", "sunday_reset"].includes(feature) ? 2000 : 1000,
       }),
     });
 
