@@ -6,7 +6,6 @@ import { useStore } from "../../core/store";
 import { Card, PageTitle, Button } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
-import { signOut, deleteUser } from "firebase/auth";
 import { auth } from "../../core/firebase";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
@@ -86,19 +85,23 @@ export function SettingsScreen() {
     if (deleteConfirm !== "DELETE" || !user?.uid) return;
     setDeleting(true);
     try {
-      // Clear all user data from Firestore
-      const collections = ["profile","budget","tasks","school","meals","thrive","trips","circle","calendar","cleo_memory","style","calendar_tokens","partner_invite"];
-      await Promise.all(collections.map(c => saveData(user.uid!, c, { deleted: true, deletedAt: Date.now() })));
-      // Delete Firebase Auth account
-      if (auth.currentUser) await deleteUser(auth.currentUser);
-      reset();
+      // The server erases everything (data, connected accounts, household
+      // links, push devices), cancels any subscription, then deletes the login.
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("not_signed_in");
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      if (!res.ok) throw new Error(`delete_failed_${res.status}`);
+      const { signOutCompletely } = await import("../../core/signOut");
+      // The login no longer exists, so sign-out may complain; local data is
+      // cleared before that step either way.
+      await signOutCompletely().catch(() => reset());
       toast.success("Account deleted. We're sorry to see you go.");
-    } catch (e: any) {
-      if (e.code === "auth/requires-recent-login") {
-        toast.error("Please sign out and sign back in, then try again.");
-      } else {
-        toast.error("Couldn't delete account. Please contact support@hernest.app");
-      }
+    } catch {
+      toast.error("Couldn't delete account. Please try again or contact support@hernest.app");
     }
     setDeleting(false);
   };

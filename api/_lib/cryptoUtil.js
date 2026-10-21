@@ -28,3 +28,17 @@ export function decryptSecret(stored) {
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]).toString("utf8");
 }
+
+// OAuth tokens (Google, Outlook) were stored in plaintext before Oct 2026.
+// openToken reads either form: encrypted values are decrypted, legacy
+// plaintext is returned as-is (unlike decryptSecret, which treats non-"enc:v1:"
+// values as legacy base64 CalDAV passwords). isSealed lets callers re-encrypt
+// a legacy token the next time they touch the doc.
+export function isSealed(stored) {
+  return typeof stored === "string" && stored.startsWith("enc:v1:");
+}
+
+export function openToken(stored) {
+  if (!stored) return null;
+  return isSealed(stored) ? decryptSecret(stored) : stored;
+}

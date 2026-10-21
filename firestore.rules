@@ -43,15 +43,31 @@ service cloud.firestore {
       );
     }
 
+    // Server-written records the client may read but never write. usage holds
+    // the daily AI counter (a client reset would bypass the quota) and
+    // integrations holds OAuth tokens + sync metadata (admin SDK only).
+    function serverOnlyCollections() {
+      return ['usage', 'integrations'];
+    }
+
+    // Docs under data/ only the admin SDK may write. subscription is set by
+    // the Stripe webhook; a client write would self-grant Pro.
+    function serverOnlyDataDocs() {
+      return ['household_link', 'subscription'];
+    }
+
     // ── User namespace ───────────────────────────────────────────
     // Full access to your OWN namespace EXCEPT data/ (handled explicitly
-    // below so household_link can be locked down — see security note).
+    // below so household_link can be locked down — see security note) and
+    // the server-only collections (read-only for the owner).
     match /users/{ownerUid}/{col}/{document=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == ownerUid && col != 'data';
+      allow read: if isSignedIn() && request.auth.uid == ownerUid && col != 'data';
+      allow write: if isSignedIn() && request.auth.uid == ownerUid && col != 'data'
+                   && !serverOnlyCollections().hasAny([col]);
     }
 
     // data/: owner reads everything; owner writes everything EXCEPT
-    // household_link. SECURITY: household_link is what isMember() trusts —
+    // household_link and subscription. SECURITY: household_link is what isMember() trusts —
     // if clients could write their own, anyone could forge a link pointing
     // at any household and read its shared data (found by the rules test
     // suite, 2026-07-10). Only the admin SDK (/api/invite/accept and
@@ -60,7 +76,7 @@ service cloud.firestore {
     match /users/{ownerUid}/data/{col} {
       allow read: if (isSignedIn() && request.auth.uid == ownerUid)
                   || (householdShared().hasAny([col]) && isMember(ownerUid));
-      allow write: if (isSignedIn() && request.auth.uid == ownerUid && col != 'household_link')
+      allow write: if (isSignedIn() && request.auth.uid == ownerUid && !serverOnlyDataDocs().hasAny([col]))
                    || (householdShared().hasAny([col]) && isMember(ownerUid));
     }
 

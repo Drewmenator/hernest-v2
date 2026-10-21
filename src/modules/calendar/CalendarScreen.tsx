@@ -215,13 +215,13 @@ export function CalendarScreen() {
     // Check real Google Calendar connection
     import("firebase/firestore").then(({ doc, getDoc }) => {
       getDoc(doc(db, "users", user.uid, "integrations", "google_calendar"))
-        .then((snap: any) => setGoogleConnected(snap.exists() && !!snap.data()?.accessToken))
+        .then((snap: any) => setGoogleConnected(snap.exists() && !!(snap.data()?.connected || snap.data()?.connectedAt)))
         .catch(() => setGoogleConnected(false));
       getDoc(doc(db, "users", user.uid, "integrations", "apple_calendar"))
         .then((snap: any) => setAppleConnected(snap.exists() && !!snap.data()?.email))
         .catch(() => setAppleConnected(false));
       getDoc(doc(db, "users", user.uid, "integrations", "outlook_calendar"))
-        .then((snap: any) => setOutlookConnected(snap.exists() && !!snap.data()?.accessToken))
+        .then((snap: any) => setOutlookConnected(snap.exists() && !!(snap.data()?.connected || snap.data()?.connectedAt)))
         .catch(() => setOutlookConnected(false));
     });
   }, [user?.uid]);
@@ -288,13 +288,15 @@ export function CalendarScreen() {
           r.readAsDataURL(file);
         });
         const mediaType = ext === "pdf" ? "application/pdf" : `image/${ext}`;
+        const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+        if (!idToken) { toast.error("Please sign in again"); setUploadingSchool(false); return; }
         const response = await fetch("/api/claude", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({
             system: 'Extract school calendar events from this document. Return ONLY valid JSON array: [{"title":"string","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD or null","type":"holiday|exam|event|inset|other"}]. Extract ALL dates and events you can find. Return [] if nothing found.',
             prompt: "Extract all school calendar events from this document.",
-            model: "claude-sonnet-4-20250514",
+            feature: "school_calendar",
             max_tokens: 2000,
             messages: [{
               role: "user",
@@ -305,8 +307,9 @@ export function CalendarScreen() {
             }]
           })
         });
+        if (!response.ok) { toast.error("Couldn't read that file. Try again or use an .ics file"); setUploadingSchool(false); return; }
         const data = await response.json();
-        const text = data.content?.[0]?.text || "[]";
+        const text = data.content?.find((b: { type?: string }) => b?.type === "text")?.text || "[]";
         const events = JSON.parse(text.replace(/```json|```/g,"").trim());
         if (!events.length) { toast.error("No events found — try a clearer image or .ics file"); setUploadingSchool(false); return; }
            // Convert to iCal-like text for pending modal

@@ -1,20 +1,33 @@
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth, applyCors } from "./_lib/secure.js";
+import { buildUpstreamBody } from "./_lib/claudeRequest.js";
 
 const FREE_LIMIT = parseInt(process.env.FREE_DAILY_AI_LIMIT || "500", 10); // Pro users bypass (see usage check)
 
-const ALLOWED = ["cleo_chat","morning_briefing","style_stylist","budget_coach","wellness_coach","meal_plan","trip_planner","school_calendar","receipt_scanner","csv_import","gift_advisor","briefing_ask","sunday_reset","travel_brief","wellness_score","circle_match","debrief","household_cfo","cleo_household","wellness_coach_v2","trip_planner_v2","circle_companion","gmail_extract","cleo_checkin"];
+// Atomically checks the daily quota and counts this call. A transaction means
+// parallel requests can't all read the same count and slip past the limit.
+// Returns true if the call may proceed.
+async function takeQuota(uid) {
+  const today = new Date().toISOString().split("T")[0];
+  const usageRef = adminDb.doc(`users/${uid}/usage/${today}`);
+  const subRef = adminDb.doc(`users/${uid}/data/subscription`);
+  return adminDb.runTransaction(async (tx) => {
+    const [snap, subSnap] = await Promise.all([tx.get(usageRef), tx.get(subRef)]);
+    const isPro = subSnap.exists && subSnap.data()?.status === "active";
+    const count = snap.exists ? (snap.data()?.count || 0) : 0;
+    if (!isPro && count >= FREE_LIMIT) return false;
+    tx.set(usageRef, { count: FieldValue.increment(1), date: today }, { merge: true });
+    return true;
+  });
+}
 
 export default async function handler(req, res) {
   if (applyCors(req, res, "POST, OPTIONS")) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { prompt, system, feature, model, messages, tools, stream, max_tokens = 1000 } = req.body || {};
-  const effectiveMaxTokens = max_tokens < 2000 ? Math.max(max_tokens, 2000) : max_tokens;
-
-  if (prompt && prompt.length > 12000) return res.status(400).json({ error: "Message too long" });
-  if (feature && !ALLOWED.includes(feature)) return res.status(400).json({ error: "Invalid feature" });
-  if (max_tokens > 8000) return res.status(400).json({ error: "max_tokens too large" });
-  if (!prompt && !messages) return res.status(400).json({ error: "Missing prompt" });
+  const built = buildUpstreamBody(req.body);
+  if (built.error) return res.status(built.status).json({ error: built.error });
+  const upstreamBody = built.upstream;
 
   const idToken = req.headers["authorization"]?.split("Bearer ")[1];
   if (!idToken) return res.status(401).json({ error: "Unauthorized" });
@@ -25,31 +38,15 @@ export default async function handler(req, res) {
     uid = decoded.uid;
   } catch { return res.status(401).json({ error: "Invalid token" }); }
 
-  const today = new Date().toISOString().split("T")[0];
-  const usageRef = adminDb.doc(`users/${uid}/usage/${today}`);
+  // Fail closed: if the quota can't be checked, don't spend money on the call.
   try {
-    const [snap, subSnap] = await Promise.all([
-      usageRef.get(),
-      adminDb.doc(`users/${uid}/data/subscription`).get(),
-    ]);
-    const isPro = subSnap.exists && subSnap.data()?.status === "active";
-    const count = snap.exists ? (snap.data()?.count || 0) : 0;
-    if (!isPro && count >= FREE_LIMIT) return res.status(429).json({ error: "daily_limit_reached", message: "Daily limit reached. Upgrade to Pro for unlimited access." });
-    usageRef.set({ count: count + 1, date: today }, { merge: true }).catch(() => {});
-  } catch (e) { console.error("[HerNest] Usage check failed:", e?.message); }
-
-  const upstreamBody = {
-    model: model || "claude-haiku-4-5-20251001",
-    max_tokens,
-    // Prompt-cache the system prompt: it carries the large household context
-    // and is re-sent every turn (and every agent-loop iteration), so caching
-    // it cuts latency + cost on repeat calls within the cache window.
-    system: system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined,
-    messages: messages || [{ role: "user", content: prompt }],
-    // Cleo v2 agent: forward tool definitions so the model can request actions.
-    ...(Array.isArray(tools) && tools.length ? { tools } : {}),
-    ...(stream ? { stream: true } : {}),
-  };
+    if (!(await takeQuota(uid))) {
+      return res.status(429).json({ error: "daily_limit_reached", message: "Daily limit reached. Upgrade to Pro for unlimited access." });
+    }
+  } catch (e) {
+    console.error("[HerNest] Usage check failed:", e?.message);
+    return res.status(503).json({ error: "temporarily_unavailable" });
+  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -63,13 +60,15 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
+      // Log the detail server-side; the client only gets a generic error.
       const err = await response.json().catch(() => ({}));
       console.error("[HerNest API] Anthropic error:", response.status, JSON.stringify(err));
-      return res.status(response.status).json({ error: err });
+      const status = response.status === 429 || response.status === 529 ? 503 : 502;
+      return res.status(status).json({ error: "ai_unavailable" });
     }
 
     // ── Streaming: pipe Anthropic's SSE straight through to the client ──
-    if (stream && response.body) {
+    if (upstreamBody.stream && response.body) {
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("Connection", "keep-alive");
@@ -88,6 +87,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (err) {
     console.error("[HerNest API] Error:", err?.message);
-    return res.status(500).json({ error: "Internal server error", detail: err?.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }

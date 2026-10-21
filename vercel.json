@@ -33,6 +33,10 @@
       "destination": "/api/household?action=partner_data"
     },
     {
+      "source": "/api/account/delete",
+      "destination": "/api/household?action=delete_account"
+    },
+    {
       "source": "/api/stripe/checkout",
       "destination": "/api/stripe?action=checkout"
     },

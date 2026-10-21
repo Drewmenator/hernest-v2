@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { encryptSecret, decryptSecret } from "./cryptoUtil.js";
+import { encryptSecret, decryptSecret, openToken, isSealed } from "./cryptoUtil.js";
 
 beforeAll(() => {
   // 64 hex chars = 32 bytes
@@ -40,5 +40,14 @@ describe("cryptoUtil", () => {
     delete process.env.CREDENTIALS_ENCRYPTION_KEY;
     expect(() => encryptSecret("x")).toThrow(/CREDENTIALS_ENCRYPTION_KEY/);
     process.env.CREDENTIALS_ENCRYPTION_KEY = saved;
+  });
+
+  it("openToken reads encrypted and legacy plaintext OAuth tokens", () => {
+    const sealed = encryptSecret("ya29.google-token");
+    expect(isSealed(sealed)).toBe(true);
+    expect(openToken(sealed)).toBe("ya29.google-token");
+    expect(isSealed("ya29.legacy")).toBe(false);
+    expect(openToken("ya29.legacy")).toBe("ya29.legacy");
+    expect(openToken(null)).toBe(null);
   });
 });
