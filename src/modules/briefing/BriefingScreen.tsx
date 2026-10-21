@@ -4,6 +4,8 @@ import { useStore } from "../../core/store";
 import { displayAge } from "../../core/dateAwareness";
 import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { ai } from "../../core/ai";
+import { s as js } from "../../core/aiSchema";
+import { detectCrisis, crisisResponse } from "../../core/crisis";
 import { db as localDb } from "../../core/db";
 import { buildAppContext, buildBriefingPrompt, selectFocusWord, TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
 import toast from "react-hot-toast";
@@ -24,6 +26,41 @@ interface Briefing {
   affirmation:  { text: string; theme: string };
   travelBrief?: { urgentActions: string[]; packingTip: string; weatherHint: string; kidsTip?: string; excitement: string };
 }
+
+// Fixed answer shape for the briefing (structured outputs): the API returns
+// exactly this, so no more cutting JSON out of the reply text.
+const opt = js.nullable(js.string());
+const BRIEFING_SCHEMA = js.object({
+  focusWord: js.object({ word: js.string(), emoji: js.string(), why: js.string() }),
+  greeting: js.string(),
+  priorities: js.array(js.object({
+    rank: js.integer(), text: js.string(), emoji: js.string(),
+    source: js.enum(["task", "calendar", "school", "budget", "trip", "circle", "health"]),
+    urgency: js.enum(["critical", "high", "medium", "low"]),
+    whyToday: js.string(), estimatedMinutes: js.nullable(js.integer()),
+  })),
+  calendar: js.object({
+    highlights: js.array(js.object({ time: js.string(), title: js.string(), icon: js.string() })),
+    densityNote: opt, conflicts: js.array(js.string()),
+  }),
+  tasks: js.object({ aiSuggestion: js.string(), completionNote: js.string() }),
+  budget: js.object({
+    status: js.enum(["healthy", "watch", "warning", "critical"]),
+    keyMessage: js.string(), forecastMessage: js.string(), categoryAlert: opt, savingsUpdate: opt,
+  }),
+  trips: js.nullable(js.object({
+    statusMessage: js.string(), urgentActions: js.array(js.string()), excitementNote: js.string(), packingStatus: opt,
+  })),
+  circle: js.object({ checkinMessage: opt, birthdayAlert: opt, communityNote: opt }),
+  energy: js.object({
+    predictedLevel: js.enum(["high", "medium", "low", "very-low"]),
+    predictionBasis: js.string(), tip: js.string(), scheduleSuggestion: js.string(),
+  }),
+  affirmation: js.object({ text: js.string(), theme: js.string() }),
+  travelBrief: js.nullable(js.object({
+    urgentActions: js.array(js.string()), packingTip: js.string(), weatherHint: js.string(), kidsTip: opt, excitement: js.string(),
+  })),
+});
 
 // ── Energy level display ───────────────────────────────────────────
 const ENERGY_COLORS: Record<string,string> = {
@@ -129,7 +166,7 @@ RULES:
 - If tone is tired/struggling: reduce demands, increase compassion
 - If tone is thriving: energise and celebrate
 
-Return ONLY valid JSON:
+Answer in this shape (null for anything you have no data for):
 {
   "focusWord": {"word":"${focusData.word}","emoji":"${focusData.emoji}","why":"one personal sentence why this word today"},
   "greeting": "warm personal greeting using her name and today ${date}",
@@ -143,16 +180,12 @@ Return ONLY valid JSON:
   "affirmation": {"text":"warm personal affirmation","theme":"${appCtx.toneConfig.affirmationTheme}"},
   "travelBrief": ${appCtx?.trips?.isClose ? '{"urgentActions":[""],"packingTip":"","weatherHint":"","kidsTip":"","excitement":""}' : 'null'}
 }
-Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
+Return exactly 5 priorities. Set trips and travelBrief to null unless that data exists.`;
 
-      const result = await ai(sys, contextStr, "morning_briefing");
+      const result = await ai(sys, contextStr, "morning_briefing", [], { schema: BRIEFING_SCHEMA });
       if (result.error) { console.error("[Briefing] AI error:", result.error); setLoading(false); return; }
 
-      const rawText = result.text;
-        const jsonStart = rawText.indexOf("{");
-        const jsonEnd = rawText.lastIndexOf("}");
-        if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON in briefing response");
-        const parsed = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1)) as Briefing;
+        const parsed = JSON.parse(result.text) as Briefing;
         if (!parsed.priorities) parsed.priorities = [];
         if (!parsed.calendar) parsed.calendar = { highlights: [] };
         if (!parsed.tasks) parsed.tasks = { aiSuggestion: "", completionNote: "" };
@@ -177,6 +210,8 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
   // ── Ask Cleo ──────────────────────────────────────────────────────
   const askCleo = async () => {
     if (!askInput.trim() || asking) return;
+    // Same safety net as Cleo chat: a crisis message never goes to the AI.
+    if (detectCrisis(askInput)) { setAskResp(crisisResponse().replace(/\*\*/g, "")); return; }
     setAsking(true);
     const ctxStr = ctx ? `Today's tone: ${ctx.tone}. Focus: ${briefing?.focusWord?.word}. Tasks: ${ctx.tasks.total} pending. Budget: ${ctx.budget?.status}.` : "";
     const result = await ai(`You are Cleo. ${ctxStr} Answer in 2-3 warm, specific sentences. Never generic. CRITICAL: Only reference facts explicitly provided in the context above — never invent events, names, amounts, or dates.`, askInput, "briefing_ask");
@@ -418,7 +453,7 @@ Return exactly 5 priorities. Include trips/travelBrief only if data exists.`;
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>ASK CLEO</p>
           {askResp && (
             <div style={{ background:T.sand, borderRadius:12, padding:"12px 14px", marginBottom:10, border:`1px solid ${T.linen}` }}>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.6 }}>{askResp}</p>
+              <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.6, whiteSpace:"pre-line" }}>{askResp}</p>
             </div>
           )}
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>

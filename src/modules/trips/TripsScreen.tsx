@@ -3,6 +3,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
 import { analyzeScenario, buildHouseholdSnapshot } from "../../core/household";
 import toast from "react-hot-toast";
@@ -163,8 +164,7 @@ export function TripsScreen() {
     const adults = trip.travellers.filter(t => t.type === "adult");
     const days = Math.min(trip.nights, 7);
 
-    const sys = `You are Cleo, a family travel planner. Return ONLY valid JSON:
-{"days":[{"day":1,"date":"YYYY-MM-DD","theme":"string","morning":"activity","afternoon":"activity","evening":"dinner spot","tip":"local tip","mumMoment":"something special just for her — rest, beauty, joy"}]}
+    const sys = `You are Cleo, a family travel planner.
 Generate exactly ${days} days. Keep each field under 12 words. Make it feel achievable not exhausting.`;
 
     const prompt = `${days} nights in ${trip.destination}.
@@ -172,13 +172,17 @@ Party: ${adults.map(a => a.name).join(", ")} (adults)${kids.length ? `, ${kids.m
 Budget: ${trip.budget.currency}${trip.budget.total}.
 Make it family-friendly but include a mum moment each day.`;
 
-    const result = await ai(sys, prompt, "trip_planner");
+    const schema = s.object({
+      days: s.array(s.object({
+        day: s.integer(), date: s.string("YYYY-MM-DD"), theme: s.string(),
+        morning: s.string("activity"), afternoon: s.string("activity"), evening: s.string("dinner spot"),
+        tip: s.string("local tip"), mumMoment: s.string("something special just for her — rest, beauty, joy"),
+      })),
+    });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema });
     if (!result.error) {
       try {
-        const clean = result.text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        const s = clean.indexOf("{"); const e = clean.lastIndexOf("}");
-        if (s === -1 || e === -1) throw new Error("No JSON");
-        const parsed = JSON.parse(clean.slice(s, e + 1));
+        const parsed = JSON.parse(result.text);
         const updated = trips.map(t => t.id === trip.id ? { ...t, itinerary: parsed.days } : t);
         await persist(updated);
         setActiveTrip(normTrip({ ...trip, itinerary: parsed.days }));
@@ -194,21 +198,23 @@ Make it family-friendly but include a mum moment each day.`;
     const kids = trip.travellers.filter(t => t.type === "child");
     const hasKids = kids.length > 0;
 
-    const sys = `You are Cleo. Generate a smart family packing list. Return ONLY valid JSON:
-{"sections":[{"name":"Mum","items":[{"name":"Underwear","quantity":7,"essential":true,"weatherDependent":false}]},{"name":"${hasKids ? "Kids" : "Partner"}","items":[]},{"name":"Everyone","items":[]},{"name":"Documents","items":[]},{"name":"Tech","items":[]}]}
-Each item: name, quantity (number), essential (bool), weatherDependent (bool). Max 12 items per section.`;
+    const sys = `You are Cleo. Generate a smart family packing list in these sections, in order: Mum, ${hasKids ? "Kids" : "Partner"}, Everyone, Documents, Tech.
+Each item: name, quantity, essential, weatherDependent. Max 12 items per section.`;
 
     const prompt = `Trip to ${trip.destination}, ${trip.nights} nights.
 ${hasKids ? `Kids: ${kids.map(k => `${k.name} age ${k.age}`).join(", ")}.` : "Adults only."}
 Weather: pack for typical ${trip.destination} conditions.`;
 
-    const result = await ai(sys, prompt, "trip_planner");
+    const schema = s.object({
+      sections: s.array(s.object({
+        name: s.enum(["Mum", hasKids ? "Kids" : "Partner", "Everyone", "Documents", "Tech"]),
+        items: s.array(s.object({ name: s.string(), quantity: s.integer(), essential: s.boolean(), weatherDependent: s.boolean() })),
+      })),
+    });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema });
     if (!result.error) {
       try {
-        const clean = result.text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        const s = clean.indexOf("{"); const e = clean.lastIndexOf("}");
-        if (s === -1 || e === -1) throw new Error("No JSON");
-        const parsed = JSON.parse(clean.slice(s, e + 1));
+        const parsed = JSON.parse(result.text);
         const sections: PackingSection[] = parsed.sections
           .filter((s: any) => s.items?.length > 0)
           .map((s: any) => ({

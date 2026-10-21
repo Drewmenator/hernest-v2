@@ -196,7 +196,7 @@ export async function runCleoAgent(params: {
 
     const toolUses = content.filter((b) => b?.type === "tool_use");
     if (data.stop_reason !== "tool_use" || toolUses.length === 0) {
-      const text = content.find((b) => b?.type === "text")?.text || "";
+      const text = content.filter((b) => b?.type === "text").map((b) => b.text).join("");
       return { text, actions, usedTools };
     }
 
@@ -250,12 +250,19 @@ async function streamClaude(params: {
   const handle = (e: any) => {
     if (e.type === "content_block_start") {
       const cb = e.content_block || {};
-      blocks[e.index] = cb.type === "tool_use" ? { type: "tool_use", id: cb.id, name: cb.name, input: {} } : { type: "text", text: "" };
-      if (cb.type === "tool_use") toolJson[e.index] = "";
+      // Thinking blocks (Haiku/Sonnet 5.5 think by default) must be replayed
+      // unchanged, signature included, when we send tool results back; turning
+      // them into empty text blocks made the follow-up request fail.
+      if (cb.type === "tool_use") { blocks[e.index] = { type: "tool_use", id: cb.id, name: cb.name, input: {} }; toolJson[e.index] = ""; }
+      else if (cb.type === "text") blocks[e.index] = { type: "text", text: "" };
+      else blocks[e.index] = { ...cb };
     } else if (e.type === "content_block_delta") {
       const d = e.delta || {};
-      if (d.type === "text_delta") { const b = blocks[e.index]; if (b) b.text += d.text; params.onToken(d.text || ""); }
+      const b = blocks[e.index];
+      if (d.type === "text_delta") { if (b) b.text += d.text; params.onToken(d.text || ""); }
       else if (d.type === "input_json_delta") { toolJson[e.index] = (toolJson[e.index] || "") + (d.partial_json || ""); }
+      else if (d.type === "thinking_delta" && b) { b.thinking = (b.thinking || "") + (d.thinking || ""); }
+      else if (d.type === "signature_delta" && b) { b.signature = (b.signature || "") + (d.signature || ""); }
     } else if (e.type === "content_block_stop") {
       const b = blocks[e.index];
       if (b?.type === "tool_use") { try { b.input = JSON.parse(toolJson[e.index] || "{}"); } catch { b.input = {}; } }
@@ -281,7 +288,8 @@ async function streamClaude(params: {
       try { handle(JSON.parse(payload)); } catch { /* ignore partial frames */ }
     }
   }
-  return { content: blocks.filter(Boolean), stopReason };
+  // An empty text block is rejected if replayed, so drop those.
+  return { content: blocks.filter(b => b && !(b.type === "text" && !b.text)), stopReason };
 }
 
 export async function runCleoAgentStreaming(params: {
@@ -301,7 +309,7 @@ export async function runCleoAgentStreaming(params: {
     convo.push({ role: "assistant", content });
     const toolUses = content.filter((b: any) => b?.type === "tool_use");
     if (stopReason !== "tool_use" || toolUses.length === 0) {
-      const text = content.find((b: any) => b?.type === "text")?.text || "";
+      const text = content.filter((b: any) => b?.type === "text").map(b => b.text).join("");
       return { text, actions, usedTools };
     }
     usedTools = true;

@@ -15,6 +15,7 @@
 //                  Insight Engine, Memory Service, all modules.
 
 import { aiJSON } from "../ai";
+import { s } from "../aiSchema";
 import { currencySymbol } from "../../shared/utils/money";
 import { saveData, loadData } from "../firebase";
 import { saveMemoryFacts } from "../memory";
@@ -361,6 +362,76 @@ const DEEP_PROMPT = `${BASE_DECISION_PROMPT}
 MODE: Deep Decision — comprehensive DQ framework. Full options, all criteria, uncertainties, scenario comparison, recommendation with full explanation. This is a high-stakes decision.`;
 
 // ═══════════════════════════════════════════════════════════════════
+// ANSWER SCHEMA
+// The fixed shape runDecisionV2 asks for (structured outputs). Field
+// descriptions carry what the prompt used to spell out in a JSON template.
+// ═══════════════════════════════════════════════════════════════════
+
+const LEVEL = ["low", "medium", "high"];
+
+const DECISION_SCHEMA = s.object({
+  type: s.enum(["financial", "schedule", "family_planning", "wellness", "trip", "school", "home", "major_purchase", "debt", "career", "caregiving", "general"]),
+  purpose: s.string("one sentence — what this decision is really about"),
+  options: s.array(s.object({
+    id: s.string("opt_1, opt_2, ..."),
+    name: s.string(),
+    description: s.string("brief description"),
+    estimatedCost: s.number("0 if no direct cost"),
+    stressImpact: s.enum(["reduces", "neutral", "increases"]),
+    riskLevel: s.enum(LEVEL),
+    pros: s.array(s.string()),
+    cons: s.array(s.string()),
+  })),
+  criteria: s.array(s.object({
+    id: s.string("crit_1, crit_2, ..."),
+    name: s.string(),
+    category: s.enum(["cost", "time", "stress", "family_value", "financial_health", "convenience", "wellness", "long_term_benefit", "risk"]),
+    importance: s.enum(LEVEL),
+  })),
+  constraints: s.array(s.object({
+    id: s.string("con_1, con_2, ..."),
+    description: s.string(),
+    type: s.enum(["budget", "time", "schedule", "health", "family", "deadline", "other"]),
+    hardConstraint: s.boolean(),
+  })),
+  uncertainties: s.array(s.object({
+    id: s.string("unc_1, unc_2, ..."),
+    description: s.string("what is uncertain"),
+    impact: s.enum(LEVEL),
+    canReduceWithMoreInfo: s.boolean(),
+    suggestedInfoNeeded: s.string("what info would help"),
+  })),
+  tradeoffs: s.array(s.object({
+    optionA: s.string("option name"),
+    optionB: s.string("option name"),
+    tradeoffSummary: s.string(),
+    givesUp: s.string("what you give up"),
+    gains: s.string("what you gain"),
+    affectedCriteria: s.array(s.string("criterion name")),
+  })),
+  recommendation: s.object({
+    recommendedOptionId: s.string("id of the recommended option"),
+    summary: s.string("clear recommendation"),
+    why: s.array(s.string()),
+    risks: s.array(s.string()),
+    watchouts: s.array(s.string()),
+    confidence: s.enum(LEVEL),
+    explanation: s.object({
+      contextUsed: s.array(s.string("what data was used")),
+      assumptions: s.array(s.string()),
+      strongestFactors: s.array(s.string()),
+    }),
+  }),
+  assumptions: s.array(s.string()),
+  nextActions: s.array(s.object({
+    label: s.string("action label"),
+    actionType: s.enum(["create_task", "create_goal", "review_budget", "schedule_conversation", "collect_info", "defer_decision", "ask_cleo"]),
+    priority: s.enum(LEVEL),
+    targetModule: s.enum(["finances", "calendar", "tasks", "trips", "wellness"]),
+  })),
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // MAIN ENGINE FUNCTION
 // ═══════════════════════════════════════════════════════════════════
 
@@ -391,81 +462,6 @@ export async function runDecisionV2(params: {
 
 ${context}
 
-Return ONLY valid JSON matching this exact structure:
-{
-  "type": "financial|schedule|family_planning|wellness|trip|school|home|major_purchase|debt|career|caregiving|general",
-  "purpose": "one sentence — what this decision is really about",
-  "options": [
-    {
-      "id": "opt_1",
-      "name": "Option name",
-      "description": "brief description",
-      "estimatedCost": 0,
-      "stressImpact": "reduces|neutral|increases",
-      "riskLevel": "low|medium|high",
-      "pros": ["pro 1", "pro 2"],
-      "cons": ["con 1", "con 2"]
-    }
-  ],
-  "criteria": [
-    {
-      "id": "crit_1",
-      "name": "criterion name",
-      "category": "cost|time|stress|family_value|financial_health|convenience|wellness|long_term_benefit|risk",
-      "importance": "low|medium|high"
-    }
-  ],
-  "constraints": [
-    {
-      "id": "con_1",
-      "description": "constraint description",
-      "type": "budget|time|schedule|health|family|deadline|other",
-      "hardConstraint": true
-    }
-  ],
-  "uncertainties": [
-    {
-      "id": "unc_1",
-      "description": "what is uncertain",
-      "impact": "low|medium|high",
-      "canReduceWithMoreInfo": true,
-      "suggestedInfoNeeded": "what info would help"
-    }
-  ],
-  "tradeoffs": [
-    {
-      "optionA": "option name",
-      "optionB": "option name",
-      "tradeoffSummary": "summary",
-      "givesUp": "what you give up",
-      "gains": "what you gain",
-      "affectedCriteria": ["criterion name"]
-    }
-  ],
-  "recommendation": {
-    "recommendedOptionId": "opt_1",
-    "summary": "clear recommendation",
-    "why": ["reason 1", "reason 2"],
-    "risks": ["risk 1"],
-    "watchouts": ["watchout 1"],
-    "confidence": "low|medium|high",
-    "explanation": {
-      "contextUsed": ["what data was used"],
-      "assumptions": ["assumption 1"],
-      "strongestFactors": ["factor 1"]
-    }
-  },
-  "assumptions": ["assumption 1"],
-  "nextActions": [
-    {
-      "label": "action label",
-      "actionType": "create_task|create_goal|review_budget|schedule_conversation|collect_info|defer_decision|ask_cleo",
-      "priority": "low|medium|high",
-      "targetModule": "finances|calendar|tasks|trips|wellness"
-    }
-  ]
-}
-
 Generate ${optionCountMap[mode]} options. Include at least one low-stress option.`;
 
   const fallback: Partial<HouseholdDecisionV2> = {
@@ -484,7 +480,8 @@ Generate ${optionCountMap[mode]} options. Include at least one low-stress option
     sys,
     `Frame this household decision: "${question}"`,
     "household_cfo",
-    fallback
+    fallback,
+    DECISION_SCHEMA
   );
 
   // Score options if we have enough data

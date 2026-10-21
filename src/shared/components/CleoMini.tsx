@@ -3,7 +3,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { askCleo } from "../../core/aiOrchestrator";
 import { Spinner } from "./index";
-import { detectCrisis, CRISIS_RESPONSE } from "../../core/crisis";
+import { detectCrisis, crisisResponse } from "../../core/crisis";
 
 interface Msg { role: "user" | "assistant"; content: string; }
 
@@ -64,7 +64,7 @@ export function CleoMini() {
     setInput("");
     // Crisis check BEFORE any AI call — same safety net as the full screen
     if (detectCrisis(msg)) {
-      setMsgs(p => [...p, { role: "assistant", content: CRISIS_RESPONSE }]);
+      setMsgs(p => [...p, { role: "assistant", content: crisisResponse() }]);
       return;
     }
     setLoading(true);

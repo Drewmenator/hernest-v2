@@ -5,6 +5,7 @@ import { useStore } from "../../core/store";
 import { Card, PageTitle, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
 
@@ -138,43 +139,30 @@ STYLING RULES:
 5. Include ONE statement accessory, not many
 6. End with a confidence boost — she should feel amazing
 7. Suggest alternatives for key items
-
-Return ONLY valid JSON:
-{
-  "outfit": {
-    "top": {"name":"","color":"","material":"","fit":"","whyItWorks":""},
-    "bottom": {"name":"","color":"","material":"","fit":"","whyItWorks":""},
-    "shoes": {"name":"","color":"","material":"","fit":"","whyItWorks":""},
-    "accessories": [{"name":"","color":"","material":"","fit":"","whyItWorks":""}],
-    "bag": {"name":"","color":"","material":"","fit":"","whyItWorks":""},
-    "outerwear": {"name":"","color":"","material":"","fit":"","whyItWorks":""}
-  },
-  "styling": {
-    "colorPalette": ["color1","color2","color3"],
-    "silhouette": "description",
-    "proportionTip": "specific tip"
-  },
-  "rationale": "2-3 sentences why this works for her occasion and body",
-  "bodyShapeTip": "specific tip for her body shape",
-  "weatherAdaptation": "how to adapt for the weather if relevant",
-  "confidenceBoost": "one powerful line she can carry with her",
-  "alternatives": [{"item":"item name","alternative":"what to use instead","reason":"why"}],
-  "estimatedCost": {"total": 0, "currency": "GBP"}
-}`;
+8. Use null for outfit pieces she doesn't need (bag, outerwear, dress, bottom) and for weatherAdaptation if weather isn't relevant
+9. estimatedCost.total is the whole outfit in GBP`;
 
     const stressNote = householdSnapshot?.householdStressLevel === "high" ? " The user is having a high-stress week — prioritise comfort and ease." : "";
     const prompt = `Occasion: ${occasion}. Mood: ${mood}. ${context?`Context: ${context}.`:""} ${weather?`Weather: ${weather}.`:""} ${include?`Must include: ${include}.`:""}${stressNote}`;
-    const result = await ai(sys, prompt, "style_stylist");
+    const item = s.object({ name: s.string(), color: s.string(), material: s.string(), fit: s.string(), whyItWorks: s.string() });
+    const schema = s.object({
+      outfit: s.object({
+        top: item, bottom: s.nullable(item), dress: s.nullable(item), outerwear: s.nullable(item),
+        shoes: item, accessories: s.array(item), bag: s.nullable(item),
+      }),
+      styling: s.object({ colorPalette: s.array(s.string()), silhouette: s.string(), proportionTip: s.string() }),
+      rationale: s.string("2-3 sentences why this works for her occasion and body"),
+      bodyShapeTip: s.string("specific tip for her body shape"),
+      weatherAdaptation: s.nullable(s.string("how to adapt for the weather")),
+      confidenceBoost: s.string("one powerful line she can carry with her"),
+      alternatives: s.array(s.object({ item: s.string(), alternative: s.string("what to use instead"), reason: s.string() })),
+      estimatedCost: s.object({ total: s.number(), currency: s.string() }),
+    });
+    const result = await ai(sys, prompt, "style_stylist", [], { schema });
 
     if (!result.error) {
       try {
-        console.log("[Style] raw response:", result.text.slice(0, 300));
-        const rawText = result.text;
-        const jsonStart = rawText.indexOf("{");
-        const jsonEnd = rawText.lastIndexOf("}");
-        if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON found in response");
-        const jsonStr = rawText.slice(jsonStart, jsonEnd + 1);
-        const parsed = JSON.parse(jsonStr);
+        const parsed = JSON.parse(result.text);
         const outfitRec: OutfitRec = {
           occasion, mood, createdAt: Date.now(),
           outfit: parsed.outfit,

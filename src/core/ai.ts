@@ -1,5 +1,6 @@
 // ─── HerNest AI Client ────────────────────────────────────────────
 import { auth } from "./firebase";
+import type { JsonSchema } from "./aiSchema";
 
 export type Feature =
   | "cleo_chat" | "morning_briefing" | "style_stylist"
@@ -33,11 +34,19 @@ export interface AIError {
 
 export type AIResult = AIResponse | AIError;
 
+export interface AIOptions {
+  // A fixed answer shape (JSON schema, object at the root). The API then
+  // guarantees the reply is valid JSON in that shape — no more cutting JSON out
+  // of free text. Build one with the helpers in ./aiSchema.
+  schema?: JsonSchema;
+}
+
 export async function ai(
   system: string,
   prompt: string,
   feature: Feature = "cleo_chat",
-  history: Array<{ role: string; content: string }> = []
+  history: Array<{ role: string; content: string }> = [],
+  opts: AIOptions = {}
 ): Promise<AIResult> {
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
@@ -65,6 +74,7 @@ export async function ai(
         prompt,
         feature,
         messages,
+        ...(opts.schema ? { schema: opts.schema } : {}),
       }),
     });
 
@@ -93,14 +103,16 @@ export async function ai(
   }
 }
 
-// Convenience: parse JSON from AI response
+// Convenience: parse JSON from AI response. Pass a schema to get a guaranteed
+// shape (structured outputs); without one the reply is parsed best-effort.
 export async function aiJSON<T>(
   system: string,
   prompt: string,
   feature: Feature,
-  fallback: T
+  fallback: T,
+  schema?: JsonSchema
 ): Promise<T> {
-  const result = await ai(system, prompt, feature);
+  const result = await ai(system, prompt, feature, [], { schema });
   if (result.error) return fallback;
   try {
     return JSON.parse(result.text.replace(/```json|```/g, "").trim()) as T;

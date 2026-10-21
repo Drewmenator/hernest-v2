@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, HeroCard, Pill, Button, Input } from "../../shared/components";
+import { Card, PageTitle, HeroCard, Button, Input } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
-import { signOut, deleteUser } from "firebase/auth";
-import { auth } from "../../core/firebase";
 import { bus } from "../../core/events";
-import { loadMemoryFacts, saveMemoryFacts, type MemoryFact } from "../../core/memory";
+import { loadMemoryFacts, saveMemoryFacts, deleteMemoryFact, type MemoryFact } from "../../core/memory";
 import toast from "react-hot-toast";
 
 // ── Types per blueprint ────────────────────────────────────────────
@@ -42,7 +40,7 @@ const FACT_TYPES = [
 const SECTIONS = ["personal","family","health","goals","memory"] as const;
 
 export function ProfileScreen() {
-  const { user, profile, updateProfile, reset } = useStore();
+  const { user, profile, updateProfile } = useStore();
   const [section, setSection] = useState<string>("personal");
   const [saving, setSaving]   = useState(false);
 
@@ -149,6 +147,8 @@ export function ProfileScreen() {
     setMemories(updated);
     setNewFact("");
     await saveMemoryFacts(user.uid, [fact]);
+    // The memory store assigns its own id; reload so delete targets the right one.
+    loadMemoryFacts(user.uid).then(setMemories);
     await bus.publish("cleo.memory.updated", { fact }, { userId: user.uid, source: "profile" });
     toast.success("Cleo will remember that ✦");
   };
@@ -156,7 +156,7 @@ export function ProfileScreen() {
   const deleteFact = async (id: string) => {
     const updated = memories.filter(f=>f.id!==id);
     setMemories(updated);
-    if (user?.uid) await saveData(user.uid, "cleo_memory", { facts: updated });
+    if (user?.uid) await deleteMemoryFact(user.uid, id);
   };
 
   // ── Family helpers ────────────────────────────────────────────────
@@ -467,7 +467,7 @@ export function ProfileScreen() {
       </>}
 
       {/* Sign out */}
-      <button onClick={async()=>{ await signOut(auth); reset(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:14, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", marginTop:8, minHeight:44 }}>
+      <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:14, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", marginTop:8, minHeight:44 }}>
         Sign out
       </button>
     </div>

@@ -104,10 +104,9 @@ export function SettingsScreen() {
       });
       if (!res.ok) throw new Error(`delete_failed_${res.status}`);
       const { signOutCompletely } = await import("../../core/signOut");
-      // The login no longer exists, so sign-out may complain; local data is
-      // cleared before that step either way.
-      await signOutCompletely().catch(() => reset());
       toast.success("Account deleted. We're sorry to see you go.");
+      // Clears this device and restarts the app on the sign-in screen.
+      await signOutCompletely().catch(() => reset());
     } catch {
       toast.error("Couldn't delete account. Please try again or contact support@hernest.app");
     }
