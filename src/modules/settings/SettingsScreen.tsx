@@ -85,6 +85,14 @@ export function SettingsScreen() {
     if (deleteConfirm !== "DELETE" || !user?.uid) return;
     setDeleting(true);
     try {
+      // Apple requires cutting off Sign in with Apple on deletion. This shows
+      // the Apple sheet once more; cancelling it stops the deletion. If the
+      // revoke itself fails we still delete, since erasing the data matters more.
+      const { revokeAppleSignIn } = await import("../../core/appleRevoke");
+      const { Capacitor } = await import("@capacitor/core");
+      const apple = await revokeAppleSignIn(auth, Capacitor.isNativePlatform());
+      if (apple === "cancelled") { setDeleting(false); return; }
+
       // The server erases everything (data, connected accounts, household
       // links, push devices), cancels any subscription, then deletes the login.
       const idToken = await auth.currentUser?.getIdToken();
@@ -451,6 +459,9 @@ export function SettingsScreen() {
             </button>
           ) : (
             <>
+              {auth.currentUser?.providerData.some(p => p.providerId === "apple.com") && (
+                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Apple will ask you to confirm once more so we can disconnect your Apple ID.</p>
+              )}
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Type <strong>DELETE</strong> to confirm:</p>
               <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="Type DELETE" style={{ width:"100%", background:T.sand, border:`1.5px solid #dc262640`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", marginBottom:12, boxSizing:"border-box", minHeight:48 }}/>
               <div style={{ display:"flex", gap:8 }}>
