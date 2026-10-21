@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       return res.json({ success: true, ...result });
     }
     // Preview the real morning-briefing push on demand (same content the cron
-    // sends at 6:00 UTC), so it can be verified without waiting for tomorrow.
+    // sends at each user's local 7am), so it can be verified without waiting.
     if (action === "briefing") {
       const result = await sendMorningBriefingTo(uid);
       return res.json({ success: true, ...result });

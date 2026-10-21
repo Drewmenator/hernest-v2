@@ -14,21 +14,20 @@ interface SetupData {
   challenge?: string;
 }
 
-type SetupStep = "intro" | "name" | "income" | "kids" | "kidDates" | "goal" | "debt" | "challenge" | "done";
+// Money questions (income, goal, debt) were removed in the Oct 2026 Bills
+// redesign: the Bills screen runs its own tap-only setup on first open.
+type SetupStep = "intro" | "name" | "kids" | "kidDates" | "challenge" | "done";
 
 const NORA_QUESTIONS: Record<SetupStep, (data: SetupData) => string> = {
   intro:     () => "",
   name:      () => "First things first — what's your name?",
-  income:    (d) => `Lovely to meet you, ${d.name} ✦\n\nTo help you properly, I need to understand your household finances. What's your combined monthly household income? (Approximate is completely fine — you can update this any time.)`,
-  kids:      () => "Do you have children? If yes, tell me their names and ages — I'll use this to personalise your experience. If not, just say 'no kids'.",
+  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalise your experience. If not, just say 'no kids'.`,
   kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate 🎂 — totally optional, tap Continue to skip.",
-  goal:      (d) => d.kids && d.kids.toLowerCase() !== "no kids" ? `Thank you — knowing about your family helps me a lot.\n\nWhat's your biggest financial goal right now? For example: build an emergency fund, pay off debt, save for a holiday, or something else entirely.` : `Got it.\n\nWhat's your biggest financial goal right now? For example: build an emergency fund, pay off debt, save for a holiday, or something else entirely.`,
-  debt:      (d) => `${d.goal ? `"${d.goal}" — that's a great focus.\n\n` : ""}One more financial question, and you can skip this one. Do you have any existing debt? Credit cards, loans, car finance? Just give me a rough total, or say 'skip'.`,
   challenge: () => "Almost done.\n\nWhat's the biggest thing weighing on you right now — the thing that takes up most of your mental energy?",
-  done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you manage your finances, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,
+  done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you keep on top of your bills, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,
 };
 
-const STEP_ORDER: SetupStep[] = ["name", "income", "kids", "kidDates", "goal", "debt", "challenge", "done"];
+const STEP_ORDER: SetupStep[] = ["name", "kids", "kidDates", "challenge", "done"];
 
 function parseKids(input: string): Array<{id: string; name: string; age: number}> {
   if (input.toLowerCase().includes("no kid") || input.toLowerCase() === "none" || input.toLowerCase() === "no") return [];
@@ -78,11 +77,11 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  // Advance from the birthday-picker step to the goal question.
+  // Advance from the birthday-picker step to the last question.
   const finishKidDates = () => {
-    setStep("goal");
+    setStep("challenge");
     setTimeout(() => {
-      setMsgs(prev => [...prev, { role: "cleo", text: NORA_QUESTIONS.goal(data) }]);
+      setMsgs(prev => [...prev, { role: "cleo", text: NORA_QUESTIONS.challenge(data) }]);
       inputRef.current?.focus();
     }, 300);
   };
@@ -101,25 +100,13 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
     if (step === "name") {
       newData.name = userMsg.split(" ")[0]; // First name only
-      nextStep = "income";
-    } else if (step === "income") {
-      const num = parseFloat(userMsg.replace(/[^0-9.]/g, ""));
-      newData.income = isNaN(num) ? 0 : num;
       nextStep = "kids";
     } else if (step === "kids") {
       newData.kids = userMsg;
       const parsed = parseKids(userMsg);
       setKidsList(parsed);
       // Offer the optional birthday picker only if we actually found kids.
-      nextStep = parsed.length > 0 ? "kidDates" : "goal";
-    } else if (step === "goal") {
-      newData.goal = userMsg;
-      nextStep = "debt";
-    } else if (step === "debt") {
-      const isSkip = userMsg.toLowerCase().includes("skip") || userMsg.toLowerCase() === "no" || userMsg.toLowerCase() === "none";
-      const num = parseFloat(userMsg.replace(/[^0-9.]/g, ""));
-      newData.debt = isSkip || isNaN(num) ? 0 : num;
-      nextStep = "challenge";
+      nextStep = parsed.length > 0 ? "kidDates" : "challenge";
     } else if (step === "challenge") {
       newData.challenge = userMsg;
       nextStep = "done";
@@ -161,28 +148,9 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             onboardedAt:   Date.now(),
           };
 
-          const budgetSeed = {
-            incomes: newData.income && newData.income > 0 ? [{
-              id: "primary", label: "Monthly Income",
-              amount: newData.income, frequency: "monthly",
-            }] : [],
-            debts: newData.debt && newData.debt > 0 ? [{
-              id: "total_debt", label: "Total Debt",
-              balance: newData.debt,
-              minimumPayment: Math.round(newData.debt * 0.02), apr: 0,
-            }] : [],
-            goals: newData.goal ? [{
-              id: "primary_goal", name: newData.goal,
-              targetAmount: 0, currentAmount: 0,
-              priority: "high", riskStatus: "on_track",
-            }] : [],
-            categories: [],
-          };
-
           setProfile(profile as any);
           if (user?.uid) {
             await saveData(user.uid, "profile", profile);
-            await saveData(user.uid, "budget_v2", budgetSeed);
           }
 
           // Enter app after showing done message
@@ -281,10 +249,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             onKeyDown={e => e.key === "Enter" && send()}
             placeholder={
               step === "name" ? "Your first name..." :
-              step === "income" ? "Monthly income..." :
               step === "kids" ? "e.g. Emma 8, Jake 5 — or 'no kids'" :
-              step === "goal" ? "Your top financial goal..." :
-              step === "debt" ? "Total debt — or 'skip'" :
               "What's weighing on you most..."
             }
             autoFocus

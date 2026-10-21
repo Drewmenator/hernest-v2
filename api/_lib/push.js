@@ -4,7 +4,7 @@
 import { getMessaging } from "firebase-admin/messaging";
 import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
-import { daysUntilDue } from "./bills.js";
+import { daysUntilDue, billIsFor } from "./bills.js";
 
 // Send one notification to every device registered under users/{uid}/devices.
 // Returns { sent, pruned }. Safe to call when the user has no devices.
@@ -106,13 +106,18 @@ export async function buildBriefingLine(uid, now = new Date()) {
   try {
     const bills = ((await docData(`users/${owner}/data/bills`)).bills) || [];
     const due = bills
+      // "Who pays": a bill set to one person only shows in that person's digest.
+      .filter(b => billIsFor(b, uid))
       .map(b => ({ name: b.name, amount: b.amount, days: daysUntilDue(b, now), autopay: b.autopay }))
-      .filter(b => b.days != null && b.days >= 0 && b.days <= 5)
+      // An autopay bill past its date has paid itself (the app records it).
+      .filter(b => b.days != null && b.days <= 5 && !(b.autopay && b.days < 0))
       .sort((a, b) => a.days - b.days);
     if (due.length) {
+      // Overdue first (most negative days). Amount is optional on a bill.
       const b = due[0];
-      const when = b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
-      bits.push(`${b.name} ($${Math.round(b.amount).toLocaleString()}) ${when}${b.autopay ? " (autopay)" : ""}`);
+      const when = b.days < 0 ? "is overdue" : b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
+      const amt = b.amount > 0 ? ` ($${Math.round(b.amount).toLocaleString()})` : "";
+      bits.push(`${b.name}${amt} ${when}${b.autopay ? " (autopay)" : ""}`);
     }
   } catch { /* skip */ }
   try {

@@ -38,6 +38,10 @@ export const FEATURES = {
   debrief:           { tier: "haiku",  maxTokens: 1000 },
   gmail_extract:     { tier: "haiku",  maxTokens: 1000 },
   cleo_checkin:      { tier: "haiku",  maxTokens: 1000 },
+  // Bills: read bills off screenshots (vision needs the stronger tier), and
+  // turn a typed line like "daycare every other Friday" into bills.
+  bill_scan:         { tier: "sonnet", maxTokens: 2000, attachments: true },
+  bill_parse:        { tier: "haiku",  maxTokens: 1000 },
 };
 
 // Tools the Cleo agent may call (src/core/cleoAgent.ts TOOLS). Only cleo_chat

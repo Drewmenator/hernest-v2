@@ -3,6 +3,7 @@
 // v2: reads budget_v2, exposes household snapshot for intelligence layer
 
 import { loadData } from "./firebase";
+import { daysUntilDue, displayAmount, type Bill } from "./bills";
 import { currencySymbol } from "../shared/utils/money";
 import { daysUntilBirthday, todayLocal } from "./dateAwareness";
 import { buildMemoryContext, loadMemoryFacts } from "./memory";
@@ -81,6 +82,14 @@ export interface AppContext {
     totalDebt: number;
     savingsRate: number;
     financialHealthGrade: string;
+  };
+
+  // Bills (the money side since the Oct 2026 redesign)
+  bills: {
+    total: number;
+    overdue: { name: string; amount: number | null; days: number }[];
+    dueSoon: { name: string; amount: number | null; days: number; autopay: boolean }[]; // next 7 days
+    noDate: number;
   };
 
   // Thrive
@@ -172,7 +181,7 @@ export async function buildAppContext(
   const [
     tasksData, budgetDataV2, budgetDataV1, thriveData,
     tripsData, schoolData, circleData, calendarData,
-    memoryFacts, wearable
+    memoryFacts, wearable, billsData
   ] = await Promise.all([
     loadData(userId, "tasks"),
     loadData(userId, "budget_v2"),   // NEW: try v2 first
@@ -184,6 +193,7 @@ export async function buildAppContext(
     loadData(userId, "calendar"),
     loadMemoryFacts(userId),
     readWearable(userId).catch(() => null),
+    loadData(userId, "bills"),
   ]);
 
   // Use v2 if available, otherwise fall back to v1
@@ -339,6 +349,8 @@ export async function buildAppContext(
       monthlyIncome, totalDebt, savingsRate, financialHealthGrade: healthGrade,
     },
 
+    bills: summariseBills((billsData?.bills as Bill[]) || []),
+
     // Thrive
     thrive: {
       sleepLast: todaySleep?.hours || 0,
@@ -418,19 +430,21 @@ export function buildBriefingPrompt(ctx: AppContext): string {
     lines.push(`Calendar: clear today.`);
   lines.push(``);
 
-  lines.push(`=== BUDGET ===`);
-  // Include v2 data if available
-  if (ctx.budget.monthlyIncome > 0) {
-    lines.push(`Monthly income: ${currencySymbol()}${Math.round(ctx.budget.monthlyIncome).toLocaleString()}. Savings rate: ${ctx.budget.savingsRate.toFixed(0)}%. Financial health: ${ctx.budget.financialHealthGrade}.`);
+  // The old budget totals are no longer shown in the app (and never reset
+  // monthly), so Cleo is given bills instead.
+  lines.push(`=== BILLS ===`);
+  const money = (n: number | null) => (n ? ` ${currencySymbol()}${Math.round(n).toLocaleString()}` : "");
+  if (!ctx.bills.total) {
+    lines.push(`No bills set up yet. If money comes up, suggest adding bills on the Bills tab so HerNest can remind them.`);
+  } else {
+    lines.push(`${ctx.bills.total} regular bills tracked.`);
+    if (ctx.bills.overdue.length)
+      lines.push(`OVERDUE: ${ctx.bills.overdue.map(b => `${b.name}${money(b.amount)} (${-b.days}d)`).join(", ")}.`);
+    if (ctx.bills.dueSoon.length)
+      lines.push(`Due in the next 7 days: ${ctx.bills.dueSoon.map(b => `${b.name}${money(b.amount)} in ${b.days}d${b.autopay ? " (autopay)" : ""}`).join(", ")}.`);
+    else lines.push(`Nothing due in the next 7 days.`);
+    if (ctx.bills.noDate) lines.push(`${ctx.bills.noDate} bill(s) still need a due date.`);
   }
-  lines.push(`Status: ${ctx.budget.status}. Spent: ${currencySymbol()}${ctx.budget.spent.toFixed(0)} of ${currencySymbol()}${ctx.budget.limit} (${Math.round(ctx.budget.pct*100)}%). Remaining: ${currencySymbol()}${ctx.budget.remaining.toFixed(0)}.`);
-  lines.push(`Projected month end: ${currencySymbol()}${ctx.budget.projected.toFixed(0)}. ${ctx.budget.daysUntilReset} days until reset.`);
-  if (ctx.budget.totalDebt > 0)
-    lines.push(`Total debt: ${currencySymbol()}${ctx.budget.totalDebt.toLocaleString()}.`);
-  if (ctx.budget.categoryAlerts.length)
-    lines.push(`BUDGET ALERTS: ${ctx.budget.categoryAlerts.map(c=>`${c.name} at ${c.pct}%`).join(", ")}.`);
-  if (ctx.budget.savingsGoals.length)
-    lines.push(`Goals: ${ctx.budget.savingsGoals.map(g=>`${g.name} ${g.pct}%`).join(", ")}.`);
   lines.push(``);
 
   lines.push(`=== THRIVE ===`);
@@ -482,4 +496,18 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   }
 
   return lines.join("\n");
+}
+
+// Bills summary for Cleo: overdue and next-7-days, soonest first.
+export function summariseBills(bills: Bill[], now: Date = new Date()): AppContext["bills"] {
+  const rows = bills.map(b => ({ b, days: daysUntilDue(b, now) }));
+  const amount = (b: Bill) => displayAmount(b).amount;
+  return {
+    total: bills.length,
+    overdue: rows.filter(r => r.days != null && r.days < 0 && !r.b.autopay)
+      .sort((a, z) => a.days! - z.days!).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days! })),
+    dueSoon: rows.filter(r => r.days != null && r.days >= 0 && r.days <= 6)
+      .sort((a, z) => a.days! - z.days!).slice(0, 8).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days!, autopay: !!r.b.autopay })),
+    noDate: rows.filter(r => r.days == null && !(r.b.cadence === "once" && r.b.paidThrough)).length,
+  };
 }
