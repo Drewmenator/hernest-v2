@@ -19,7 +19,7 @@ vi.mock("../../core/wellnessAutoTrack", () => ({ autoTrackWellness: vi.fn(() => 
 vi.mock("../../core/thriveCheckin", () => ({ generateCheckin: vi.fn(() => Promise.resolve("I don't have your night's data yet.")), dayTone: () => null }));
 vi.mock("../style/styleWeather", () => ({ weatherForOutfit: vi.fn(() => Promise.resolve({ temp: 54, feelsLike: 52, condition: "Light rain", icon: "🌧", humidity: 80, windSpeed: 5, unit: "F" })) }));
 
-import { loadData } from "../../core/firebase";
+import { loadData, saveData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { ThriveScreen } from "./ThriveScreen";
 import { StyleScreen } from "../style/StyleScreen";
