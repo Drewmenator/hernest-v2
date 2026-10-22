@@ -111,12 +111,18 @@ export function readStyleProfile(d: Record<string, unknown> | null | undefined):
   return { size: String(doc.size || ""), words, budget, bodyShape: String(doc.bodyShape || ""), height: String(doc.height || "") };
 }
 
+// A size from the old free-text box ("8", "12", "M"): it may have been a UK
+// size, so it's never shown or sent as a US size.
+export function isOldSize(size: string): boolean {
+  return !!size && !US_SIZES.includes(size);
+}
+
 export function hasProfile(p: StyleProfile): boolean {
   return !!(p.size || p.words.length || p.budget);
 }
 
 export function profileLine(p: StyleProfile, money: (n: number) => string): string {
-  return [p.size && `US ${p.size}`, p.words.length && p.words.join(", "), p.budget && `about ${money(p.budget)} an outfit`]
+  return [p.size && (isOldSize(p.size) ? `Size ${p.size} (old entry, pick a US size)` : `US ${p.size}`), p.words.length && p.words.join(", "), p.budget && `about ${money(p.budget)} an outfit`]
     .filter(Boolean).join(" · ");
 }
 
@@ -134,7 +140,7 @@ export function buildOutfitPrompt(input: {
       : `Outfit for today.${input.events.length ? ` Her day: ${dayLine(input.events, 5)}.` : " Nothing on her calendar."}`,
     input.occasion ? `Occasion: ${occasionLabel(input.occasion)}.` : "Occasion: an everyday mom day.",
     input.weather ? `Weather${input.eventTitle ? " today (may differ on the day)" : ""}: ${input.weather}.` : "",
-    p.size ? `Her size: US ${p.size}.` : "",
+    p.size ? (isOldSize(p.size) ? `Her size: ${p.size} (sizing system unknown, may be UK).` : `Her size: US ${p.size}.`) : "",
     p.words.length ? `Her style: ${p.words.join(", ")}.` : "",
     p.bodyShape ? `Body shape: ${p.bodyShape}.` : "",
     p.height ? `Height: ${p.height}.` : "",

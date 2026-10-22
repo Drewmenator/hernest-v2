@@ -89,6 +89,13 @@ describe("style profile", () => {
     expect(p.budget).toBe(75);
     expect(profileLine(p, n => `$${n}`)).toBe("US M / 8-10 · Classic · about $75 an outfit");
   });
+  it("never calls an old free-text size a US size", () => {
+    const p = readStyleProfile({ size: "12" });
+    expect(profileLine(p, n => `$${n}`)).toBe("Size 12 (old entry, pick a US size)");
+    const prompt = buildOutfitPrompt({ weather: "", events: [], occasion: null, profile: p, currencyCode: "USD", avoid: [] });
+    expect(prompt).toContain("Her size: 12 (sizing system unknown, may be UK).");
+    expect(prompt).not.toContain("US 12");
+  });
   it("copes with an empty doc", () => {
     expect(readStyleProfile(null)).toEqual({ size: "", words: [], budget: null, bodyShape: "", height: "" });
   });

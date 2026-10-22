@@ -72,7 +72,7 @@ describe("Style screen", () => {
     expect(prompt).toContain("Nothing on her calendar");
     expect(screen.getByText("White shirt, Loafers")).toBeTruthy();
     expect(screen.getByText(/Want to buy \(1\)/)).toBeTruthy();
-    expect(screen.getByText(/US 8 · Casual, Polished/)).toBeTruthy();
+    expect(screen.getByText(/Size 8 \(old entry, pick a US size\) · Casual, Polished/)).toBeTruthy();
 
     fireEvent.click(screen.getByText("Something else"));
     fireEvent.click(screen.getByText(/Date night/));

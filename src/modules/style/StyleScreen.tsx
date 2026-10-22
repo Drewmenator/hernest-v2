@@ -22,7 +22,7 @@ import { weatherForOutfit } from "./styleWeather";
 import {
   OCCASIONS, STYLE_WORDS, US_SIZES, BODY_SHAPES, BUDGET_STEPS, OUTFIT_SYSTEM,
   occasionLabel, occasionForDay, comingUp, weatherLine, dayLine, whenLabel, formatTime,
-  readStyleProfile, hasProfile, profileLine, buildOutfitPrompt, parseOutfit, lookView,
+  readStyleProfile, hasProfile, profileLine, isOldSize, buildOutfitPrompt, parseOutfit, lookView,
   type Outfit, type SavedLook, type StyleProfile,
 } from "./styleLogic";
 
@@ -342,6 +342,9 @@ export function StyleScreen() {
           <>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>Three quick things and Cleo's ideas fit you better.</p>
             <p style={{ ...label, margin: "0 0 8px" }}>SIZE (US)</p>
+            {isOldSize(draft.size) && (
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 8px" }}>You saved "{draft.size}" before. Pick your US size so ideas fit.</p>
+            )}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {US_SIZES.map(sz => <button key={sz} onClick={() => setDraft(d => ({ ...d, size: d.size === sz ? "" : sz }))} style={chip(draft.size === sz)}>{sz}</button>)}
             </div>
