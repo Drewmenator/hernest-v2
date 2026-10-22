@@ -5,7 +5,7 @@
 // own usual. Tiles and trends with no data are left out, never filled in.
 import React from "react";
 import { T, F, ATMOS, ATMOS_TEXT2, SHADOWS, alpha } from "../../config/theme";
-import { GlowCard, HeroNumber, Headline, Detail, SparkArea, ProgressRing } from "../../shared/components";
+import { GlowCard, HeroNumber, Headline, Detail, SparkArea, ProgressRing, TrendChart } from "../../shared/components";
 import { vsUsual, type WearableDay, type WearableDayPoint } from "../../core/wellnessAutoTrack";
 
 // Apple Health: last night's sleep in plain words.
@@ -35,6 +35,11 @@ function Tile({ label, value, sub, color = T.esp }: { label: string; value: stri
     </div>
   );
 }
+
+// "2026-10-20" → "T" (axis) and "Tue, Oct 20" (tooltip), in local time.
+const asDate = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? new Date(`${d.slice(0, 10)}T00:00:00`) : null);
+const dayLetter = (d?: string) => asDate(d)?.toLocaleDateString("en-US", { weekday: "narrow" }) ?? "";
+const dayName = (d?: string) => asDate(d)?.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) ?? "";
 
 const capitalize = (s: string | null) => (s ? s[0].toUpperCase() + s.slice(1) : "—");
 
@@ -94,12 +99,18 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
           </div>
         </div>
         {heroTrend.filter(v => v != null).length >= 2 && (
-          <div style={{ marginTop: 16 }}>
-            <SparkArea id="vitals-hero" points={heroTrend} color={a.chart} guide={hasReadiness ? undefined : 7} height={70} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: ATMOS_TEXT2 }}>
-              <span>{hasReadiness ? "Readiness, last 7 days" : "Last 7 nights"}</span>
-              {!hasReadiness && <span>Dashed line: 7 hours</span>}
-            </div>
+          <div style={{ marginTop: 14 }}>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: ATMOS_TEXT2, margin: "0 0 6px" }}>
+              {hasReadiness ? "Readiness, last 7 days" : "Last 7 nights"} · drag to see each one
+            </p>
+            <TrendChart values={heroTrend} color={a.chart} height={138}
+              guide={hasReadiness ? undefined : { value: 7, label: "7 hours" }}
+              labels={i => i === hist.length - 1 ? (hasReadiness ? "Today" : "Last night") : dayLetter(hist[i]?.day)}
+              detailLabel={i => dayName(hist[i]?.day)}
+              format={v => hasReadiness ? `readiness ${Math.round(v)}` : `${Math.round(v * 10) / 10} hours`}
+              ariaLabel={hasReadiness
+                ? `Readiness over the last ${hist.length} days, most recently ${w.readiness ?? "not measured"}.`
+                : `Sleep over the last ${hist.length} nights, ${w.sleepHours ?? "unknown"} hours last night, against a 7 hour line.`} />
           </div>
         )}
         <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: a.ink, margin: "12px 0 0" }}>

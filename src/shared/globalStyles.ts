@@ -120,6 +120,9 @@ export const globalStyles = `
   .hn-grow { transform-origin: 50% 100%; animation: hnGrow .7s ${MOTION.ease} both; }
   @keyframes hnGrow { from { transform: scaleY(0) } to { transform: scaleY(1) } }
   .hn-fade { animation: hnFade .8s ease both; }
+  /* A chart line draws itself from left to right (stroke-dashoffset). */
+  .hn-draw { stroke-dashoffset: 1; animation: hnDraw .85s ${MOTION.ease} .1s forwards; }
+  @keyframes hnDraw { to { stroke-dashoffset: 0 } }
   @keyframes hnFade { from { opacity: 0 } to { opacity: 1 } }
 
   /* Pull to refresh: Cleo's sparkle turns while Today reloads. */
@@ -131,6 +134,7 @@ export const globalStyles = `
 
   @media (prefers-reduced-motion: reduce) {
     .hn-reveal { opacity: 1; transform: none; }
+    .hn-draw { stroke-dashoffset: 0; animation: none; }
     .hn-skeleton::after { animation: none; transform: none; opacity: .4; }
   }
 
