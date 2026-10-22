@@ -24,3 +24,6 @@ export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
   return p;
 }
 
+
+// After a change made from Today (e.g. a bill marked paid), read fresh.
+export function invalidateHomeDocs(): void { _homeDocs = null; }

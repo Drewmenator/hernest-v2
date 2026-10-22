@@ -14,9 +14,11 @@ import { onEnterSpace } from "../../shared/utils/a11y";
 const SECTIONS = ["partner","privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];
 
-export function SettingsScreen() {
+// Opened from the You menu: "Notifications & account" starts on Account,
+// "Account & privacy" on Privacy.
+export function SettingsScreen({ initialSection = "account" }: { initialSection?: Section }) {
   const { user, profile, reset, setProfile } = useStore();
-  const [section, setSection] = useState<Section>("partner");
+  const [section, setSection] = useState<Section>(initialSection);
 
   // Partner sharing
   const [partnerEmail, setPartnerEmail] = useState("");

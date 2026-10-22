@@ -16,20 +16,21 @@ import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
-import { CleoMini } from "./shared/components/CleoMini";
+import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
 
 // Screens
 import { LoginScreen }      from "./modules/auth/LoginScreen";
 import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
-import { HomeScreen }       from "./modules/home/HomeScreen";
+import { TodayScreen }      from "./modules/home/TodayScreen";
+import { lastMeSegment }    from "./modules/me/meSegment";
 import { CleoScreen }       from "./modules/cleo/CleoScreen";
 const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
 // The "budget" tab is now Bills (Oct 2026 redesign). The old Budget screens
 // stay in modules/budget but are no longer shown; their data is untouched.
 const BillsScreen = React.lazy(() => import("./modules/bills/BillsScreen").then(m => ({ default: m.BillsScreen })));
 const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
-const ThriveScreen = React.lazy(() => import("./modules/thrive/ThriveScreen").then(m => ({ default: m.ThriveScreen })));
-const StyleScreen = React.lazy(() => import("./modules/style/StyleScreen").then(m => ({ default: m.StyleScreen })));
+// Me tab: Wellness (Thrive) and Style, shown as they are.
+const MeScreen = React.lazy(() => import("./modules/me/MeScreen").then(m => ({ default: m.MeScreen })));
 const TripsScreen = React.lazy(() => import("./modules/trips/TripsScreen").then(m => ({ default: m.TripsScreen })));
 const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").then(m => ({ default: m.CircleScreen })));
 const FamilyScreen = React.lazy(() => import("./modules/family/FamilyScreen").then(m => ({ default: m.FamilyScreen })));
@@ -129,7 +130,7 @@ function GraphWirer() {
 }
 
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab, setActiveTab } = useStore();
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)
@@ -260,10 +261,12 @@ export default function App() {
 
 
   // Count which tabs people open, so cut/keep decisions use real numbers.
-  // (The "budget" tab id shows the Bills screen.)
+  // (The "budget" tab id shows the Bills screen; "home" is Today.)
   useEffect(() => {
     if (screen !== "app") return;
-    import("./core/analytics").then(m => m.trackScreen(activeTab === "budget" ? "bills" : activeTab)).catch(() => {});
+    const name = activeTab === "budget" ? "bills" : activeTab === "home" ? "today" : activeTab;
+    import("./core/analytics").then(m => m.trackScreen(name)).catch(() => {});
+    window.scrollTo(0, 0);
   }, [screen, activeTab]);
 
   if (screen === "loading") {
@@ -291,15 +294,18 @@ export default function App() {
     </>
   );
 
+  // Tab ids are kept from the old layout so notifications and links still
+  // land: "home" is Today, "budget" is Bills, "thrive"/"style" open Me.
   const renderScreen = () => {
     switch (activeTab) {
-      case "home":     return <EB name="Home"><HomeScreen /></EB>;
+      case "home":     return <EB name="Today"><TodayScreen /></EB>;
       case "cleo":     return <EB name="Cleo"><CleoScreen /></EB>;
       case "plan":     return <EB name="Plan"><PlanScreen /></EB>;
       case "budget":   return <EB name="Bills"><BillsScreen /></EB>;
+      case "me":       return <EB name="Me"><MeScreen segment={lastMeSegment()} /></EB>;
+      case "thrive":   return <EB name="Me"><MeScreen segment="wellness" /></EB>;
+      case "style":    return <EB name="Me"><MeScreen segment="style" /></EB>;
       case "briefing": return <EB name="Briefing"><BriefingScreen /></EB>;
-      case "thrive":   return <EB name="Thrive"><ThriveScreen /></EB>;
-      case "style":    return <EB name="Style"><StyleScreen /></EB>;
       case "trips":    return <EB name="Trips"><TripsScreen /></EB>;
       case "circle":   return <EB name="Circle"><CircleScreen /></EB>;
       case "calendar": return <EB name="Calendar"><CalendarScreen /></EB>;
@@ -307,11 +313,16 @@ export default function App() {
       case "connections": return <EB name="Connections"><ConnectionsScreen /></EB>;
       case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
       case "family":   return <EB name="Family"><FamilyScreen /></EB>;
-      case "settings": return <EB name="Settings"><SettingsScreen /></EB>;
+      case "settings": return <EB name="Settings"><SettingsScreen initialSection="account" /></EB>;
+      case "privacy":  return <EB name="Settings"><SettingsScreen key="privacy" initialSection="privacy" /></EB>;
+      // Go Pro is parked: the screen stays, but nothing in the app links to it.
       case "upgrade":  return <EB name="Upgrade"><UpgradeScreen /></EB>;
-      default:         return <EB name="Home"><HomeScreen /></EB>;
+      default:         return <EB name="Today"><TodayScreen /></EB>;
     }
   };
+
+  // Screens opened from a tab (You menu, See full briefing, ...) get a way back.
+  const backTo = isSubScreen(activeTab) ? tabFor(activeTab) : null;
 
   // Graph event wiring moved to GraphWirer component
 
@@ -322,12 +333,16 @@ export default function App() {
       <BrowserRouter>
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
           <div style={{ padding: "16px 16px calc(160px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
+            {backTo && (
+              <button onClick={() => setActiveTab(backTo)} style={{ background: "none", border: "none", padding: "4px 0", marginBottom: 4, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 44 }}>
+                ‹ {TAB_LABEL[backTo] || "Back"}
+              </button>
+            )}
             <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #C9A96130",borderTop:"2px solid #C9A961",animation:"spin 0.8s linear infinite"}}/></div>}>
               {renderScreen()}
             </React.Suspense>
           </div>
           <GraphWirer />
-          <CleoMini />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
         </div>
