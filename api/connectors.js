@@ -14,7 +14,7 @@
 // to users/{uid}/integrations/{doc} so the app can show freshness.
 import crypto from "crypto";
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret, openToken, isSealed } from "./_lib/secure.js";
-import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory } from "./_lib/oura.js";
+import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory, ouraRange } from "./_lib/oura.js";
 import { freshGoogleToken } from "./_lib/googleToken.js";
 import { scanFamilyMail } from "./_lib/familyMail.js";
 import { localParts } from "./_lib/localTime.js";
@@ -433,9 +433,9 @@ async function syncOura(req, res, uid) {
     return res.status(401).json({ error: "reauth_required" });
   }
   const headers = { Authorization: `Bearer ${tok.accessToken}` };
-  const today = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - 14 * 86400000).toISOString().split("T")[0]; // 14d for trend sparklines
-  const q = `start_date=${start}&end_date=${today}`;
+  // 14 days for the trends, through tomorrow so last night is included.
+  const { start, end, today } = ouraRange();
+  const q = `start_date=${start}&end_date=${end}`;
 
   const [sleep, dailySleep, readiness, activity, stress] = await Promise.all([
     fetch(`https://api.ouraring.com/v2/usercollection/sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),

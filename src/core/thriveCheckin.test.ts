@@ -160,3 +160,14 @@ describe("greeting matches the time of day", () => {
     expect(buildCheckinFallback(null, "Amy", 22)).toMatch(/^Good evening, Amy/);
   });
 });
+
+describe("Cleo's daily note cache", () => {
+  it("is reused only for the same day and the same measured numbers", async () => {
+    const { checkinCacheValid } = await import("./thriveCheckin");
+    const saved = { date: "2026-10-22", v: 3, facts: "Slept 5.1 hours", text: "A short night." };
+    expect(checkinCacheValid(saved, "2026-10-22", "Slept 5.1 hours")).toBe(true);
+    expect(checkinCacheValid(saved, "2026-10-22", "Slept 7.4 hours")).toBe(false);   // sleep arrived later
+    expect(checkinCacheValid(saved, "2026-10-23", "Slept 5.1 hours")).toBe(false);   // new day
+    expect(checkinCacheValid({ ...saved, v: 2 }, "2026-10-22", "Slept 5.1 hours")).toBe(false); // old format
+  });
+});

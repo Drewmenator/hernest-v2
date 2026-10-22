@@ -90,6 +90,13 @@ export function ThriveScreen() {
       setLoaded(true);
     }).catch(() => setLoaded(true));
     fetchWearable(uid).then(r => { if (alive) applyWearable(r); });
+    // Fresh numbers after the app resumes: re-read what was just saved.
+    let off = () => {};
+    import("../../core/healthRefresh").then(m => {
+      off = m.onHealthUpdated(() => {
+        import("../../core/wellnessAutoTrack").then(w => w.readWearable(uid)).then(wd => { if (alive) setWearable(wd); }).catch(() => {});
+      });
+    }).catch(() => {});
     import("../../core/upcomingEvents")
       .then(m => m.loadUpcomingEvents(uid, 1))
       .then(evs => { if (alive) setEventsToday(evs.length); })
@@ -99,7 +106,7 @@ export function ThriveScreen() {
       setOnIphone(m.appleHealthSupported());
       setHealthUpgrade(await m.appleHealthNeedsUpgrade(uid));
     }).catch(() => {});
-    return () => { alive = false; };
+    return () => { alive = false; off(); };
   }, [uid]);
 
   // Cleo's note, from real wearable numbers, cached once a day
@@ -220,7 +227,7 @@ export function ThriveScreen() {
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <PageTitle collapse eyebrow="Just for you" title="Wellness" />
-      {uid && <PullToRefresh onRefresh={async () => applyWearable(await fetchWearable(uid))} />}
+      {uid && <PullToRefresh onRefresh={async () => { await (await import("../../core/healthRefresh")).refreshHealth(uid, true); applyWearable(await fetchWearable(uid)); }} />}
 
       {/* 1. Today's note: Cleo's one line, read from the measured numbers */}
       <GlowCard tint="cleo" grain eyebrow="Today's note from Cleo" ariaLabel="Today's note" reveal={false}>

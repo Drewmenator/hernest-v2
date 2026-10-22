@@ -45,6 +45,17 @@ async function isConnected(uid: string, docName: string, field: string): Promise
   } catch { return false; }
 }
 
+// Ask the server to pull the latest Oura sleep, readiness and activity
+// (no-op when Oura isn't connected). Also used when the app resumes.
+export async function syncOuraNow(uid: string): Promise<void> {
+  if (!(await isConnected(uid, "oura", "accessToken"))) return;
+  const token = await idToken();
+  if (!token) return;
+  try {
+    await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
+  } catch { /* health written server-side */ }
+}
+
 // ── Sync all connected calendar sources. Fire-and-forget from App boot. ──
 let lastRun = 0;
 export async function syncAllConnectors(uid: string): Promise<void> {
@@ -74,11 +85,7 @@ export async function syncAllConnectors(uid: string): Promise<void> {
 
   // Oura: refresh sleep/readiness server-side, then auto-log wellness so
   // Thrive/briefing see it without the user ever opening a form.
-  if (await isConnected(uid, "oura", "accessToken")) {
-    try {
-      await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
-    } catch { /* health written server-side */ }
-  }
+  await syncOuraNow(uid);
   import("./memory").then(m => m.maintainMemory(uid)).catch(() => {});
   import("./wellnessAutoTrack").then(async m => {
     await m.autoTrackWellness(uid);

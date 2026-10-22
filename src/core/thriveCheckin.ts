@@ -88,6 +88,14 @@ export function buildCheckinFallback(w: WearableDay | null, name: string, hour =
   return bits.length ? `${hi} ${bits.join(", ")}.${tone}` : `${hi}${tone}`;
 }
 
+// The saved note is reused only if it was written today from the same
+// measured numbers. When last night's sleep arrives later (the Watch synced
+// after the first look), the note is written again instead of staying stale.
+export function checkinCacheValid(cached: Record<string, unknown> | null | undefined, today: string, facts: string): boolean {
+  return !!cached && cached.date === today && cached.v === 3 && cached.facts === facts
+    && typeof cached.text === "string" && !!cached.text;
+}
+
 // ── AI check-in with cache + fallback ───────────────────────────────
 export async function generateCheckin(uid: string, name: string, w: WearableDay | null): Promise<string> {
   const fallback = buildCheckinFallback(w, name);
@@ -98,11 +106,11 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
     const [{ ai }, { loadData, saveData }] = await Promise.all([import("./ai"), import("./firebase")]);
     const today = todayLocal();
 
-    // Cache: one generation per day (v2: notes no longer end with a question)
-    const cached = await loadData(uid, "thrive_checkin");
-    if (cached?.date === today && cached.v === 2 && typeof cached.text === "string" && cached.text) return cached.text as string;
-
+    // Cache: one note per day and set of numbers (v3 adds the numbers).
     const facts = checkinFacts(w).join("\n");
+    const cached = await loadData(uid, "thrive_checkin");
+    if (checkinCacheValid(cached, today, facts)) return cached!.text as string;
+
     const tone = dayTone(w);
 
     const sys = `You are Cleo, a warm household chief of staff. Write ONE short note for today (2-3 sentences, max 55 words) for ${name || "her"} using ONLY the measured data below. Rules:
@@ -116,7 +124,7 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
     const result = await ai(sys, facts, "cleo_checkin");
     if (result.error || !result.text.trim()) return fallback;
     const text = result.text.trim();
-    await saveData(uid, "thrive_checkin", { date: today, text, v: 2 }).catch(() => {});
+    await saveData(uid, "thrive_checkin", { date: today, text, v: 3, facts }).catch(() => {});
     return text;
   } catch {
     return fallback;

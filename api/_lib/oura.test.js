@@ -79,3 +79,11 @@ describe("buildOuraHistory — trend sparklines", () => {
     expect(buildOuraHistory()).toEqual([]);
   });
 });
+
+describe("ouraRange", () => {
+  it("ends tomorrow so the night just slept (filed under today) is included", async () => {
+    const { ouraRange } = await import("./oura.js");
+    const r = ouraRange(new Date("2026-10-22T13:50:00Z"));
+    expect(r).toEqual({ start: "2026-10-08", end: "2026-10-23", today: "2026-10-22" });
+  });
+});

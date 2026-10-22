@@ -412,13 +412,18 @@ function MomentForYou({ weather }: { weather: WeatherData | null }) {
   const [look, setLook] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) return;
-    import("../../core/wellnessAutoTrack").then(m => m.readWearable(uid))
+    const readBody = () => import("../../core/wellnessAutoTrack").then(m => m.readWearable(uid))
       .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps, week: (w.history || []).slice(-7).map(p => p.sleepHours), days: (w.history || []).slice(-7).map(p => p.day) } : null)).catch(() => {});
+    readBody();
+    // Fresh numbers from Apple Health / Oura (e.g. after the app resumes).
+    let off = () => {};
+    import("../../core/healthRefresh").then(m => { off = m.onHealthUpdated(readBody); }).catch(() => {});
     // Today's look from Style, if Cleo already put one together today
     loadData(uid, "style").then((d: Record<string, unknown> | null) => {
       const t = d?.todayOutfit as { date?: string; outfit?: { headline?: string } } | undefined;
       setLook(t && t.date === todayLocal() && t.outfit?.headline ? t.outfit.headline : null);
     }).catch(() => {});
+    return () => off();
   }, [uid]);
   const sleep = body?.sleep ? Math.round(body.sleep * 10) / 10 : null;
   const parts = [
@@ -469,7 +474,12 @@ export function TodayScreen() {
 
   return (
     <div style={{ animation: "fadeUp .35s ease both" }}>
-      <PullToRefresh onRefresh={async () => { reload(); await new Promise(r => setTimeout(r, 900)); }} />
+      <PullToRefresh onRefresh={async () => {
+        reload();
+        // Also pull last night's sleep from Oura / Apple Health.
+        const uid = useStore.getState().user?.uid;
+        await Promise.all([new Promise(r => setTimeout(r, 900)), uid ? import("../../core/healthRefresh").then(m => m.refreshHealth(uid, true)) : null]);
+      }} />
       <LargeTitle eyebrow={date} title={`${greeting}, ${name.split(" ")[0]}`} subtitle={sub} compactTitle="Today"
         right={
           <button onClick={() => setMenuOpen(true)} aria-label="Open your menu: profile, family, settings"

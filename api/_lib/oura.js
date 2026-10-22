@@ -61,3 +61,14 @@ export function buildOuraHistory(sleepPeriods, dailySleep, readiness, activity, 
     };
   });
 }
+
+// Date range for the Oura v2 collections. Oura files a night under the day
+// you woke up, and /sleep treats end_date as exclusive: ending the range
+// "today" left out the night just slept. End it tomorrow (UTC) instead, so
+// last night is always included whatever the server's or the user's zone.
+export function ouraRange(now = new Date(), days = 14) {
+  const ymd = (d) => d.toISOString().split("T")[0];
+  const start = new Date(now.getTime() - days * 86400000);
+  const end = new Date(now.getTime() + 86400000);
+  return { start: ymd(start), end: ymd(end), today: ymd(now) };
+}
