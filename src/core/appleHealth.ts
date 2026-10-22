@@ -5,13 +5,16 @@
 // wellnessAutoTrack already understands, plus heart and exercise data.
 // The web app can't read HealthKit and keeps the Shortcut path.
 import { Capacitor } from "@capacitor/core";
-import type { HealthDataType, HealthSample } from "@capgo/capacitor-health";
+import type { HealthDataType, HealthSample, Workout } from "@capgo/capacitor-health";
 import { loadData, saveData } from "./firebase";
 import type { WearableDayPoint } from "./wellnessAutoTrack";
 
 const READ_TYPES: HealthDataType[] = [
-  "sleep", "steps", "restingHeartRate", "heartRateVariability", "exerciseTime", "mindfulness",
+  "sleep", "steps", "restingHeartRate", "heartRateVariability", "exerciseTime", "mindfulness", "workouts",
 ];
+// Bumped when READ_TYPES grows, so people who connected earlier can be asked
+// once for the new types (iOS only shows the sheet for types not asked yet).
+export const READ_TYPES_VERSION = 2; // 2: workouts
 const ASLEEP = new Set(["asleep", "rem", "deep", "light"]);
 const DAYS = 7;
 
@@ -58,6 +61,18 @@ export function sleepHoursByNight(samples: HealthSample[]): Record<string, numbe
   return out;
 }
 
+// Workout minutes per local day. Workouts logged by the Fitness app or another
+// app (Peloton, Strava...) count even without an Apple Watch.
+export function workoutMinutesByDay(workouts: Workout[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const w of workouts) {
+    const day = localDay(w.startDate);
+    out[day] = (out[day] || 0) + Math.max(0, w.duration || 0) / 60;
+  }
+  for (const k of Object.keys(out)) out[k] = Math.round(out[k]);
+  return out;
+}
+
 // Asks iOS for read access. iOS never says whether the person allowed it, so
 // we just try to read afterwards.
 export async function connectAppleHealth(uid: string): Promise<"connected" | "unavailable" | "error"> {
@@ -67,13 +82,20 @@ export async function connectAppleHealth(uid: string): Promise<"connected" | "un
     const { available } = await Health.isAvailable();
     if (!available) return "unavailable";
     await Health.requestAuthorization({ read: READ_TYPES });
-    await saveData(uid, "apple_health", { connected: true, connectedAt: Date.now() });
+    await saveData(uid, "apple_health", { connected: true, connectedAt: Date.now(), readTypesVersion: READ_TYPES_VERSION });
     await syncAppleHealth(uid);
     return "connected";
   } catch (e) {
     console.warn("[AppleHealth] connect failed:", e);
     return "error";
   }
+}
+
+// Connected before workouts were read? Ask iOS once more for the new types.
+export async function appleHealthNeedsUpgrade(uid: string): Promise<boolean> {
+  if (!appleHealthSupported()) return false;
+  const d = await loadData(uid, "apple_health").catch(() => null);
+  return !!d?.connected && ((d.readTypesVersion as number) || 1) < READ_TYPES_VERSION;
 }
 
 export async function isAppleHealthConnected(uid: string): Promise<boolean> {
@@ -98,8 +120,9 @@ export async function syncAppleHealth(uid: string): Promise<boolean> {
       for (const b of res.samples) map[localDay(b.startDate)] = b.value;
       return map;
     };
-    const [sleepRes, steps, restingHr, hrv, exercise, mindful] = await Promise.all([
+    const [sleepRes, workoutRes, steps, restingHr, hrv, exercise, mindful] = await Promise.all([
       Health.readSamples({ dataType: "sleep", ...sleepRange, limit: 500 }).catch(() => ({ samples: [] })),
+      Health.queryWorkouts({ ...range, limit: 200 }).catch(() => ({ workouts: [] as Workout[] })),
       daily("steps", "sum"),
       daily("restingHeartRate", "average"),
       daily("heartRateVariability", "average"),
@@ -107,6 +130,7 @@ export async function syncAppleHealth(uid: string): Promise<boolean> {
       daily("mindfulness", "sum"),
     ]);
     const sleep = sleepHoursByNight(sleepRes.samples);
+    const workoutMins = workoutMinutesByDay(workoutRes.workouts);
 
     const days: string[] = [];
     for (let i = 0; i < DAYS; i++) days.push(localDay(new Date(start.getTime() + i * 86400000).toISOString()));
@@ -118,6 +142,9 @@ export async function syncAppleHealth(uid: string): Promise<boolean> {
       hrv: round(hrv[day]), restingHr: round(restingHr[day]),
       steps: round(steps[day]),
       stressDay: null,
+      // Exercise ring minutes already include Watch workouts; take whichever is
+      // larger so a workout logged by another app still counts.
+      activeMins: exercise[day] == null && workoutMins[day] == null ? null : Math.max(round(exercise[day]) ?? 0, workoutMins[day] ?? 0),
     }));
     const today = days[days.length - 1];
 

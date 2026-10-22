@@ -30,13 +30,21 @@ describe("planBillReminders", () => {
     expect(plan).toEqual([]);
   });
 
-  it("autopay: one notice the day before, no Paid button", () => {
+  it("autopay: a heads-up the day before and a check the day after, no Paid button", () => {
     const rent: Bill = { id: "r", name: "Rent", amount: 1800, cadence: "monthly", dueDay: 1, autopay: true, addedOn: "2026-10-01" };
     const plan = planBillReminders([rent], NOW, { horizonDays: 20 });
-    expect(summary(plan)).toEqual(["autopay 10/31 9:00"]);
+    expect(summary(plan)).toEqual(["autopay 10/31 9:00", "autopay 11/2 9:00"]);
     expect(plan[0].title).toBe("Rent goes out tomorrow");
     expect(plan[0].body).toContain("$1,800");
-    expect(plan[0].canMarkPaid).toBe(false);
+    expect(plan[1].title).toBe("Did your Rent autopay go through?");
+    expect(plan.every(r => !r.canMarkPaid)).toBe(true);
+  });
+
+  it("an autopay that didn't go through is reminded like an unpaid bill", () => {
+    const water: Bill = { id: "w", name: "Water", cadence: "monthly", dueDay: 18, autopay: true, addedOn: "2026-10-01", autopayFailed: "2026-10-18" };
+    const plan = planBillReminders([water], NOW, { horizonDays: 5 });
+    expect(plan[0].kind).toBe("overdue");
+    expect(plan[0].canMarkPaid).toBe(true);
   });
 
   it("overdue: one nudge the morning after, and no repeats of it", () => {

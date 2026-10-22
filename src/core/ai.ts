@@ -1,14 +1,12 @@
 // ─── HerNest AI Client ────────────────────────────────────────────
 import { auth } from "./firebase";
 import type { JsonSchema } from "./aiSchema";
+import { guardUserText, showCrisisSheet } from "./crisis";
 
 export type Feature =
   | "cleo_chat" | "morning_briefing" | "style_stylist"
-  | "budget_coach" | "wellness_coach" | "meal_plan"
-  | "trip_planner" | "school_calendar" | "receipt_scanner"
-  | "csv_import" | "gift_advisor" | "briefing_ask"
-  | "sunday_reset" | "travel_brief" | "wellness_score"
-  | "circle_match" | "debrief" | "household_cfo" | "gmail_extract" | "cleo_checkin"
+  | "wellness_coach" | "meal_plan" | "trip_planner" | "school_calendar"
+  | "gift_advisor" | "household_cfo" | "gmail_extract" | "cleo_checkin"
   | "bill_scan" | "bill_parse";
 
 // Model choice and output limits live on the server (api/_lib/claudeRequest.js),
@@ -40,6 +38,21 @@ export interface AIOptions {
   // guarantees the reply is valid JSON in that shape — no more cutting JSON out
   // of free text. Build one with the helpers in ./aiSchema.
   schema?: JsonSchema;
+  // The person's own words in this request (a typed line, a pasted
+  // newsletter). Checked for distress first: on a match the AI is not called,
+  // the crisis sheet opens and the result has code "crisis_detected".
+  userText?: string;
+}
+
+const CRISIS_RESULT: AIError = { text: "", error: "Crisis language detected", code: "crisis_detected" };
+
+// A 429 from /api/claude: the household's daily limit or the per-minute
+// limit. Tells the app to show the server's friendly message.
+export async function limitReached(res: Response): Promise<string> {
+  const body = await res.json().catch(() => ({}));
+  const code = body?.error === "burst_limit_reached" ? "burst_limit_reached" : "daily_limit_reached";
+  window.dispatchEvent(new CustomEvent("hn_limit_reached", { detail: { code, message: body?.message } }));
+  return code;
 }
 
 export async function ai(
@@ -49,6 +62,7 @@ export async function ai(
   history: Array<{ role: string; content: string }> = [],
   opts: AIOptions = {}
 ): Promise<AIResult> {
+  if (guardUserText(opts.userText)) return CRISIS_RESULT;
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
 
@@ -62,7 +76,7 @@ export async function ai(
   );
   while (safeHistory.length && safeHistory[0].role !== "user") safeHistory.shift();
   const messages = [...safeHistory, { role: "user", content: prompt }];
-  return send(idToken, { system, prompt, feature, messages, ...(opts.schema ? { schema: opts.schema } : {}) });
+  return send(idToken, { system, prompt, feature, messages, ...(opts.schema ? { schema: opts.schema } : {}) }, opts.userText !== undefined);
 }
 
 // An image the model should read (base64, no data: prefix).
@@ -85,7 +99,9 @@ export async function aiWithImages(
   return send(idToken, { system, feature, messages: [{ role: "user", content }] });
 }
 
-async function send(idToken: string, body: Record<string, unknown>): Promise<AIResult> {
+// showCrisis: the request carries the person's own words, so a server-side
+// crisis match should open the crisis sheet (not just fail quietly).
+async function send(idToken: string, body: Record<string, unknown>, showCrisis = false): Promise<AIResult> {
   try {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -97,8 +113,8 @@ async function send(idToken: string, body: Record<string, unknown>): Promise<AIR
     });
 
     if (res.status === 429) {
-      window.dispatchEvent(new CustomEvent("hn_limit_reached"));
-      return { text: "", error: "Daily limit reached", code: "daily_limit_reached" };
+      const code = await limitReached(res);
+      return { text: "", error: "AI limit reached", code };
     }
 
     if (!res.ok) {
@@ -107,6 +123,11 @@ async function send(idToken: string, body: Record<string, unknown>): Promise<AIR
     }
 
     const data = await res.json();
+    // The server's backstop crisis check matched: the model was not called.
+    if (data?.crisis) {
+      if (showCrisis) showCrisisSheet();
+      return CRISIS_RESULT;
+    }
     const text =
       (Array.isArray(data.content)
         ? data.content.find((b: any) => b?.type === "text")?.text

@@ -15,6 +15,9 @@
 import crypto from "crypto";
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret, openToken, isSealed } from "./_lib/secure.js";
 import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory } from "./_lib/oura.js";
+import { freshGoogleToken } from "./_lib/googleToken.js";
+import { scanFamilyMail } from "./_lib/familyMail.js";
+import { localParts } from "./_lib/localTime.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -41,52 +44,6 @@ async function writeMeta(uid, doc, meta) {
   try {
     await adminDb.doc(`users/${uid}/integrations/${doc}`).set(meta, { merge: true });
   } catch (e) { console.error("[Connectors] meta write failed:", e?.message); }
-}
-
-// ── Google token refresh (shared: calendar + gmail) ────────────────
-async function freshGoogleToken(uid, doc) {
-  const snap = await adminDb.doc(`users/${uid}/integrations/${doc}`).get();
-  if (!snap.exists) return { error: "not_connected" };
-  const stored = snap.data();
-  let accessToken = openToken(stored.accessToken);
-  const refreshToken = openToken(stored.refreshToken);
-  if (Date.now() > (stored.expiresAt || 0) - 60000 && refreshToken) {
-    const r = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: "refresh_token",
-      }),
-    });
-    const refreshed = await r.json().catch(() => ({}));
-    if (!refreshed.access_token) {
-      console.error("[Connectors] google refresh failed:", r.status);
-      return { error: "reauth_required" };
-    }
-    accessToken = refreshed.access_token;
-    await adminDb.doc(`users/${uid}/integrations/${doc}`).update({
-      accessToken: encryptSecret(accessToken),
-      refreshToken: encryptSecret(refreshToken),
-      expiresAt: Date.now() + (refreshed.expires_in || 3600) * 1000,
-    });
-  } else if (!isSealed(stored.accessToken) || (stored.refreshToken && !isSealed(stored.refreshToken))) {
-    await sealLegacyTokens(uid, doc, stored);
-  }
-  return { accessToken };
-}
-
-// Re-encrypt tokens saved in plaintext before encryption was added.
-async function sealLegacyTokens(uid, doc, stored) {
-  try {
-    await adminDb.doc(`users/${uid}/integrations/${doc}`).update({
-      accessToken: stored.accessToken ? encryptSecret(openToken(stored.accessToken)) : null,
-      refreshToken: stored.refreshToken ? encryptSecret(openToken(stored.refreshToken)) : null,
-      connected: true,
-    });
-  } catch (e) { console.error("[Connectors] token re-encrypt failed:", e?.message); }
 }
 
 // ═══ AUTH ═══════════════════════════════════════════════════════════
@@ -523,13 +480,8 @@ async function syncOura(req, res, uid) {
   res.json({ health });
 }
 
-// ═══ SYNC: GMAIL (read-only scan for receipts / school / travel) ════
-
-const GMAIL_QUERIES = {
-  receipt: "newer_than:14d {subject:receipt subject:order subject:invoice subject:\"payment confirmation\"}",
-  school: "newer_than:14d {subject:school subject:PTA subject:\"permission slip\" subject:classroom subject:teacher}",
-  travel: "newer_than:30d {subject:itinerary subject:booking subject:flight subject:reservation}",
-};
+// ═══ SYNC: GMAIL ("Scan now": family email → calendar + tasks) ════
+// The scan itself lives in _lib/familyMail.js (the nightly cron runs it too).
 
 async function syncGmail(req, res, uid) {
   const tok = await freshGoogleToken(uid, "gmail");
@@ -538,32 +490,21 @@ async function syncGmail(req, res, uid) {
     await writeMeta(uid, "gmail", { lastError: "reauth_required", lastSyncedAt: Date.now() });
     return res.status(401).json({ error: "reauth_required" });
   }
-  const headers = { Authorization: `Bearer ${tok.accessToken}` };
-  const messages = [];
-
-  for (const [category, q] of Object.entries(GMAIL_QUERIES)) {
-    try {
-      const list = await (await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=8`,
-        { headers }
-      )).json();
-      for (const m of (list.messages || []).slice(0, 8)) {
-        const msg = await (await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
-          { headers }
-        )).json();
-        const h = Object.fromEntries((msg.payload?.headers || []).map(x => [x.name, x.value]));
-        messages.push({
-          id: m.id, category,
-          subject: h.Subject || "", from: h.From || "", date: h.Date || "",
-          snippet: msg.snippet || "",
-        });
-      }
-    } catch (e) { console.error("[Connectors] gmail query failed:", category, e?.message); }
+  const tz = String(req.query?.tz || "");
+  const today = (tz && localParts(new Date(), tz)?.date) || new Date().toISOString().slice(0, 10);
+  try {
+    const r = await scanFamilyMail(adminDb, { uid, accessToken: tok.accessToken, today });
+    if (r.error === "daily_limit_reached" || r.error === "burst_limit_reached") return res.status(429).json(r);
+    await writeMeta(uid, "gmail", { lastSyncedAt: Date.now(), itemCount: r.scanned, lastError: r.error || null });
+    return res.json(r);
+  } catch (e) {
+    if (e?.reauth) {
+      await writeMeta(uid, "gmail", { lastError: "reauth_required", lastSyncedAt: Date.now() });
+      return res.status(401).json({ error: "reauth_required" });
+    }
+    console.error("[Connectors] gmail scan failed:", e?.message);
+    return res.status(500).json({ error: "scan_failed" });
   }
-
-  await writeMeta(uid, "gmail", { lastSyncedAt: Date.now(), itemCount: messages.length, lastError: null });
-  res.json({ messages });
 }
 
 // ═══ ROUTER ═════════════════════════════════════════════════════════

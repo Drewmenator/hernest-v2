@@ -4,31 +4,40 @@ interface IconProps {
   size?: number;
   color?: string;
   strokeWidth?: number;
+  // Filled shape, used for the selected tab.
+  filled?: boolean;
 }
 
-const I = ({ size = 22, color = "currentColor", strokeWidth = 1.4, children }: IconProps & { children: React.ReactNode }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+// One icon set for the whole app: 24px grid, rounded joins, 1.8 stroke.
+// Decorative by default (aria-hidden); buttons carry the text label.
+const I = ({ size = 22, color = "currentColor", strokeWidth = 1.8, filled, children }: IconProps & { children: React.ReactNode }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {children}
   </svg>
 );
 
+// Cleo's one signature mark: a four-point sparkle. Use it wherever Cleo
+// speaks, suggests or acts, and nowhere else.
+const SPARKLE = "M12 2.5c.5 4.6 2.9 7 7.5 7.5-4.6.5-7 2.9-7.5 7.5-.5-4.6-2.9-7-7.5-7.5 4.6-.5 7-2.9 7.5-7.5z";
+
 export const HomeIcon = (p: IconProps) => <I {...p}>
-  <path d="M3 10.5L12 3l9 7.5V21a1 1 0 01-1 1H5a1 1 0 01-1-1V10.5z"/>
-  <path d="M9 22V12h6v10"/>
+  <path d="M4 10.2 12 3.5l8 6.7V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5H9v5.5H5.5A1.5 1.5 0 0 1 4 19z"/>
 </I>;
 
 export const CleoIcon = (p: IconProps) => <I {...p}>
-  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+  <path d={SPARKLE}/>
+  <path d="M19 15.5v4M17 17.5h4" fill="none"/>
 </I>;
 
 export const PlanIcon = (p: IconProps) => <I {...p}>
-  <rect x="3" y="3" width="18" height="18" rx="3"/>
-  <path d="M8 12l3 3 5-5"/>
+  <rect x="3.5" y="3.5" width="17" height="17" rx="5"/>
+  <path d="M8.5 12l2.5 2.5 4.5-5" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")} fill="none"/>
 </I>;
 
 export const BudgetIcon = (p: IconProps) => <I {...p}>
-  <circle cx="12" cy="12" r="9"/>
-  <path d="M12 7v1m0 8v1M9.5 9.5C9.5 8.7 10.6 8 12 8s2.5.7 2.5 1.5S13.4 11 12 11s-2.5.7-2.5 1.5S10.6 16 12 16s2.5-.7 2.5-1.5"/>
+  <rect x="3" y="5.5" width="18" height="13" rx="3.5"/>
+  <path d="M3 10h18" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
+  <path d="M7 14.5h3" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
 </I>;
 
 export const BriefIcon = (p: IconProps) => <I {...p}>
@@ -99,7 +108,12 @@ export const StarIcon = (p: IconProps) => <I {...p}>
 </I>;
 
 export const SparkleIcon = (p: IconProps) => <I {...p}>
-  <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/>
+  <path d={SPARKLE}/>
+</I>;
+
+export const MeIcon = (p: IconProps) => <I {...p}>
+  <circle cx="12" cy="8" r="4"/>
+  <path d="M4.5 20.5c1.2-3.8 4-5.8 7.5-5.8s6.3 2 7.5 5.8z"/>
 </I>;
 
 export const LeafIcon = (p: IconProps) => <I {...p}>
@@ -222,4 +236,17 @@ export const UserPlusIcon = (p: IconProps) => <I {...p}>
   <circle cx="8.5" cy="7" r="4"/>
   <line x1="20" y1="8" x2="20" y2="14"/>
   <line x1="17" y1="11" x2="23" y2="11"/>
+</I>;
+
+export const MicIcon = (p: IconProps) => <I {...p}>
+  <rect x="9" y="3" width="6" height="11.5" rx="3"/>
+  <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none"/>
+</I>;
+
+export const ArrowUpIcon = (p: IconProps) => <I {...p}>
+  <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none"/>
+</I>;
+
+export const StopIcon = (p: IconProps) => <I {...p}>
+  <rect x="6" y="6" width="12" height="12" rx="3"/>
 </I>;

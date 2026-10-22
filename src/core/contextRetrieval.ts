@@ -18,9 +18,11 @@
 
 import { loadData } from "./firebase";
 import { currencySymbol } from "../shared/utils/money";
-import { createContextGraph, getRelevantContextForAI } from "./graph/GraphService";
 import type { OrchestratorFeature, AIIntent } from "./aiOrchestrator";
 import { todayLocal } from "./dateAwareness";
+import { summariseBills } from "./contextBuilder";
+import type { Bill } from "./bills";
+import { isUsableInContext } from "./memoryRules";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -244,6 +246,32 @@ interface MemoryFact {
   expiresAt?: number;
 }
 
+// Cleo's memories live in cleo_memory_v2. Only active, unexpired, not-highly-
+// sensitive ones are turned into facts for ranking: suggestions waiting for
+// the user's OK, rejected and forgotten memories never reach the prompt.
+// V2 types are mapped onto the older type names the intent table uses.
+const V2_TO_LEGACY_TYPE: Record<string, string> = {
+  preference: "preference", decision: "preference", pattern: "preference",
+  goal_context: "goal", financial_context: "goal",
+  routine: "schedule", obligation: "schedule",
+  fact: "family",
+};
+
+export function usableMemoryFacts(doc: Record<string, unknown> | null, now: number = Date.now()): MemoryFact[] {
+  const memories = (doc?.memories as any[]) || [];
+  const confidence: Record<string, number> = { low: 0.4, medium: 0.7, high: 0.9 };
+  return memories
+    .filter(m => m && typeof m === "object" && typeof m.content === "string")
+    .filter(m => isUsableInContext(m, now))
+    .filter(m => m.sensitivity !== "high")
+    .map(m => ({
+      statement: m.content,
+      type: V2_TO_LEGACY_TYPE[m.type] ?? "other",
+      confidence: confidence[m.confidence] ?? 0.5,
+      createdAt: new Date(m.createdAt).getTime() || now,
+    }));
+}
+
 function rankMemories(
   facts: MemoryFact[],
   query: string,
@@ -328,39 +356,20 @@ function buildContextString(
     return lines.join("\n");
   }
 
-  // Budget (standard + full)
+  // Bills (standard + full). The "budget" module now means the household's
+  // bills: the old Budget record (replaced Oct 2026) never reset, so its
+  // spending, income and debt figures are no longer given to Cleo.
   if (raw.budget) {
-    const b = raw.budget as any;
-    const cats = (b.categories as any[]) || [];
-    const spent = cats.reduce((a: number, c: any) => a + (c.spent || 0), 0);
-    const limit = cats.reduce((a: number, c: any) => a + (c.budget || 0), 0);
-    const incomes = (b.incomes as any[]) || [];
-    const income = incomes.reduce((a: number, inc: any) => {
-      const m: Record<string, number> = { monthly: 1, biweekly: 26/12, weekly: 52/12, annual: 1/12 };
-      return a + (inc.amount || 0) * (m[inc.frequency] || 1);
-    }, 0);
-
-    lines.push(`\nFINANCES:`);
-    if (income > 0) lines.push(`Income: ${currencySymbol()}${Math.round(income).toLocaleString()}/mo`);
-    lines.push(`Spent: ${currencySymbol()}${spent.toLocaleString()} / ${currencySymbol()}${limit.toLocaleString()} budget`);
-    lines.push(`Remaining: ${currencySymbol()}${Math.max(0, limit - spent).toLocaleString()}`);
-
-    if (budget === "full") {
-      const debts = (b.debts as any[]) || [];
-      const totalDebt = debts.reduce((a: number, d: any) => a + (d.balance || 0), 0);
-      if (totalDebt > 0) lines.push(`Total debt: ${currencySymbol()}${totalDebt.toLocaleString()}`);
-
-      const goals = (b.goals as any[]) || [];
-      if (goals.length) {
-        const goalSummary = goals.map((g: any) => {
-          const pct = g.targetAmount > 0 ? Math.round(g.currentAmount / g.targetAmount * 100) : 0;
-          return `${g.name} (${pct}%)`;
-        }).join(", ");
-        lines.push(`Goals: ${goalSummary}`);
-      }
-
-      const overBudget = cats.filter((c: any) => c.spent > c.budget).map((c: any) => c.label);
-      if (overBudget.length) lines.push(`Over budget: ${overBudget.join(", ")}`);
+    const bills = summariseBills(((raw.budget as any).bills as Bill[]) || []);
+    const amt = (n: number | null) => (n ? ` ${currencySymbol()}${Math.round(n).toLocaleString()}` : "");
+    lines.push(`\nBILLS:`);
+    if (!bills.total) {
+      lines.push(`No bills set up yet. If money comes up, suggest adding bills on the Bills tab so HerNest can remind them.`);
+    } else {
+      lines.push(`${bills.total} regular bills tracked.`);
+      if (bills.overdue.length) lines.push(`OVERDUE: ${bills.overdue.map(x => `${x.name}${amt(x.amount)} (${-x.days}d late)`).join(", ")}`);
+      if (bills.dueSoon.length) lines.push(`Due in the next 7 days: ${bills.dueSoon.map(x => `${x.name}${amt(x.amount)} in ${x.days}d${x.autopay ? " (autopay)" : ""}`).join(", ")}`);
+      if (budget === "full" && bills.noDate) lines.push(`${bills.noDate} bill(s) still need a due date.`);
     }
   }
 
@@ -440,27 +449,6 @@ function buildContextString(
   return lines.join("\n");
 }
 
-// ── Relationship retrieval ────────────────────────────────────────
-// Pulls cross-module patterns from Context Graph
-// Called separately and appended to context string
-async function retrieveRelationships(
-  userId: string,
-  userMessage: string,
-  budget: "minimal" | "standard" | "full"
-): Promise<string> {
-  if (budget === "minimal") return "";
-  try {
-    const graph = await createContextGraph(userId);
-    const hasData = graph.relationships.length > 0 || graph.finances.length > 0;
-    if (!hasData) return "";
-    const items = getRelevantContextForAI(userMessage, "cleo", graph, budget === "full" ? 8 : 4);
-    if (!items.length) return "";
-    return "\nCROSS-MODULE PATTERNS:\n" + items.join("\n");
-  } catch {
-    return ""; // non-fatal
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // MAIN RETRIEVAL FUNCTION
 // The single entry point — replaces scattered loadData calls
@@ -508,16 +496,15 @@ export async function retrieve(params: {
   const loadPromises = reqs.modules
     .filter(m => m !== "profile") // profile already set
     .map(async (module) => {
-      const collection = module === "budget" ? "budget_v2" : module;
-      const data = await loadWithCache(userId, collection);
-
-      // Fallback for budget
-      if (module === "budget" && !data) {
-        const fallback = await loadWithCache(userId, "budget");
-        raw.budget = fallback;
-      } else {
-        raw[module] = data;
-      }
+      // "budget" means bills since the Oct 2026 Bills redesign. Read fresh
+      // (not from the 5-minute cache) so a bill just marked paid is seen.
+      // "memory" means Cleo's memory store (cleo_memory_v2).
+      const data = module === "budget"
+        ? await loadData(userId, "bills")
+        : module === "memory"
+        ? await loadWithCache(userId, "cleo_memory_v2")
+        : await loadWithCache(userId, module);
+      raw[module] = data;
 
       if (data) modulesLoaded.push(module);
     });
@@ -530,8 +517,7 @@ export async function retrieve(params: {
 
   if (reqs.modules.includes("memory") && raw.memory) {
     const now = Date.now();
-    const allFacts = ((raw.memory as any)?.facts as MemoryFact[]) || [];
-    const activeFacts = allFacts.filter(f => !f.expiresAt || f.expiresAt > now);
+    const activeFacts = usableMemoryFacts(raw.memory, now);
     totalMemoriesAvailable = activeFacts.length;
 
     relevantMemories = rankMemories(
@@ -544,7 +530,7 @@ export async function retrieve(params: {
 
   // ── Note missing critical data ───────────────────────────────────
   if (reqs.modules.includes("budget") && !raw.budget) {
-    assumptions.push("Budget data unavailable — financial estimates may be incomplete");
+    assumptions.push("No bills set up yet");
   }
   if (!raw.profile || !(profile as any).name) {
     assumptions.push("Profile incomplete");
@@ -558,9 +544,9 @@ export async function retrieve(params: {
     assumptions
   );
 
-  // ── Append relationship context ─────────────────────────────────
-  const relationshipContext = await retrieveRelationships(userId, userMessage, reqs.contextBudget);
-  const finalContextStr = contextString + relationshipContext;
+  // (The "cross-module patterns" from the context graph were removed in
+  // simplify phase 3: the graph was rebuilt from scratch on every message.)
+  const finalContextStr = contextString;
 
   const elapsed = Date.now() - startTime;
   console.log(`[Retrieval] ${intent}/${feature}: ${modulesLoaded.join(",")} — ${relevantMemories.length}/${totalMemoriesAvailable} memories — ${elapsed}ms`);

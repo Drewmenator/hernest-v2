@@ -9,27 +9,28 @@ import { initConnectivity } from "./core/connectivity";
 import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
 import { bus } from "./core/events";
-import { useContextGraph } from "./core/graph";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { isOnboarded } from "./core/onboarding";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
-import { CleoMini } from "./shared/components/CleoMini";
+import { CrisisSheet } from "./shared/components/CrisisSheet";
+import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
 
 // Screens
 import { LoginScreen }      from "./modules/auth/LoginScreen";
 import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
-import { HomeScreen }       from "./modules/home/HomeScreen";
+import { TodayScreen }      from "./modules/home/TodayScreen";
+import { lastMeSegment }    from "./modules/me/meSegment";
 import { CleoScreen }       from "./modules/cleo/CleoScreen";
 const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
 // The "budget" tab is now Bills (Oct 2026 redesign). The old Budget screens
-// stay in modules/budget but are no longer shown; their data is untouched.
+// were deleted in simplify phase 3; their saved data is untouched.
 const BillsScreen = React.lazy(() => import("./modules/bills/BillsScreen").then(m => ({ default: m.BillsScreen })));
 const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
-const ThriveScreen = React.lazy(() => import("./modules/thrive/ThriveScreen").then(m => ({ default: m.ThriveScreen })));
-const StyleScreen = React.lazy(() => import("./modules/style/StyleScreen").then(m => ({ default: m.StyleScreen })));
+// Me tab: Wellness (Thrive) and Style, shown as they are.
+const MeScreen = React.lazy(() => import("./modules/me/MeScreen").then(m => ({ default: m.MeScreen })));
 const TripsScreen = React.lazy(() => import("./modules/trips/TripsScreen").then(m => ({ default: m.TripsScreen })));
 const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").then(m => ({ default: m.CircleScreen })));
 const FamilyScreen = React.lazy(() => import("./modules/family/FamilyScreen").then(m => ({ default: m.FamilyScreen })));
@@ -106,6 +107,17 @@ const globalStyles = `
   }
   .scroll-x::-webkit-scrollbar { display: none; }
 
+  /* Loading placeholders (Skeleton) */
+  .hn-skeleton {
+    background: linear-gradient(90deg, #ECE5D6 0%, #F6F1E6 50%, #ECE5D6 100%);
+    background-size: 200% 100%;
+    animation: hnShimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes hnShimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+
+  /* Press feedback on buttons, instant on touch-down */
+  button:active:not(:disabled) { transform: scale(0.98); }
+
   /* Animations */
   @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
   @keyframes spin { to { transform:rotate(360deg) } }
@@ -114,22 +126,8 @@ const globalStyles = `
 `;
 
 
-// ── Graph event wirer — only mounts when user is logged in ────────
-function GraphWirer() {
-  const { handleEvent } = useContextGraph();
-  useEffect(() => {
-    const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
-    const unsub = bus.subscribe("*", async (event: any) => {
-      if (!GRAPH_EVENTS.includes(event.type)) return;
-      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch (e) { console.warn("[GraphWirer] event failed:", e); }
-    });
-    return unsub;
-  }, [handleEvent]);
-  return null;
-}
-
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab, setActiveTab } = useStore();
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)
@@ -156,6 +154,8 @@ export default function App() {
           localStorage.setItem("hn_last_uid", u.uid);
         } catch { /* non-fatal */ }
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
+        // Usage tracking (off unless VITE_POSTHOG_KEY is set): the uid only.
+        import("./core/analytics").then(m => m.identifyUser(u.uid)).catch(() => {});
         await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
         // ── Household identity (migration Step 1) ──
         // Accept any pending invite, then resolve + provision the household so
@@ -168,6 +168,9 @@ export default function App() {
             window.history.replaceState({}, "", window.location.pathname);
           }
           await bootstrapHousehold(u.uid);
+          // One-time copy of tasks, chores and bills into one record per item
+          // (the old list docs stay as a backup). Screens also run it on demand.
+          import("./core/householdItems").then(m => m.migrateAllItems(u.uid)).catch(() => {});
           // One-time V1→V2 memory migration (migration Step 4)
           import("./core/memoryServiceV2").then(m => m.migrateV1MemoriesToV2(u.uid)).catch(() => {});
         } catch (e) {
@@ -249,20 +252,36 @@ export default function App() {
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
 
-  // AI limit
+  // AI limit: a friendly note from the server (household daily limit or the
+  // per-minute limit). Fixed toast id so an agent loop can't stack several.
   useEffect(() => {
-    const handler = () => setShowUpgrade(true);
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ code?: string; message?: string }>).detail || {};
+      const msg = d.message || (d.code === "burst_limit_reached"
+        ? "That's a lot of requests at once. Give Cleo a minute, then try again."
+        : "Cleo has done a lot for your family today. She'll be ready to help again tomorrow.");
+      import("react-hot-toast").then(({ default: toast }) => toast(msg, { id: "hn_limit", duration: 6000 }));
+    };
     window.addEventListener("hn_limit_reached", handler);
     return () => window.removeEventListener("hn_limit_reached", handler);
   }, []);
 
 
+  // Count which tabs people open, so cut/keep decisions use real numbers.
+  // (The "budget" tab id shows the Bills screen; "home" is Today.)
+  useEffect(() => {
+    if (screen !== "app") return;
+    const name = activeTab === "budget" ? "bills" : activeTab === "home" ? "today" : activeTab;
+    import("./core/analytics").then(m => m.trackScreen(name)).catch(() => {});
+    window.scrollTo(0, 0);
+  }, [screen, activeTab]);
+
   if (screen === "loading") {
     return (
-      <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.esp }}>
+      <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 40, color: T.gold, fontWeight: 400 }}>HerNest</h1>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 8 }}>Loading...</p>
+          <h1 style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 40, color: T.text, fontWeight: 800 }}>HerNest</h1>
+          <p style={{ fontFamily: F.sans, fontSize: 14, color: T.text2, marginTop: 8 }}>Loading…</p>
         </div>
       </div>
     );
@@ -282,15 +301,18 @@ export default function App() {
     </>
   );
 
+  // Tab ids are kept from the old layout so notifications and links still
+  // land: "home" is Today, "budget" is Bills, "thrive"/"style" open Me.
   const renderScreen = () => {
     switch (activeTab) {
-      case "home":     return <EB name="Home"><HomeScreen /></EB>;
+      case "home":     return <EB name="Today"><TodayScreen /></EB>;
       case "cleo":     return <EB name="Cleo"><CleoScreen /></EB>;
       case "plan":     return <EB name="Plan"><PlanScreen /></EB>;
       case "budget":   return <EB name="Bills"><BillsScreen /></EB>;
+      case "me":       return <EB name="Me"><MeScreen segment={lastMeSegment()} /></EB>;
+      case "thrive":   return <EB name="Me"><MeScreen segment="wellness" /></EB>;
+      case "style":    return <EB name="Me"><MeScreen segment="style" /></EB>;
       case "briefing": return <EB name="Briefing"><BriefingScreen /></EB>;
-      case "thrive":   return <EB name="Thrive"><ThriveScreen /></EB>;
-      case "style":    return <EB name="Style"><StyleScreen /></EB>;
       case "trips":    return <EB name="Trips"><TripsScreen /></EB>;
       case "circle":   return <EB name="Circle"><CircleScreen /></EB>;
       case "calendar": return <EB name="Calendar"><CalendarScreen /></EB>;
@@ -298,13 +320,17 @@ export default function App() {
       case "connections": return <EB name="Connections"><ConnectionsScreen /></EB>;
       case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
       case "family":   return <EB name="Family"><FamilyScreen /></EB>;
-      case "settings": return <EB name="Settings"><SettingsScreen /></EB>;
+      case "settings": return <EB name="Settings"><SettingsScreen initialSection="account" /></EB>;
+      case "privacy":  return <EB name="Settings"><SettingsScreen key="privacy" initialSection="privacy" /></EB>;
+      // Go Pro is parked: the screen stays, but nothing in the app links to it.
       case "upgrade":  return <EB name="Upgrade"><UpgradeScreen /></EB>;
-      default:         return <EB name="Home"><HomeScreen /></EB>;
+      default:         return <EB name="Today"><TodayScreen /></EB>;
     }
   };
 
-  // Graph event wiring moved to GraphWirer component
+  // Screens opened from a tab (You menu, See full briefing, ...) get a way back.
+  const backTo = isSubScreen(activeTab) ? tabFor(activeTab) : null;
+
 
 
   return (
@@ -312,15 +338,19 @@ export default function App() {
       <style>{globalStyles}</style>
       <BrowserRouter>
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <div style={{ padding: "16px 16px calc(160px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
-            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #C9A96130",borderTop:"2px solid #C9A961",animation:"spin 0.8s linear infinite"}}/></div>}>
+          <div style={{ padding: "16px 20px calc(120px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
+            {backTo && (
+              <button onClick={() => setActiveTab(backTo)} style={{ background: "none", border: "none", padding: "4px 0", marginBottom: 4, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 44 }}>
+                ‹ {TAB_LABEL[backTo] || "Back"}
+              </button>
+            )}
+            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #5E4A8C30",borderTop:"2px solid #5E4A8C",animation:"spin 0.8s linear infinite"}}/></div>}>
               {renderScreen()}
             </React.Suspense>
           </div>
-          <GraphWirer />
-          <CleoMini />
           <TabBar />
-          <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
+          <CrisisSheet />
+          <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
         </div>
       </BrowserRouter>
     </ErrorBoundary>

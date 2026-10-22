@@ -1,14 +1,12 @@
-// ─── HerNest Memory Service ───────────────────────────────────────
-// Per blueprint: extracts facts from conversations and stores in Firestore
-// Every Cleo conversation → fact extraction → memory graph
+// ─── Memory helpers ────────────────────────────────────────────────
+// What's left of the version-1 memory layer: the fact extractor Cleo runs
+// after a conversation (its facts are saved through memoryServiceV2's
+// proposeMemory) and the daily tidy-up. Saving, loading and deleting go
+// through memoryServiceV2 directly since simplify phase 3.
 
 import { ai } from "./ai";
 import { s } from "./aiSchema";
-import { bus } from "./events";
-import {
-  proposeMemory, loadMemoriesV2, deleteMemory, buildMemoryContextV2, decayAndExpireMemories,
-  v1FactToCandidate, type HouseholdMemory,
-} from "./memoryServiceV2";
+import { decayAndExpireMemories } from "./memoryServiceV2";
 
 export interface MemoryFact {
   id: string;
@@ -36,7 +34,9 @@ export async function extractFactsFromConversation(
 
   const sys = `You are a fact extractor for an AI assistant. 
 Extract atomic facts about the user from their messages.
-Only extract clear, specific facts. Ignore vague statements.
+Only extract clear, specific facts that stay true for months (family, routines, preferences, goals).
+Never extract feelings, moods, stress, health, medical or body details, or anything about a hard day.
+Ignore vague statements.
 Maximum 5 facts per conversation. Return an empty facts list if nothing clear to extract.`;
 
   // Root must be an object, so the fact list is wrapped in { facts }.
@@ -76,53 +76,6 @@ Maximum 5 facts per conversation. Return an empty facts list if nothing clear to
 // written by different screens, so Cleo saw different things depending on
 // where you asked. These functions keep their old signatures but read and
 // write V2 only, so there is one memory of record (memoryServiceV2.ts).
-
-const V2_TO_V1_TYPE: Partial<Record<HouseholdMemory["type"], MemoryFact["type"]>> = {
-  preference: "preference", goal_context: "goal", routine: "schedule",
-};
-const CONFIDENCE_NUM: Record<HouseholdMemory["confidence"], number> = { high: 0.9, medium: 0.7, low: 0.5 };
-
-export async function saveMemoryFacts(userId: string, newFacts: MemoryFact[]): Promise<void> {
-  if (!newFacts.length) return;
-  try {
-    let added = 0;
-    for (const f of newFacts) {
-      const res = await proposeMemory(userId, v1FactToCandidate(f));
-      if (res.action === "saved") added++;
-    }
-    if (added) await bus.publish("cleo.memory.updated", { added }, { userId, source: "memory" });
-  } catch (e) {
-    console.error("[Memory] Save failed:", e);
-  }
-}
-
-// Active memories in the old fact shape (Profile screen).
-export async function loadMemoryFacts(userId: string): Promise<MemoryFact[]> {
-  try {
-    const now = Date.now();
-    return (await loadMemoriesV2(userId))
-      .filter(m => m.status === "active" && (!m.expiresAt || Date.parse(m.expiresAt) > now))
-      .map(m => ({
-        id: m.id,
-        statement: m.content,
-        type: V2_TO_V1_TYPE[m.type] || "family",
-        source: "conversation" as const,
-        confidence: CONFIDENCE_NUM[m.confidence] ?? 0.7,
-        createdAt: Date.parse(m.createdAt) || now,
-      }));
-  } catch {
-    return [];
-  }
-}
-
-export async function deleteMemoryFact(userId: string, id: string): Promise<void> {
-  await deleteMemory(userId, id);
-}
-
-// Build memory context string for AI prompts
-export async function buildMemoryContext(userId: string): Promise<string> {
-  return buildMemoryContextV2(userId, { maxResults: 20 }).catch(() => "");
-}
 
 // Once a day on app open: expire temporary memories and lower the confidence
 // of stale ones (decayAndExpireMemories was written but never called).

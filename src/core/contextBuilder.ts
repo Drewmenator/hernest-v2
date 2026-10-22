@@ -2,14 +2,14 @@
 // Per blueprint spec: aggregates ALL modules for Morning Briefing
 // v2: reads budget_v2, exposes household snapshot for intelligence layer
 
+import { taskIsFor } from "./taskOwnership";
 import { loadData } from "./firebase";
-import { daysUntilDue, displayAmount, type Bill } from "./bills";
+import { daysUntilDue, displayAmount, autopayCovers, type Bill } from "./bills";
 import { currencySymbol } from "../shared/utils/money";
 import { daysUntilBirthday, todayLocal } from "./dateAwareness";
-import { buildMemoryContext, loadMemoryFacts } from "./memory";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
-import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
-import { readWearable, type WearableDay } from "./wellnessAutoTrack";
+import { buildHouseholdSnapshot } from "./household/householdSnapshot";
+import { readWearable, vsUsual, type WearableDay } from "./wellnessAutoTrack";
 import type { HouseholdSnapshot } from "./store";
 
 // ── Tone Profiles (unchanged) ─────────────────────────────────────
@@ -106,6 +106,9 @@ export interface AppContext {
     sleepScore: number | null;  // Oura sleep score (0-100)
     wearableSource: WearableDay["source"] | null;
     stressDay: "restored" | "normal" | "stressful" | null;
+    // Measured body facts in plain words (Apple Health or Oura), e.g.
+    // "heart rate variability 38ms, below her usual 45ms". No readiness needed.
+    bodyFacts?: string[];
   };
 
   // Trips
@@ -128,7 +131,6 @@ export interface AppContext {
 
   // Memory
   memory: string;
-  memoryFacts: { statement: string; type: string }[];
 
   // Meta
   tone: ToneProfile;
@@ -144,6 +146,19 @@ export interface AppContext {
 }
 
 // ── Select tone (unchanged) ───────────────────────────────────────
+// Plain-words body facts for Cleo, from measured data only.
+export function bodyFactsFor(w: WearableDay | null): string[] {
+  if (!w) return [];
+  const usual = (v: ReturnType<typeof vsUsual>, unit: string) => (v ? `, ${v.word} her usual ${v.usual}${unit}` : "");
+  return [
+    w.sleepHours != null ? `slept ${w.sleepHours}h` : null,
+    w.avgHrv != null ? `heart rate variability ${w.avgHrv}ms${usual(vsUsual(w.avgHrv, w.history, "hrv", w.date), "ms")}` : null,
+    w.restingHr != null ? `resting heart rate ${w.restingHr}bpm${usual(vsUsual(w.restingHr, w.history, "restingHr", w.date), "bpm")}` : null,
+    w.steps != null ? `${w.steps} steps so far` : null,
+    w.activeMins != null ? `${w.activeMins} active minutes` : null,
+  ].filter((x): x is string => !!x);
+}
+
 export function selectToneProfile(sleepTrend: number[], moodTrend: number[]): ToneProfile {
   const avgSleep = sleepTrend.length ? sleepTrend.reduce((a,b)=>a+b,0)/sleepTrend.length : 0;
   const avgMood  = moodTrend.length  ? moodTrend.reduce((a,b)=>a+b,0)/moodTrend.length   : 3;
@@ -177,42 +192,42 @@ export async function buildAppContext(
 
   console.log("[Context] starting buildAppContext v2 for", userId);
 
-  // Load all modules in parallel — now includes budget_v2
+  // Load all modules in parallel. The old Budget record (budget_v2 / budget)
+  // is no longer read: Budget was replaced by Bills in Oct 2026 and its totals
+  // never reset, so they were wrong. ctx.budget stays in the shape for older
+  // code but is always empty; money context comes from ctx.bills.
   const [
-    tasksData, budgetDataV2, budgetDataV1, thriveData,
+    tasksData, thriveData,
     tripsData, schoolData, circleData, calendarData,
-    memoryFacts, wearable, billsData
+    wearable, billsData
   ] = await Promise.all([
     loadData(userId, "tasks"),
-    loadData(userId, "budget_v2"),   // NEW: try v2 first
-    loadData(userId, "budget"),      // fallback to v1
     loadData(userId, "thrive"),
     loadData(userId, "trips"),
     loadData(userId, "school"),
     loadData(userId, "circle"),
     loadData(userId, "calendar"),
-    loadMemoryFacts(userId),
     readWearable(userId).catch(() => null),
     loadData(userId, "bills"),
   ]);
 
-  // Use v2 if available, otherwise fall back to v1
-  const budgetData = budgetDataV2 || budgetDataV1;
-  const isV2 = !!budgetDataV2;
+  const budgetData = null as Record<string, unknown> | null;
+  const isV2 = true;
 
-  console.log("[Context] data loaded:", {
-    budgetV2: !!budgetDataV2, budgetV1: !!budgetDataV1,
-    tasks: !!tasksData, thrive: !!thriveData
-  });
+  console.log("[Context] data loaded:", { tasks: !!tasksData, thrive: !!thriveData });
 
-  const memoryCtx = await buildMemoryContextV2(userId, { maxResults: 10 }).catch(() => buildMemoryContext(userId));
+  const memoryCtx = await buildMemoryContextV2(userId, { maxResults: 10 }).catch(() => "");
 
   // ── Tasks ───────────────────────────────────────────────────────
   const allTasks = (tasksData?.tasks as any[]) || [];
-  const pendingTasks = allTasks.filter((t:any) => !t.done);
+  // Plan stores status "completed"; older tasks used done: true.
+  const isDone = (t:any) => t.status === "completed" || t.done === true;
+  // A task given to someone else is theirs only once they accept it, and isn't
+  // this person's to-do until then (see taskOwnership.ts).
+  const pendingTasks = allTasks.filter((t:any) => !isDone(t) && taskIsFor(t, userId));
   const dueToday = pendingTasks.filter((t:any) => t.dueDate === todayStr);
   const overdue  = pendingTasks.filter((t:any) => t.dueDate && t.dueDate < todayStr);
-  const doneTasks = allTasks.filter((t:any) => t.done);
+  const doneTasks = allTasks.filter(isDone);
   const completionRate = allTasks.length ? doneTasks.length / allTasks.length : 0;
 
   // ── Calendar ────────────────────────────────────────────────────
@@ -365,6 +380,7 @@ export async function buildAppContext(
       sleepScore: wearable?.sleepScore ?? null,
       wearableSource: wearable?.source ?? null,
       stressDay: wearable?.stressDay ?? null,
+      bodyFacts: bodyFactsFor(wearable),
     },
 
     // Trips
@@ -386,7 +402,6 @@ export async function buildAppContext(
 
     // Memory
     memory: memoryCtx,
-    memoryFacts,
 
     // Meta
     tone, toneConfig,
@@ -449,10 +464,14 @@ export function buildBriefingPrompt(ctx: AppContext): string {
 
   lines.push(`=== THRIVE ===`);
   lines.push(`Sleep last night: ${ctx.thrive.sleepLast||"not logged"}h. 7-day trend: ${ctx.thrive.sleepTrend.join(", ")||"no data"}.`);
-  lines.push(`Water: ${ctx.thrive.water}/8. Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done. Mood: ${ctx.thrive.mood||"not logged"}/5.`);
+  // Mood and energy are no longer asked; read her day from the body data.
+  lines.push(`Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`);
   if (ctx.thrive.readiness != null) {
     const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
     lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}${ctx.thrive.stressDay ? `. Yesterday's stress balance: ${ctx.thrive.stressDay}` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task. If yesterday was stressful, acknowledge it and keep today's asks lighter.`);
+  }
+  if (ctx.thrive.readiness == null && ctx.thrive.bodyFacts?.length) {
+    lines.push(`BODY (${ctx.thrive.wearableSource === "apple_health" ? "Apple Health" : "wearable"}, measured): ${ctx.thrive.bodyFacts.join("; ")}. Use this instead of asking how she feels. Short sleep (under 6h) or heart rate variability well below her usual: protect her day and suggest trimming non-essentials. Rested and steady: a good day for the hardest task. Never invent a readiness score.`);
   }
   if (ctx.thrive.weeklyScore) lines.push(`Weekly wellness score: ${ctx.thrive.weeklyScore}/10.`);
   lines.push(``);
@@ -483,16 +502,12 @@ export function buildBriefingPrompt(ctx: AppContext): string {
     lines.push(ctx.memory);
   }
 
-  // NEW: household snapshot context for briefing AI
+  // Household snapshot context for briefing AI (calendar and stress only)
   if (ctx.householdSnapshot) {
     const snap = ctx.householdSnapshot;
     lines.push(``);
     lines.push(`=== HOUSEHOLD INTELLIGENCE ===`);
     lines.push(`Calendar load: ${snap.calendarLoad}. Stress level: ${snap.householdStressLevel}.`);
-    if (snap.activeGoals.some(g => g.riskStatus !== "on_track")) {
-      const atRisk = snap.activeGoals.filter(g => g.riskStatus !== "on_track");
-      lines.push(`Goals at risk: ${atRisk.map(g => g.name).join(", ")}.`);
-    }
   }
 
   return lines.join("\n");
@@ -504,7 +519,8 @@ export function summariseBills(bills: Bill[], now: Date = new Date()): AppContex
   const amount = (b: Bill) => displayAmount(b).amount;
   return {
     total: bills.length,
-    overdue: rows.filter(r => r.days != null && r.days < 0 && !r.b.autopay)
+    // A failed autopay is overdue; one waiting to be confirmed isn't.
+    overdue: rows.filter(r => r.days != null && r.days < 0 && !autopayCovers(r.b, now))
       .sort((a, z) => a.days! - z.days!).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days! })),
     dueSoon: rows.filter(r => r.days != null && r.days >= 0 && r.days <= 6)
       .sort((a, z) => a.days! - z.days!).slice(0, 8).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days!, autopay: !!r.b.autopay })),

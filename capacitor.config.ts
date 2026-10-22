@@ -10,10 +10,10 @@ const config: CapacitorConfig = {
   appId: "com.hernest.app",
   appName: "HerNest",
   webDir: "dist",
-  backgroundColor: "#2A1F18",
+  backgroundColor: "#F4EEE0",
   ios: {
     contentInset: "always",
-    backgroundColor: "#2A1F18",
+    backgroundColor: "#F4EEE0",
   },
   plugins: {
     // Native Google Sign-In. Google blocks OAuth inside embedded webviews, so

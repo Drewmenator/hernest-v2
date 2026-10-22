@@ -31,10 +31,10 @@ export function LoginScreen() {
   };
 
   return (
-    <div style={{ minHeight:"100svh", background:`linear-gradient(160deg,${T.esp} 0%,#2e1a0e 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px" }}>
+    <div style={{ minHeight:"100svh", background:`linear-gradient(160deg,${T.esp} 0%,#16314A 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px" }}>
       <div style={{ textAlign:"center", marginBottom:48 }}>
-        <h1 style={{ fontFamily:F.serif, fontStyle:"italic", fontSize:52, fontWeight:400, color:T.gold, margin:"0 0 8px", letterSpacing:"-0.01em" }}>HerNest</h1>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.45)", letterSpacing:"0.18em", textTransform:"uppercase", margin:0 }}>Your AI Chief of Staff</p>
+        <h1 style={{ fontFamily:F.serif, fontSize:52, fontWeight: 700, color:T.gold, margin:"0 0 8px", letterSpacing:"-0.01em" }}>HerNest</h1>
+        <p style={{ fontFamily:F.sans, fontSize: 14, color:"rgba(255,255,255,0.45)", margin:0 }}>Your AI Chief of Staff</p>
       </div>
 
       <div style={{ width:"100%", maxWidth:340 }}>
@@ -75,7 +75,7 @@ export function LoginScreen() {
 
         {error && <p style={{ fontFamily:F.sans, fontSize:13, color:T.blush, textAlign:"center", marginTop:16, wordBreak:"break-word" }}>{error}</p>}
 
-        <p style={{ fontFamily:F.sans, fontSize:11, color:"rgba(255,255,255,0.25)", textAlign:"center", marginTop:32, lineHeight:1.6 }}>
+        <p style={{ fontFamily:F.sans, fontSize: 12, color:"rgba(255,255,255,0.25)", textAlign:"center", marginTop:32, lineHeight:1.6 }}>
           By continuing you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>

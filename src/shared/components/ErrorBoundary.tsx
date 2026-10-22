@@ -26,7 +26,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       return (
         <div style={{ padding: "40px 24px", textAlign: "center", animation: "fadeUp .3s ease both" }}>
           <p style={{ fontFamily: F.sans, fontSize: 32, margin: "0 0 16px" }}>✦</p>
-          <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: "0 0 8px" }}>
             Something went wrong
           </p>
           <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 24px", lineHeight: 1.6 }}>

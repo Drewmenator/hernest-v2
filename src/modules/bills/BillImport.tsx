@@ -23,7 +23,8 @@ function whenText(s: BillSuggestion): string {
 }
 
 function errorText(code?: string): string {
-  if (code === "daily_limit_reached") return "You've reached today's Cleo limit. Try again tomorrow.";
+  if (code === "daily_limit_reached") return "Cleo has done a lot for your family today. She'll be ready again tomorrow.";
+  if (code === "burst_limit_reached") return "Give Cleo a minute, then try again.";
   if (code === "unauthenticated") return "Please sign in again.";
   return "Cleo couldn't read that just now. Try again in a moment.";
 }
@@ -63,7 +64,8 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
       ? await billsFromScreenshots(shots.map(s => s.image), existing)
       : await billsFromText(note.trim(), existing);
     setBusy(false);
-    if (res.error) { toast.error(errorText(res.error)); return; }
+    // crisis_detected: the crisis sheet is already showing, no error toast.
+    if (res.error) { if (res.error !== "crisis_detected") toast.error(errorText(res.error)); return; }
     setSuggestions(res.suggestions);
     // Pre-tick everything except bills you already have.
     setKeep(Object.fromEntries(res.suggestions.map(s => [s.key, !s.duplicateOf])));
@@ -88,7 +90,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
     const count = suggestions.filter(s => keep[s.key]).length;
     return (
       <div style={{ animation: "fadeUp .3s ease both" }}>
-        <PageTitle eyebrow="BILLS" title={suggestions.length ? `Found ${suggestions.length} bill${suggestions.length === 1 ? "" : "s"}` : "No bills found"} />
+        <PageTitle eyebrow="Bills" title={suggestions.length ? `Found ${suggestions.length} bill${suggestions.length === 1 ? "" : "s"}` : "No bills found"} />
         {suggestions.length === 0 ? (
           <p style={{ fontFamily: F.sans, fontSize: 14, color: T.bark, lineHeight: 1.6, margin: "0 4px 18px" }}>
             {mode === "screenshot"
@@ -130,7 +132,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
   // ── Input ──────────────────────────────────────────────────────
   return (
     <div style={{ animation: "fadeUp .3s ease both" }}>
-      <PageTitle eyebrow="BILLS" title={mode === "screenshot" ? "Add from a screenshot" : "Type or say your bills"} />
+      <PageTitle eyebrow="Bills" title={mode === "screenshot" ? "Add from a screenshot" : "Type or say your bills"} />
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {(["screenshot", "text"] as const).map(m => (
@@ -168,7 +170,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
               {shots.length ? "Add another screenshot" : "Choose a screenshot"}
             </GhostButton>
           )}
-          <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "0 4px 14px", lineHeight: 1.5 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 4px 14px", lineHeight: 1.5 }}>
             Your screenshot is sent to Cleo to read the bills. HerNest doesn't keep a copy.
           </p>
         </>

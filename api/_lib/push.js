@@ -4,7 +4,9 @@
 import { getMessaging } from "firebase-admin/messaging";
 import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
-import { daysUntilDue, billIsFor } from "./bills.js";
+import { daysUntilDue, nextDueDate, billIsFor } from "./bills.js";
+import { readHouseholdItems } from "./householdItems.js";
+import { taskIsFor, awaitsAnswerFrom } from "./tasks.js";
 
 // Send one notification to every device registered under users/{uid}/devices.
 // Returns { sent, pruned }. Safe to call when the user has no devices.
@@ -89,9 +91,14 @@ export async function buildBriefingLine(uid, now = new Date()) {
     else if (todays.length > 1) bits.push(`${todays.length} events`);
   } catch { /* skip */ }
   try {
-    const tasks = ((await docData(`users/${owner}/data/tasks`)).tasks) || [];
-    const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed");
+    const tasks = await readHouseholdItems(adminDb, owner, "tasks");
+    // A task given to someone else only counts for them once they accept it.
+    const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed" && taskIsFor(t, uid));
     if (due.length) bits.push(`${due.length} task${due.length > 1 ? "s" : ""} due`);
+    // Until then the person asked gets a nudge to answer (never the asker).
+    const asks = tasks.filter(t => awaitsAnswerFrom(t, uid));
+    if (asks.length === 1) bits.push(`${asks[0].createdByName || "Someone"} asked you to: ${asks[0].title || "a task"}`);
+    else if (asks.length > 1) bits.push(`${asks.length} tasks to accept or decline`);
   } catch { /* skip */ }
   try {
     const school = ((await docData(`users/${owner}/data/school`)).events) || [];
@@ -104,21 +111,35 @@ export async function buildBriefingLine(uid, now = new Date()) {
     if (soon.length) bits.push(`${soon.length} school deadline${soon.length > 1 ? "s" : ""}`);
   } catch { /* skip */ }
   try {
-    const bills = ((await docData(`users/${owner}/data/bills`)).bills) || [];
+    const bills = await readHouseholdItems(adminDb, owner, "bills");
     const due = bills
       // "Who pays": a bill set to one person only shows in that person's digest.
       .filter(b => billIsFor(b, uid))
-      .map(b => ({ name: b.name, amount: b.amount, days: daysUntilDue(b, now), autopay: b.autopay }))
-      // An autopay bill past its date has paid itself (the app records it).
-      .filter(b => b.days != null && b.days <= 5 && !(b.autopay && b.days < 0))
+      .map(b => {
+        const days = daysUntilDue(b, now);
+        // Autopay isn't paid until someone confirms it. Once its date has
+        // passed it asks for a check; if they said it didn't go through
+        // (autopayFailed on this repeat) it is simply overdue.
+        const failed = !!b.autopay && b.autopayFailed === nextDueDate(b, now);
+        const autopay = !!b.autopay && !failed;
+        return { name: b.name, amount: b.amount, days, autopay, check: autopay && days != null && days < 0 };
+      })
+      .filter(b => b.days != null && b.days <= 5)
       .sort((a, b) => a.days - b.days);
     if (due.length) {
       // Overdue first (most negative days). Amount is optional on a bill.
       const b = due[0];
-      const when = b.days < 0 ? "is overdue" : b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
+      const when = b.check ? "autopay: check it went through"
+        : b.days < 0 ? "is overdue" : b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
       const amt = b.amount > 0 ? ` ($${Math.round(b.amount).toLocaleString()})` : "";
-      bits.push(`${b.name}${amt} ${when}${b.autopay ? " (autopay)" : ""}`);
+      bits.push(`${b.name}${amt} ${when}${b.autopay && !b.check ? " (autopay)" : ""}`);
     }
+  } catch { /* skip */ }
+  try {
+    // Waiting in "From your email" (school forms, RSVPs, payments due).
+    const items = ((await docData(`users/${uid}/data/mail_inbox`)).items) || [];
+    const waiting = items.filter(t => t?.status === "pending").length;
+    if (waiting) bits.push(`${waiting} new from your email`);
   } catch { /* skip */ }
   try {
     const soon = (await birthdayPeople(uid))

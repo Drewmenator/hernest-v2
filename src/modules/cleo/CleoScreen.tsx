@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, TYPE } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Spinner } from "../../shared/components";
+import { Spinner, Button, CleoActionCard } from "../../shared/components";
+import { SparkleIcon, MicIcon, ArrowUpIcon, StopIcon } from "../../shared/components/Icons";
 import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
-import { useAdaptiveUX } from "../../core/household/adaptiveUX";
-import { useContextGraph } from "../../core/graph";
 import { saveData, loadData } from "../../core/firebase";
-import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
+import { buildHouseholdSnapshot } from "../../core/household/householdSnapshot";
 import toast from "react-hot-toast";
+import { CLEO_PREFILL_KEY } from "../../shared/utils/openCleo";
+import { MemorySuggestionCard } from "./MemorySuggestionCard";
+import type { HouseholdMemory } from "../../core/memoryServiceV2";
 
 interface Msg { role: "user"|"assistant"; content: string; type?: "text"|"task-suggestion"|"crisis"; tasks?: ExtractedTask[]; }
 interface ExtractedTask { id: string; title: string; category: string; dueDate?: string; confidence: number; }
@@ -44,7 +46,7 @@ const INTENT_PATTERNS = {
   ],
 };
 
-import { detectCrisis, crisisResponse } from "../../core/crisis";
+import { crisisReply } from "../../core/crisis";
 
 function classifyIntent(msg: string): string {
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
@@ -62,9 +64,7 @@ const QUICK_REPLIES = [
 ];
 
 export function CleoScreen() {
-  const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
-  const adaptiveConfig = useAdaptiveUX(householdSnapshot ?? null);
-  const { cleoPack } = useContextGraph();
+  const { user, profile, householdSnapshot, setHouseholdSnapshot } = useStore();
   const [msgs, setMsgs]       = useState<Msg[]>([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,10 +72,34 @@ export function CleoScreen() {
   const [pendingTasks, setPendingTasks] = useState<ExtractedTask[]>([]);
   const [feedback, setFeedback] = useState<Record<number, "up"|"down">>({});
   const [householdCtxStr, setHouseholdCtxStr] = useState<string>("");
+  // "Want me to remember that?" suggestions from this chat (one or two at a time).
+  const [memSuggestions, setMemSuggestions] = useState<HouseholdMemory[]>([]);
+  const memSuggestionsRef = useRef<HouseholdMemory[]>([]);
+  const chatStartedAt = useRef(new Date().toISOString());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   const name = (profile as any)?.name || "lovely";
+
+  // Another screen's "Ask Cleo" button can leave a message ready to send.
+  // Put it in the box (don't auto-send) and clear it so it only shows once.
+  useEffect(() => {
+    let prefill: string | null = null;
+    try {
+      prefill = sessionStorage.getItem(CLEO_PREFILL_KEY);
+      if (prefill) sessionStorage.removeItem(CLEO_PREFILL_KEY);
+    } catch { /* private mode */ }
+    if (!prefill) return;
+    setInput(prefill);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      el.focus();
+      el.setSelectionRange(prefill!.length, prefill!.length);
+    });
+  }, []);
 
   // ── Load household context on mount ──────────────────────────────
   useEffect(() => {
@@ -87,11 +111,9 @@ export function CleoScreen() {
         const snap = householdSnapshot || await buildHouseholdSnapshot(user.uid);
         if (!householdSnapshot) setHouseholdSnapshot(snap);
 
-        const ctxStr = buildIntelligencePromptContext(snap, {
-          profileName: profile?.name,
-          kids: profile?.kids?.map((k: any) => k.name),
-        });
-        setHouseholdCtxStr(ctxStr);
+        // Only used for the "Household-aware" label; Cleo's real context is
+        // built per message by the orchestrator.
+        setHouseholdCtxStr(snap.lastRefreshed);
       } catch (e) {
         console.warn("[Cleo] household context build failed:", e);
       }
@@ -109,7 +131,6 @@ export function CleoScreen() {
     const buildProactiveOpening = async () => {
       try {
         const snap = householdSnapshot || await buildHouseholdSnapshot(user?.uid || "");
-        const f = snap?.financial;
         const observations: string[] = [];
 
         // Check stress level
@@ -119,24 +140,13 @@ export function CleoScreen() {
 
         // Check calendar load
         if (snap?.calendarLoad === "critical" || snap?.calendarLoad === "heavy") {
-          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritise?`);
+          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritize?`);
         }
 
         // Check upcoming trip
-        if (f?.upcomingTripObligation) {
-          const { name: dest, daysUntil } = f.upcomingTripObligation;
+        if (snap?.upcomingTrip) {
+          const { name: dest, daysUntil } = snap.upcomingTrip;
           observations.push(`${dest} is ${daysUntil} day${daysUntil === 1 ? "" : "s"} away — anything left to sort before you go?`);
-        }
-
-        // Check overspend
-        if (f?.topOverspendCategories?.length > 0) {
-          observations.push(`${f.topOverspendCategories[0]} is running a little hot this month — nothing urgent, worth a glance when you have a moment.`);
-        }
-
-        // Check goals at risk
-        const atRiskGoal = snap?.activeGoals?.find(g => g.riskStatus === "at_risk" || g.riskStatus === "off_track");
-        if (atRiskGoal) {
-          observations.push(`Your "${atRiskGoal.name}" goal needs some attention — it's ${atRiskGoal.riskStatus.replace("_", " ")}.`);
         }
 
         const proactiveNote = observations.length > 0
@@ -162,9 +172,43 @@ export function CleoScreen() {
     buildProactiveOpening();
   }, [user?.uid]);
 
+  // ── Memory suggestions ───────────────────────────────────────────
+  // After a reply, Cleo may have picked up something worth remembering. It is
+  // saved as a suggestion that waits for a yes; ask about new ones here. A
+  // card already showing is never topped up, so she doesn't nag.
+  useEffect(() => { memSuggestionsRef.current = memSuggestions; }, [memSuggestions]);
+  useEffect(() => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    return bus.subscribe("cleo.memory.updated", async () => {
+      if (memSuggestionsRef.current.length) return;
+      try {
+        const { takeChatSuggestions } = await import("../../core/memoryServiceV2");
+        const picked = await takeChatSuggestions(uid, chatStartedAt.current, 2);
+        if (picked.length) setMemSuggestions(picked);
+      } catch (e) { console.warn("[Cleo] memory suggestions failed:", e); }
+    });
+  }, [user?.uid]);
+
+  const answerMemory = async (m: HouseholdMemory, remember: boolean) => {
+    if (!user?.uid) return;
+    setMemSuggestions(p => p.filter(x => x.id !== m.id));
+    try {
+      const { confirmMemory, rejectMemory } = await import("../../core/memoryServiceV2");
+      if (remember) {
+        await confirmMemory(user.uid, m.id);
+        toast.success("Got it. I'll remember that.");
+      } else {
+        await rejectMemory(user.uid, m.id);
+      }
+    } catch {
+      toast.error("Couldn't save that. You can answer in What Cleo knows.");
+    }
+  };
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, loading]);
+  }, [msgs, loading, memSuggestions.length]);
 
   useEffect(() => {
     if (user?.uid && msgs.length > 1) {
@@ -186,7 +230,7 @@ export function CleoScreen() {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = "en-GB";
+    recognition.lang = "en-US";
     recognition.onstart  = () => setRecording(true);
     recognition.onend    = () => setRecording(false);
     recognition.onerror  = () => setRecording(false);
@@ -219,12 +263,13 @@ export function CleoScreen() {
     setLoading(true);
 
     try {
-      // ── Crisis detection (unchanged) ─────────────────────────────
-      if (detectCrisis(msg)) {
+      // ── Crisis check: helplines instead of the AI (core/crisis.ts) ──
+      const crisisText = crisisReply(msg);
+      if (crisisText) {
         const crisisResp: Msg = {
           role: "assistant",
           type: "crisis",
-          content: crisisResponse(),
+          content: crisisText,
         };
         setMsgs(p => [...p, crisisResp]);
         trackEvent("cleo_crisis_detected");
@@ -329,14 +374,14 @@ export function CleoScreen() {
 
   const confirmTasks = async () => {
     if (!pendingTasks.length || !user?.uid) return;
-    const existing = await loadData(user.uid, "tasks");
-    const current = (existing?.tasks as any[]) || [];
     const newTasks = pendingTasks.map(t => ({
       id: t.id, title: t.title, category: t.category,
-      done: false, priority: "medium", source: "cleo",
-      dueDate: t.dueDate || undefined, createdAt: Date.now(),
+      status: "pending", priority: "must", source: "cleo",
+      energyRequired: "medium", userConfirmed: true,
+      ...(t.dueDate ? { dueDate: t.dueDate } : {}), createdAt: Date.now(),
     }));
-    await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
+    const { createItem } = await import("../../core/householdItems");
+    await Promise.all(newTasks.map(t => createItem(user.uid!, "tasks", t)));
     for (const task of newTasks) {
       await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }
@@ -354,70 +399,77 @@ export function CleoScreen() {
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 90px)", animation:"fadeUp .3s ease both" }}>
 
       {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
-        <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
-        <div>
-          <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Cleo</p>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>
-            ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
+      <header style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
+        <div aria-hidden="true" style={{ width:44, height:44, borderRadius:14, background:T.cleoBg, display:"grid", placeItems:"center" }}>
+          <SparkleIcon size={22} color={T.action} filled />
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <h1 style={{ fontFamily:F.sans, fontSize:TYPE.section, fontWeight:700, color:T.text, margin:0 }}>Cleo</h1>
+          <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:0 }}>
+            {householdCtxStr ? "Knows your household" : "Your assistant"}
           </p>
         </div>
-        <button onClick={()=>{ setMsgs([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
-          style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
+        <Button size="sm" variant="secondary" style={{ width:"auto" }}
+          onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}>
           New chat
-        </button>
-      </div>
+        </Button>
+      </header>
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as any }}>
-        {msgs.map((m,i)=>(
-          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:12 }}>
-            {m.role==="assistant" && (
-              <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:8, flexShrink:0, alignSelf:"flex-end", fontSize:14 }}>✦</div>
-            )}
-            <div style={{ maxWidth:"82%", display:"flex", flexDirection:"column", gap:4 }}>
+      <div role="log" aria-live="polite" style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as never }}>
+        {msgs.map((m,i)=>{
+          const mine = m.role==="user";
+          const crisis = m.type==="crisis";
+          return (
+          <div key={i} style={{ display:"flex", justifyContent:mine?"flex-end":"flex-start", marginBottom:12 }}>
+            <div style={{ maxWidth:"86%", display:"flex", flexDirection:"column", gap:6, alignItems:mine?"flex-end":"flex-start" }}>
               <div style={{
-                background: m.role==="user" ? `linear-gradient(135deg,${T.esp},#4a3020)` : m.type==="crisis" ? `${T.blush}15` : "#fff",
-                borderRadius: m.role==="user" ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
+                background: mine ? T.text : crisis ? T.personalBg : T.surface,
+                borderRadius: mine ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
                 padding: "12px 16px",
-                border: m.role==="assistant" ? `1px solid ${m.type==="crisis"?T.blush:T.linen}` : "none",
+                boxShadow: mine ? "none" : "0 1px 2px rgba(28,61,90,0.05), 0 4px 14px rgba(28,61,90,0.05)",
               }}>
-                {m.content.split("\n").filter(l=>l.trim()).map((line,j)=>{
+                {m.content.split("\n").filter(l=>l.trim()).map((line,j,arr)=>{
                   const parts = line.split(/\*\*(.*?)\*\*/g);
                   return (
-                    <p key={j} style={{ fontFamily:F.sans, fontSize:13, color:m.role==="user"?"rgba(255,255,255,.9)":m.type==="crisis"?T.blush:T.esp, margin:"0 0 6px", lineHeight:1.6 }}>
+                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?"#fff":T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
                       {parts.map((part,pi) => pi%2===1 ? <strong key={pi}>{part}</strong> : part)}
                     </p>
                   );
                 })}
               </div>
 
-              {m.role==="assistant" && m.type!=="crisis" && i < msgs.length-1 && (
-                <div style={{ display:"flex", gap:6, paddingLeft:4 }}>
-                  <button onClick={()=>saveFeedback(i,"up",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="up"?1:0.4, padding:"2px 4px" }}>👍</button>
-                  <button onClick={()=>saveFeedback(i,"down",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="down"?1:0.4, padding:"2px 4px" }}>👎</button>
+              {m.role==="assistant" && !crisis && i < msgs.length-1 && (
+                <div style={{ display:"flex", gap:4 }}>
+                  {(["up","down"] as const).map(kind=>(
+                    <button key={kind} onClick={()=>saveFeedback(i,kind,m.content)} aria-pressed={feedback[i]===kind}
+                      style={{ background:feedback[i]===kind?T.cleoBg:"none", border:"none", borderRadius:99, padding:"4px 10px", minHeight:32, fontFamily:F.sans, fontSize:13, fontWeight:600, color:feedback[i]===kind?T.action:T.text2, cursor:"pointer" }}>
+                      {kind==="up" ? "Helpful" : "Not helpful"}
+                    </button>
+                  ))}
                 </div>
               )}
 
               {m.type==="task-suggestion" && m.tasks && pendingTasks.length>0 && i===msgs.length-1 && (
-                <div style={{ background:`${T.gold}10`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"12px 14px" }}>
-                  <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.gold, margin:"0 0 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Add to Plan?</p>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={confirmTasks} style={{ flex:1, padding:"8px", background:T.gold, color:"#fff", border:"none", borderRadius:10, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>✓ Yes, add {pendingTasks.length > 1 ? "all" : "it"}</button>
-                    <button onClick={dismissTasks} style={{ flex:1, padding:"8px", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, fontFamily:F.sans, fontSize:12, color:T.taupe, cursor:"pointer", minHeight:36 }}>Not now</button>
-                  </div>
+                <div style={{ alignSelf:"stretch" }}>
+                  <CleoActionCard state="waiting"
+                    title={`Add ${pendingTasks.length > 1 ? `these ${pendingTasks.length} tasks` : "this task"} to Plan?`}
+                    confirmLabel={pendingTasks.length > 1 ? "Add all" : "Add it"}
+                    onConfirm={confirmTasks} onDecline={dismissTasks} />
                 </div>
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
+
+        {!loading && <MemorySuggestionCard suggestions={memSuggestions} onAnswer={answerMemory} />}
 
         {loading && (
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-            <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>✦</div>
-            <div style={{ background:"#fff", borderRadius:"20px 20px 20px 4px", padding:"12px 16px", border:`1px solid ${T.linen}` }}>
-              <div style={{ display:"flex", gap:4 }}>
-                {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:T.taupe, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
+          <div role="status" aria-label="Cleo is thinking" style={{ display:"flex", marginBottom:12 }}>
+            <div style={{ background:T.surface, borderRadius:"20px 20px 20px 6px", padding:"14px 18px", boxShadow:"0 1px 2px rgba(28,61,90,0.05)" }}>
+              <div style={{ display:"flex", gap:5 }}>
+                {[0,1,2].map(i=><div key={i} style={{ width:8, height:8, borderRadius:"50%", background:T.wisteria, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
               </div>
             </div>
           </div>
@@ -425,10 +477,10 @@ export function CleoScreen() {
 
         {msgs.length === 1 && !loading && (
           <div style={{ marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", textAlign:"center" }}>Quick start</p>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
+            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:T.text2, margin:"4px 0 8px" }}>Try asking</p>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
               {QUICK_REPLIES.map(q=>(
-                <button key={q} onClick={()=>send(q)} style={{ padding:"8px 14px", borderRadius:20, border:`1px solid ${T.linen}`, background:T.ivory, fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
+                <button key={q} onClick={()=>send(q)} style={{ padding:"9px 14px", borderRadius:99, border:"none", background:T.cleoBg, fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.action, cursor:"pointer", touchAction:"manipulation", minHeight:40 }}>{q}</button>
               ))}
             </div>
           </div>
@@ -437,26 +489,28 @@ export function CleoScreen() {
       </div>
 
       {/* Input */}
-      <div style={{ borderTop:`1px solid ${T.linen}`, paddingTop:10, flexShrink:0 }}>
-        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+      <div style={{ paddingTop:10, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"flex-end", background:T.surface, borderRadius:24, padding:6, boxShadow:"0 2px 10px rgba(28,61,90,0.08)" }}>
           <textarea
             ref={inputRef}
             value={input}
             onChange={e=>{ setInput(e.target.value); e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"; }}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
-            placeholder="Talk to Cleo..."
+            placeholder="Message Cleo"
+            aria-label="Message Cleo"
             rows={1}
             disabled={loading}
-            style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:16, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"none", lineHeight:1.5, minHeight:48, WebkitOverflowScrolling:"touch" as any }}
+            style={{ flex:1, background:"transparent", border:"none", padding:"10px 8px 10px 12px", fontFamily:F.sans, fontSize:16, color:T.text, outline:"none", resize:"none", lineHeight:1.5, minHeight:44, WebkitOverflowScrolling:"touch" as never }}
           />
-          <button onClick={startVoice} disabled={loading} style={{ width:48, height:48, borderRadius:16, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:20, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
-            {recording?"⏹":"🎤"}
+          <button onClick={startVoice} disabled={loading} aria-label={recording ? "Stop recording" : "Speak to Cleo"}
+            style={{ width:44, height:44, borderRadius:22, background:recording?T.dangerBg:"transparent", border:"none", cursor:"pointer", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
+            {recording ? <StopIcon size={20} color={T.danger} filled /> : <MicIcon size={22} color={T.text2} />}
           </button>
-          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:48, height:48, borderRadius:16, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:18, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
-            {loading?<Spinner size={16} color="#fff"/>:"→"}
+          <button onClick={()=>send()} disabled={!input.trim()||loading} aria-label="Send"
+            style={{ width:44, height:44, borderRadius:22, background:input.trim()?T.action:T.divider, border:"none", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
+            {loading?<Spinner size={16} color="#fff"/>:<ArrowUpIcon size={20} color="#fff" strokeWidth={2.4}/>}
           </button>
         </div>
-        <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, textAlign:"center", margin:"6px 0 0" }}>Enter to send · Shift+Enter for new line</p>
       </div>
     </div>
   );
