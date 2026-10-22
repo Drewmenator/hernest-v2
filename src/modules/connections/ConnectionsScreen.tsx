@@ -32,7 +32,7 @@ const CONNECTORS: Connector[] = [
   { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
   { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
-  { id: "gmail", name: "Gmail", category: "Email", blurb: "School and travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
+  { id: "gmail", name: "Gmail", category: "Email", blurb: "School, kids' activities, appointments, flights and due dates → calendar and tasks", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Find your bills automatically. Coming soon.", icon: "◎", kind: "soon", statusDoc: "plaid", statusField: "connected" },
   { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
   { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
@@ -146,15 +146,17 @@ export function ConnectionsScreen() {
     if (!user?.uid || scanningGmail) return;
     setScanningGmail(true);
     try {
-      const { scanGmail } = await import("../../core/gmailIntelligence");
-      const r = await scanGmail(user.uid);
-      if (r.error === "reauth_required") toast.error("Gmail needs reconnecting");
-      else if (r.error) toast.error("Scan failed — try again");
-      else if (r.eventsAdded) toast.success(`Found ${r.eventsAdded} event${r.eventsAdded === 1 ? "" : "s"} ✓`);
-      else toast(`Scanned ${r.scanned} emails — nothing new`, { icon: "✉" });
+      const { scanMailNow } = await import("../../core/mailInbox");
+      const r = await scanMailNow();
+      const found = r.eventsAdded + r.tasksFound;
+      if (r.error === "reauth_required") toast.error("Gmail needs reconnecting. Tap Connect to sign in again.");
+      else if (r.error === "limit_reached") toast("Cleo has done a lot today. She'll scan again tonight.", { icon: "✉" });
+      else if (r.error) toast.error("Scan didn't finish. Try again in a moment.");
+      else if (found) toast.success(`Found ${r.eventsAdded} date${r.eventsAdded === 1 ? "" : "s"} for your calendar and ${r.tasksFound} to-do${r.tasksFound === 1 ? "" : "s"} (see Today)`);
+      else toast(r.scanned ? `Read ${r.scanned} new email${r.scanned === 1 ? "" : "s"}. Nothing to add.` : "No new family email since the last scan.", { icon: "✉" });
       await loadHealth(user.uid);
     } catch {
-      toast.error("Scan failed — try again");
+      toast.error("Scan didn't finish. Try again in a moment.");
     }
     setScanningGmail(false);
   };

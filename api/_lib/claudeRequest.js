@@ -23,7 +23,7 @@ export const FEATURES = {
   meal_plan:         { tier: "haiku",  maxTokens: 2000 },
   wellness_coach:    { tier: "haiku",  maxTokens: 2000 },
   gift_advisor:      { tier: "haiku",  maxTokens: 1000 },
-  gmail_extract:     { tier: "haiku",  maxTokens: 1000 },
+  gmail_extract:     { tier: "haiku",  maxTokens: 3000 },
   cleo_checkin:      { tier: "haiku",  maxTokens: 1000 },
   // Bills: read bills off screenshots (vision needs the stronger tier), and
   // turn a typed line like "daycare every other Friday" into bills.

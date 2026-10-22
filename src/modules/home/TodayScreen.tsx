@@ -22,6 +22,7 @@ import { PlusIcon, SparkleIcon, CheckIcon, BudgetIcon, PlanIcon, CalendarIcon, S
 import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, invalidateHomeDocs } from "./homeData";
 import { GetStartedCard } from "./GetStartedCard";
+import { MailInboxCard } from "./MailInboxCard";
 import {
   buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled,
   type NeedsItem, type NeedsKind, type Person, type DayEvent, type HandledItem,
@@ -402,6 +403,7 @@ export function TodayScreen() {
       <Briefing weather={weather} />
       <QuickActions />
       <NeedsYou data={data} failed={failed} reload={reload} />
+      <MailInboxCard />
       <Handled items={data?.handled ?? []} />
       {/* If loading failed, don't claim the week is empty. */}
       {!failed && <ThisWeek data={data} />}
