@@ -163,11 +163,12 @@ export function TripsScreen() {
     const days = Math.min(trip.nights, 7);
 
     const sys = `You are Cleo, a family travel planner.
-Generate exactly ${days} days. Keep each field under 12 words. Make it feel achievable not exhausting.`;
+Generate exactly ${days} days. Keep each field under 12 words. Make it feel achievable not exhausting.
+Only name a specific restaurant, venue or attraction if you're confident it really exists in ${trip.destination}; otherwise describe the kind of place (e.g. "casual seafood spot near the beach"). Never invent opening hours or prices.`;
 
     const prompt = `${days} nights in ${trip.destination}.
-Party: ${adults.map(a => a.name).join(", ")} (adults)${kids.length ? `, ${kids.map(k => `${k.name} age ${k.age}`).join(", ")} (kids)` : ""}.
-Budget: ${trip.budget.currency}${trip.budget.total}.
+${trip.departureDate ? `Day 1 is ${trip.departureDate}.\n` : ""}Party: ${adults.map(a => a.name).join(", ")} (adults)${kids.length ? `, ${kids.map(k => `${k.name}${k.age != null ? ` age ${k.age}` : ""}`).join(", ")} (kids)` : ""}.
+${trip.budget?.total ? `Budget: ${trip.budget.currency}${trip.budget.total}.\n` : ""}
 Make it family-friendly but include a mom moment each day.`;
 
     const schema = s.object({
@@ -181,6 +182,14 @@ Make it family-friendly but include a mom moment each day.`;
     if (!result.error) {
       try {
         const parsed = JSON.parse(result.text);
+        // Dates come from the trip itself, not the AI's guess.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trip.departureDate || "")) {
+          const [y, m, d] = trip.departureDate.split("-").map(Number);
+          parsed.days = (parsed.days || []).map((day: { date?: string }, i: number) => {
+            const dt = new Date(y, m - 1, d + i);
+            return { ...day, date: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}` };
+          });
+        }
         const updated = trips.map(t => t.id === trip.id ? { ...t, itinerary: parsed.days } : t);
         await persist(updated);
         setActiveTrip(normTrip({ ...trip, itinerary: parsed.days }));

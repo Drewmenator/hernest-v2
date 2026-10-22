@@ -23,6 +23,7 @@ import { todayLocal } from "./dateAwareness";
 import { summariseBills } from "./contextBuilder";
 import type { Bill } from "./bills";
 import { isUsableInContext } from "./memoryRules";
+import { taskIsFor } from "./taskOwnership";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -333,7 +334,8 @@ function buildContextString(
   raw: RetrievedContext["raw"],
   relevantMemories: string[],
   budget: "minimal" | "standard" | "full",
-  assumptions: string[]
+  assumptions: string[],
+  userId = "",
 ): string {
   const lines: string[] = [];
 
@@ -384,9 +386,13 @@ function buildContextString(
       return diff >= 0 && diff <= 7;
     });
 
+    // Real titles and dates, so "what's on Thursday?" isn't answered from a count.
+    const when = (e: { title?: string; time?: string }) => `${e.title}${e.time ? ` at ${e.time}` : ""}`;
     lines.push(`\nCALENDAR:`);
-    if (todayEvents.length) lines.push(`Today: ${todayEvents.map((e: any) => e.title).join(", ")}`);
-    lines.push(`This week: ${weekEvents.length} events`);
+    lines.push(`Today: ${todayEvents.length ? todayEvents.map(when).join(", ") : "nothing on the calendar"}`);
+    const later = weekEvents.filter((e) => e.date !== today)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 12);
+    if (later.length) lines.push(`Next 7 days: ${later.map((e) => `${e.date} ${when(e)}`).join("; ")}`);
   }
 
   // Tasks
@@ -394,14 +400,18 @@ function buildContextString(
     const t = raw.tasks as any;
     const allTasks = (t.tasks as any[]) || [];
     const today = todayLocal();
-    const overdue = allTasks.filter((t: any) => !t.done && t.dueDate && t.dueDate < today);
-    const pending = allTasks.filter((t: any) => !t.done).length;
+    // Only her open tasks: Plan marks done with status "completed", and a task
+    // asked of someone else is theirs once they accept (taskOwnership.ts).
+    const open = allTasks.filter((t) => t.status !== "completed" && !t.done && (!userId || taskIsFor(t, userId)));
+    const overdue = open.filter((t) => t.dueDate && t.dueDate < today);
+    const dueToday = open.filter((t) => t.dueDate === today);
 
-    if (pending > 0 || overdue.length > 0) {
-      lines.push(`\nTASKS: ${pending} pending${overdue.length ? `, ${overdue.length} overdue` : ""}`);
-      if (budget === "full" && overdue.length) {
-        lines.push(`Overdue: ${overdue.slice(0, 3).map((t: any) => t.title).join(", ")}`);
-      }
+    if (open.length > 0) {
+      lines.push(`\nTASKS: ${open.length} open${overdue.length ? `, ${overdue.length} overdue` : ""}`);
+      if (dueToday.length) lines.push(`Due today: ${dueToday.slice(0, 5).map((t) => t.title).join(", ")}`);
+      if (overdue.length) lines.push(`Overdue: ${overdue.slice(0, 5).map((t) => t.title).join(", ")}`);
+      const rest = open.filter((t) => !t.dueDate || t.dueDate > today).slice(0, 8);
+      if (rest.length) lines.push(`Other open tasks: ${rest.map((t) => `${t.title}${t.dueDate ? ` (due ${t.dueDate})` : ""}`).join(", ")}`);
     }
   }
 
@@ -423,7 +433,10 @@ function buildContextString(
   if (raw.thrive && (budget === "standard" || budget === "full")) {
     const th = raw.thrive as any;
     const sleepLogs = (th.sleepLog as any[]) || [];
-    const recentSleep = sleepLogs.slice(-3).map((l: any) => l.hours);
+    // Only logs from the last few days; older manual logs are stale.
+    const since = new Date(); since.setDate(since.getDate() - 3);
+    const sinceStr = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+    const recentSleep = sleepLogs.filter((l) => typeof l?.date === "string" && l.date >= sinceStr).slice(-3).map((l) => l.hours);
     const avgSleep = recentSleep.length
       ? recentSleep.reduce((a: number, b: number) => a + b, 0) / recentSleep.length
       : 0;
@@ -532,16 +545,15 @@ export async function retrieve(params: {
   if (reqs.modules.includes("budget") && !raw.budget) {
     assumptions.push("No bills set up yet");
   }
-  if (!raw.profile || !(profile as any).name) {
-    assumptions.push("Profile incomplete");
-  }
+
 
   // ── Build context string ─────────────────────────────────────────
   const contextString = buildContextString(
     raw,
     relevantMemories,
     reqs.contextBudget,
-    assumptions
+    assumptions,
+    userId,
   );
 
   // (The "cross-module patterns" from the context graph were removed in
