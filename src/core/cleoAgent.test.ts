@@ -8,7 +8,6 @@ vi.mock("./firebase", () => ({
 vi.mock("./householdItems", () => ({
   createItem: vi.fn(async () => {}),
   listItems: vi.fn(async () => []),
-  updateItem: vi.fn(async () => {}),
 }));
 vi.mock("./events", () => ({ bus: { publish: vi.fn(async () => {}) } }));
 

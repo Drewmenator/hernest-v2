@@ -176,6 +176,35 @@ describe("per-item household records (tasks, chores, bills)", () => {
   });
 });
 
+describe("task ownership", () => {
+  const ask = { id: "t1", title: "Pick up dry cleaning", createdBy: ALICE, assigneeUid: BOB, state: "proposed" };
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), "users", ALICE, "tasks", "t1"), ask); });
+  });
+
+  it("the assignee can accept or decline", async () => {
+    await assertSucceeds(updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "accepted" }));
+    await assertSucceeds(updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "declined" }));
+  });
+
+  it("the asker can't accept or decline on their behalf", async () => {
+    await assertFails(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "accepted" }));
+    await assertFails(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "declined" }));
+    await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "tasks", "t2"), { ...ask, id: "t2", state: "accepted" }));
+  });
+
+  it("the asker can still ask, edit, ask again, complete or take it back", async () => {
+    await assertSucceeds(setDoc(doc(as(ALICE), "users", ALICE, "tasks", "t3"), { ...ask, id: "t3" }));
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { title: "Dry cleaning by 5pm" }));
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "done", status: "completed" }));
+  });
+
+  it("once accepted, other edits by either person still work", async () => {
+    await updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "accepted" });
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { dueDate: "2026-10-24" }));
+  });
+});
+
 describe("invites", () => {
   it("no client can touch invites — admin SDK only", async () => {
     await assertFails(getDoc(doc(as(ALICE), "invites", "tok123")));

@@ -9,6 +9,8 @@ import { useStore } from "../../core/store";
 import { openCleo } from "../../shared/utils/openCleo";
 import { type Bill } from "../../core/bills";
 import { payBill, undoBillPayment } from "../bills/billActions";
+import { answerTask } from "../../core/taskActions";
+import type { OwnedTask } from "../../core/taskOwnership";
 import { formatMoney } from "../../shared/utils/money";
 import { Spinner } from "../../shared/components";
 import type { WeatherData } from "../../core/weather";
@@ -102,7 +104,7 @@ function MorningNote({ weather }: { weather: WeatherData | null }) {
 }
 
 // ── Needs you + This week (share one data load) ─────────────────────
-interface TodayData { needs: NeedsItem[]; bills: Bill[]; week: { count: number; total: number }; events: { today: DayEvent[]; tomorrow: DayEvent[] }; trip: { dest: string; days: number } | null }
+interface TodayData { needs: NeedsItem[]; tasks: OwnedTask[]; bills: Bill[]; week: { count: number; total: number }; events: { today: DayEvent[]; tomorrow: DayEvent[] }; trip: { dest: string; days: number } | null }
 
 function useTodayData(tripsOn: boolean) {
   const uid = useStore(s => s.user?.uid);
@@ -117,6 +119,7 @@ function useTodayData(tripsOn: boolean) {
     loadHomeDocs(uid).then(d => {
       if (!alive) return;
       const bills = ((d.bills?.bills as Bill[]) || []).filter(b => b && b.name);
+      const tasks = (d.tasks?.tasks as OwnedTask[]) || [];
       const school = (d.school?.events as unknown[]) || [];
       const trips = (d.trips?.trips as unknown[]) || [];
       const people: Person[] = [
@@ -128,13 +131,14 @@ function useTodayData(tripsOn: boolean) {
       ];
       const nt = tripsOn ? nextTrip(trips as never[]) : null;
       setData({
-        needs: buildNeedsYou({ bills, tasks: (d.tasks?.tasks as never[]) || [], school: school as never[], trips: trips as never[], people }, { tripsOn }),
+        needs: buildNeedsYou({ bills, tasks, school: school as never[], trips: trips as never[], people }, { tripsOn, viewerUid: uid }),
+        tasks,
         bills,
         week: billsThisWeek(bills),
         events: eventsTodayTomorrow([...((d.calendar?.events as never[]) || []), ...(school as never[])]),
         trip: nt && nt.days <= 60 ? { dest: nt.trip.destination || "your trip", days: nt.days } : null,
       });
-    }).catch(() => { if (alive) setData({ needs: [], bills: [], week: { count: 0, total: 0 }, events: { today: [], tomorrow: [] }, trip: null }); });
+    }).catch(() => { if (alive) setData({ needs: [], tasks: [], bills: [], week: { count: 0, total: 0 }, events: { today: [], tomorrow: [] }, trip: null }); });
     return () => { alive = false; };
   }, [uid, profile, familyMembers, tripsOn, tick]);
 
@@ -170,6 +174,19 @@ function NeedsYou({ data, reload }: { data: TodayData | null; reload: () => void
     finally { setPaying(null); }
   };
 
+  // A task someone asked you to take: say yes or no right here.
+  const answer = async (taskId: string, yes: boolean) => {
+    const t = data?.tasks.find(x => x.id === taskId);
+    if (!t || paying) return;
+    setPaying(taskId);
+    try {
+      const r = await answerTask(t, yes);
+      reload();
+      if (r) toast.success(yes ? "Accepted. It's yours now." : "Declined. They'll see it's back with them.");
+    } catch { toast.error("Couldn't save. Try again from Plan."); }
+    finally { setPaying(null); }
+  };
+
   return (
     <div style={card}>
       <p style={eyebrow}>Needs you</p>
@@ -189,6 +206,13 @@ function NeedsYou({ data, reload }: { data: TodayData | null; reload: () => void
               style={{ padding: "7px 14px", borderRadius: 20, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 36, flexShrink: 0 }}>
               {paying === it.billId ? "…" : "Paid"}
             </button>
+          ) : it.taskId ? (
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => answer(it.taskId!, true)} disabled={paying === it.taskId}
+                style={{ padding: "7px 12px", borderRadius: 20, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 36 }}>Accept</button>
+              <button onClick={() => answer(it.taskId!, false)} disabled={paying === it.taskId}
+                style={{ padding: "7px 12px", borderRadius: 20, border: `1px solid ${T.linen}`, background: "#fff", color: T.bark, fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 36 }}>Decline</button>
+            </div>
           ) : <span aria-hidden style={{ color: T.taupe, fontSize: 16 }}>›</span>}
         </div>
       ))}

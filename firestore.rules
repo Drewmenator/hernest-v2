@@ -72,7 +72,8 @@ service cloud.firestore {
     match /users/{ownerUid}/{col}/{document=**} {
       allow read: if isSignedIn() && request.auth.uid == ownerUid && col != 'data';
       allow write: if isSignedIn() && request.auth.uid == ownerUid && col != 'data'
-                   && !serverOnlyCollections().hasAny([col]);
+                   && !serverOnlyCollections().hasAny([col])
+                   && !householdItemCollections().hasAny([col]); // per-item rules below
     }
 
     // data/: owner reads everything; owner writes everything EXCEPT
@@ -93,7 +94,21 @@ service cloud.firestore {
     // household members read and write them; nobody else can. Each item is
     // its own doc so two people's edits can't overwrite each other.
     match /users/{ownerUid}/{col}/{itemId} {
-      allow read, write: if householdItemCollections().hasAny([col]) && isMember(ownerUid);
+      allow read, delete: if householdItemCollections().hasAny([col]) && isMember(ownerUid);
+      allow create, update: if householdItemCollections().hasAny([col]) && isMember(ownerUid)
+                            && onlyAssigneeAnswers(col);
+    }
+
+    // Task ownership: a task given to another adult can only be marked
+    // accepted or declined by that person, so nobody else (and no assistant
+    // acting for the asker) can make it look handled.
+    function onlyAssigneeAnswers(col) {
+      let newState = request.resource.data.get('state', null);
+      let oldState = resource == null ? null : resource.data.get('state', null);
+      return col != 'tasks'
+        || !(newState in ['accepted', 'declined'])
+        || newState == oldState
+        || request.auth.uid == request.resource.data.get('assigneeUid', null);
     }
 
     // ── Households ───────────────────────────────────────────────

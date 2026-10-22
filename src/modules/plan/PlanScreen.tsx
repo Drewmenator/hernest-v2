@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
@@ -6,6 +6,9 @@ import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, E
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
 import { subscribeItems, createItem, updateItem, removeItem } from "../../core/householdItems";
+import { ownershipView, awaitsAnswerFrom, type OwnedTask } from "../../core/taskOwnership";
+import { otherAdults, currentWho, proposeNewTask, answerTask, setTaskDone, takeBack, askAgainTask } from "../../core/taskActions";
+import { normalizeName } from "../../core/familyPeople";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
@@ -19,7 +22,7 @@ import { ensurePeopleMerged } from "../../core/familyPeopleSync";
 import type { CalEvent } from "./useCalendarEvents";
 
 // ── Types per blueprint ────────────────────────────────────────────
-interface Task {
+interface Task extends OwnedTask {
   id: string; title: string;
   category: "family"|"work"|"home"|"travel"|"personal"|"School";
   priority: "must"|"nice"|"critical"|"high"|"medium"|"low";
@@ -31,7 +34,6 @@ interface Task {
   createdAt: number;
   who?: string;         // chores: who does it
   isChore?: boolean;    // a chore record (users/{owner}/chores), not a task
-  completedAt?: number; completedBy?: string;
 }
 
 interface SchoolEvent {
@@ -70,8 +72,14 @@ function scoreTask(t: Task, energyPattern: string): number {
   return score;
 }
 
+const OWNERSHIP_COLORS: Record<string, string> = { ask: T.gold, waiting: T.taupe, warn: T.blush, ok: T.sage, done: T.sage };
+const smallBtn = (bg: string, fg: string, border = bg): React.CSSProperties => ({ background: bg, color: fg, border: `1.5px solid ${border}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, fontWeight: 700, cursor: "pointer", minHeight: 30, flexShrink: 0 });
+
 export function PlanScreen() {
   const { user, profile } = useStore();
+  const householdMembers = useStore(s => s.householdMembers);
+  // Other adults with HerNest: giving them a task asks them first.
+  const adults = useMemo(() => otherAdults(), [householdMembers, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(() => {
     try {
       const t = sessionStorage.getItem(PLAN_TAB_KEY);
@@ -88,6 +96,7 @@ export function PlanScreen() {
 
   // Tasks
   const [tasks, setTasks]     = useState<Task[]>([]);
+  const [nowMs, setNowMs]     = useState(stamp); // clock for "Not accepted yet", re-read on each update
   const [input, setInput]     = useState("");
   const [cat, setCat]         = useState<Task["category"]>("family");
   const [priority, setPriority] = useState<Task["priority"]>("must");
@@ -111,12 +120,27 @@ export function PlanScreen() {
   const done = allTasks.filter(t=>t.status==="completed").length;
   const total = allTasks.length;
   const pending = allTasks.filter(t=>t.status==="pending");
+  // Who can do it: me, other adults with HerNest (asked first), everyone, then
+  // family people (kids etc.) who aren't one of those adults.
+  const whoOptions = useMemo(() => {
+    const adultNames = new Set(adults.map(a => normalizeName(a.name)));
+    return [
+      { value: "", label: "Me" },
+      ...adults.map(a => ({ value: `uid:${a.uid}`, label: a.name })),
+      ...(people.length ? [{ value: "Everyone", label: "Everyone" }] : []),
+      ...people.filter(m => !adultNames.has(normalizeName(m.name)) && !adultNames.has(normalizeName(m.name.split(" ")[0])))
+        .map(m => ({ value: m.name, label: m.name })),
+    ];
+  }, [adults, people]);
   const energyPattern = (profile as any)?.energyPattern || "morning";
 
   // Tasks and chores are live: an add, tick or delete on either phone shows on both.
   useEffect(() => {
     if (!user?.uid) return;
-    const offTasks = subscribeItems<Task>(user.uid, "tasks", items => setTasks([...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))));
+    const offTasks = subscribeItems<Task>(user.uid, "tasks", items => {
+      setTasks([...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+      setNowMs(stamp());
+    });
     const offChores = subscribeItems<Chore>(user.uid, "chores", items => setChores(items));
     return () => { offTasks(); offChores(); };
   }, [user?.uid]);
@@ -138,8 +162,9 @@ export function PlanScreen() {
   // ── Add task with energy level per blueprint ───────────────────────
   const addTask = async () => {
     if (!input.trim()) return;
-    if (who) {
-      const chore: Chore = { id: crypto.randomUUID(), title: input.trim(), assignedTo: who, done: false, ...(dueDate ? { dueDate } : {}) };
+    const adult = who.startsWith("uid:") ? adults.find(a => `uid:${a.uid}` === who) : undefined;
+    if (who && !adult) {
+      const chore: Chore = { id: crypto.randomUUID(), title: input.trim(), assignedTo: who, done: false, ...(dueDate ? { dueDate } : {}), ...(uid ? { createdBy: uid } : {}) };
       setInput(""); setDueDate(""); setWho("");
       if (uid) await createItem(uid, "chores", chore).catch(saveFailed);
       return;
@@ -150,9 +175,16 @@ export function PlanScreen() {
       energyRequired: energy, userConfirmed: true,
       ...(dueDate ? { dueDate } : {}),
       createdAt: Date.now(),
+      ...(uid ? { createdBy: uid, createdByName: currentWho()?.name } : {}),
     };
-    setInput(""); setDueDate("");
+    setInput(""); setDueDate(""); setWho("");
     if (!uid) return;
+    if (adult) {
+      // Asked, not assigned: it counts as handled only once they say yes.
+      const ok = await proposeNewTask(task, adult).catch(saveFailed);
+      if (ok) toast.success(`Asked ${adult.name}. We'll show when they answer.`);
+      return;
+    }
     await createItem(uid, "tasks", task).catch(saveFailed);
     await bus.publish("plan.task.created", task, { userId: user!.uid, source: "plan" });
   };
@@ -178,14 +210,17 @@ export function PlanScreen() {
     const t = tasks.find(t => t.id===id);
     if (!t) return;
     const completing = t.status !== "completed";
-    await updateItem(uid, "tasks", id, completing
-      ? { status: "completed", completedAt: stamp(), completedBy: uid }
-      : { status: "pending", completedAt: undefined, completedBy: undefined }).catch(saveFailed);
-    if (completing) {
-      await bus.publish("plan.task.completed", { ...t, status: "completed" }, { userId: uid, source:"plan" });
-      toast.success("Task complete ✓");
-    }
+    const r = await setTaskDone(t, completing).catch(saveFailed);
+    if (r && completing) toast.success("Task complete ✓");
   };
+
+  // ── Task ownership: answer, or follow up on an unanswered ask ──────
+  const answer = async (t: Task, yes: boolean) => {
+    const r = await answerTask(t, yes).catch(saveFailed);
+    if (r) toast.success(yes ? "Accepted. It's yours now." : `Declined. ${t.createdByName || "They"} will see it's back with them.`);
+  };
+  const doItMyself = async (t: Task) => { if (await takeBack(t).catch(saveFailed)) toast.success("It's on your list now"); };
+  const askAgain = async (t: Task) => { if (await askAgainTask(t).catch(saveFailed)) toast.success(`Asked ${t.assigneeName || "them"} again`); };
 
   const deleteTask = async (id: string) => {
     if (!uid) return;
@@ -286,7 +321,9 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
   };
 
   // Sort pending tasks by priority score per blueprint
-  const sortedPending = [...pending].sort((a,b) => scoreTask(b,energyPattern) - scoreTask(a,energyPattern));
+  // Tasks someone asked you to take come first, then by priority score.
+  const asksMe = (t: Task) => (uid && awaitsAnswerFrom(t, uid) ? 1 : 0);
+  const sortedPending = [...pending].sort((a,b) => asksMe(b) - asksMe(a) || scoreTask(b,energyPattern) - scoreTask(a,energyPattern));
 
   const filteredTasks = filter==="all" ? sortedPending
     : filter==="done" ? allTasks.filter(t=>t.status==="completed")
@@ -371,13 +408,16 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
             ))}
             <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:16, color:T.bark, outline:"none" }}/>
           </div>
-          {/* Who does it — anyone but you makes it a family chore */}
-          {people.length > 0 && (
+          {/* Who does it: another adult is asked first; kids and "Everyone" make a family chore */}
+          {who.startsWith("uid:") && (
+            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"8px 0 0" }}>They'll be asked to accept or decline. It shows as waiting until they say yes.</p>
+          )}
+          {whoOptions.length > 1 && (
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginTop:10 }}>
               <span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>Who:</span>
-              {["", "Everyone", ...people.map(m=>m.name)].map(n=>(
-                <button key={n||"me"} onClick={()=>setWho(n)} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${who===n?T.sky:T.linen}`, background:who===n?`${T.sky}15`:"#fff", color:who===n?T.sky:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>
-                  {n||"Me"}
+              {whoOptions.map(o=>(
+                <button key={o.value||"me"} onClick={()=>setWho(o.value)} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${who===o.value?T.sky:T.linen}`, background:who===o.value?`${T.sky}15`:"#fff", color:who===o.value?T.sky:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>
+                  {o.label}
                 </button>
               ))}
             </div>
@@ -391,7 +431,9 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
             title={filter==="done" ? "Nothing completed yet" : "Your list is clear"}
             body={filter==="done" ? "Tasks you complete will show up here." : "Add a task below or ask Cleo to pull tasks from a message — I'll keep them in order for you ✦"}
           />
-        ) : filteredTasks.map(t=>(
+        ) : filteredTasks.map(t=>{
+          const own = uid && !t.isChore ? ownershipView(t, uid, nowMs) : null;
+          return (
           <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:t.status==="completed"?"#fff":t.priority==="must"?`${T.esp}06`:`${T.sage}06`, borderRadius:16, border:`1.5px solid ${t.status==="completed"?T.linen:t.priority==="must"?`${T.esp}20`:`${T.sage}20`}`, marginBottom:8 }}>
             <button onClick={()=>toggleTask(t.id)} style={{ width:24, height:24, borderRadius:7, border:`2px solid ${t.status==="completed"?T.sage:PRIORITY_COLORS[t.priority]||T.linen}`, background:t.status==="completed"?T.sage:"transparent", flexShrink:0, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, minHeight:24, touchAction:"manipulation" }}>
               {t.status==="completed"?"✓":""}
@@ -400,7 +442,8 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
               <p style={{ fontFamily:F.sans, fontSize:13, color:t.status==="completed"?T.taupe:T.esp, margin:0, textDecoration:t.status==="completed"?"line-through":"none" }}>{t.title}</p>
               <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap", alignItems:"center" }}>
                 <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:t.priority==="must"?T.esp:T.sage, padding:"2px 8px", borderRadius:10, background:t.priority==="must"?`${T.esp}10`:`${T.sage}10` }}>{t.priority==="must"?"✦ must":t.priority==="nice"?"◦ nice":t.priority}</span>
-                {t.who ? <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:T.sky }}>→ {t.who}</span> : <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>{t.category}</span>}
+                {t.who || (t.assigneeUid && t.assigneeUid !== uid) ? <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:T.sky }}>→ {t.who || t.assigneeName}</span> : <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>{t.category}</span>}
+                {own && <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:OWNERSHIP_COLORS[own.tone], padding:"2px 8px", borderRadius:10, background:`${OWNERSHIP_COLORS[own.tone]}15` }}>{own.label}</span>}
                 {t.dueDate && <span style={{ fontFamily:F.sans, fontSize:10, color:t.dueDate<today?T.taupe:T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?`was due ${fmtDate(t.dueDate)}`:`due ${fmtDate(t.dueDate)}`}</span>}
                 {t.source!=="manual" && t.source!=="chore" && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold }}>✦ {t.source}</span>}
               </div>
@@ -409,9 +452,22 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
             {!t.userConfirmed && (
               <button onClick={()=>confirmTask(t.id)} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"5px 10px", fontFamily:F.sans, fontSize:11, cursor:"pointer", flexShrink:0, minHeight:30 }}>Confirm</button>
             )}
+            {own?.needsMyAnswer && (
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <button onClick={()=>answer(t, true)} style={smallBtn(T.esp, "#fff")}>Accept</button>
+                <button onClick={()=>answer(t, false)} style={smallBtn("#fff", T.bark, T.linen)}>Decline</button>
+              </div>
+            )}
+            {own?.canFollowUp && (
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <button onClick={()=>doItMyself(t)} style={smallBtn(T.esp, "#fff")}>I'll do it</button>
+                <button onClick={()=>askAgain(t)} style={smallBtn("#fff", T.bark, T.linen)}>Ask again</button>
+              </div>
+            )}
             <button onClick={()=>deleteTask(t.id)} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, padding:4, minHeight:36 }}>×</button>
           </div>
-        ))}
+          );
+        })}
       </>}
 
       {/* ── WEEK TAB: calendar + school + chores, one list ─────────── */}

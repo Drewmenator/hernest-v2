@@ -10,6 +10,7 @@ import {
   migrateKind, readItems, createItemDoc, updateItemDoc, mutateItemDoc, isMigrated,
 } from "../src/core/householdItemsCore";
 import { markPaidOnce, type Bill } from "../src/core/bills";
+import { proposeTask, acceptTask, type OwnedTask } from "../src/core/taskOwnership";
 
 let env: RulesTestEnvironment;
 const ALICE = "alice_owner";
@@ -156,5 +157,18 @@ describe("two people editing at the same time", () => {
     expect(b1.paidThrough).toBe(due);
     expect(b1.autopay).toBe(true);
     expect(b1.name).toBe("Rent");
+  });
+
+  it("Sam accepting while Alex edits the same task keeps both, and Alex can't accept for Sam", async () => {
+    const t = proposeTask({ id: "ask1", title: "Dry cleaning" }, { uid: ALICE, name: "Alice" }, { uid: BOB, name: "Bob" }, 1);
+    await createItemDoc(as(ALICE), ALICE, "tasks", t);
+    const [, , aliceTry] = await Promise.all([
+      mutateItemDoc<OwnedTask>(as(BOB), ALICE, "tasks", "ask1", cur => acceptTask(cur, BOB, 2)),
+      updateItemDoc(as(ALICE), ALICE, "tasks", "ask1", { dueDate: "2026-10-24" }),
+      mutateItemDoc<OwnedTask>(as(ALICE), ALICE, "tasks", "ask1", cur => acceptTask(cur, ALICE, 3)),
+    ]);
+    expect(aliceTry).toBeNull();
+    const saved = (await readItems<OwnedTask>(as(ALICE), ALICE, "tasks")).find(i => i.id === "ask1");
+    expect(saved).toMatchObject({ state: "accepted", acceptedAt: 2, dueDate: "2026-10-24", title: "Dry cleaning" });
   });
 });

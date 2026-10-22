@@ -18,6 +18,9 @@ export type EventType =
   | "plan.task.created"
   | "plan.task.completed"
   | "plan.task.deleted"
+  | "plan.task.proposed"
+  | "plan.task.accepted"
+  | "plan.task.declined"
   | "plan.calendar.event.added"
   | "plan.school.newsletter.parsed"
   | "plan.meal.generated"
@@ -99,6 +102,11 @@ const EPHEMERAL_EVENTS = new Set<EventType>([
 // events (e.g. every logged expense). Title is the actor's name (server-set).
 const HOUSEHOLD_PUSH: Partial<Record<EventType, { screen: string; summary: (p: any) => string }>> = {
   "plan.task.created":          { screen: "plan",     summary: (p) => `added a task${p?.title || p?.text ? `: ${p.title || p.text}` : ""}` },
+  // Task ownership: the person asked hears about it once (no repeat nudges),
+  // and the asker hears the answer. Title is the actor's name.
+  "plan.task.proposed":         { screen: "plan",     summary: (p) => `asked ${p?.assigneeName || "you"} to: ${p?.title || "a task"}. Accept or decline in Plan.` },
+  "plan.task.accepted":         { screen: "plan",     summary: (p) => `said yes to: ${p?.title || "a task"}` },
+  "plan.task.declined":         { screen: "plan",     summary: (p) => `can't do: ${p?.title || "a task"}. It's back on your list.` },
   "plan.calendar.event.added":  { screen: "calendar", summary: (p) => `added to the calendar${p?.title ? `: ${p.title}` : ""}` },
   "trips.trip.created":         { screen: "trips",    summary: (p) => `started planning a trip${p?.destination || p?.name ? ` to ${p.destination || p.name}` : ""}` },
   "plan.school.newsletter.parsed": { screen: "plan",  summary: () => `added school events to the calendar` },

@@ -6,6 +6,7 @@ import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
 import { daysUntilDue, billIsFor } from "./bills.js";
 import { readHouseholdItems } from "./householdItems.js";
+import { taskIsFor, awaitsAnswerFrom } from "./tasks.js";
 
 // Send one notification to every device registered under users/{uid}/devices.
 // Returns { sent, pruned }. Safe to call when the user has no devices.
@@ -91,8 +92,13 @@ export async function buildBriefingLine(uid, now = new Date()) {
   } catch { /* skip */ }
   try {
     const tasks = await readHouseholdItems(adminDb, owner, "tasks");
-    const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed");
+    // A task given to someone else only counts for them once they accept it.
+    const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed" && taskIsFor(t, uid));
     if (due.length) bits.push(`${due.length} task${due.length > 1 ? "s" : ""} due`);
+    // Until then the person asked gets a nudge to answer (never the asker).
+    const asks = tasks.filter(t => awaitsAnswerFrom(t, uid));
+    if (asks.length === 1) bits.push(`${asks[0].createdByName || "Someone"} asked you to: ${asks[0].title || "a task"}`);
+    else if (asks.length > 1) bits.push(`${asks.length} tasks to accept or decline`);
   } catch { /* skip */ }
   try {
     const school = ((await docData(`users/${owner}/data/school`)).events) || [];
