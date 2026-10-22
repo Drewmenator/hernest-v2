@@ -23,7 +23,12 @@ export function LoginScreen() {
         // Include the error code so on-device failures are diagnosable without
         // a debugger attached (e.g. auth/operation-not-allowed, network errors).
         const detail = e?.code || e?.message || "unknown";
-        setError(`Sign in failed: ${detail}`);
+        // No connection (iOS reports this when cellular data is off for
+        // HerNest, too): say what to check instead of the raw SDK text.
+        const offline = /offline|not connected|network|NSURLErrorDomain|-1009|connection error/i.test(`${e?.code ?? ""} ${e?.message ?? ""}`);
+        setError(offline
+          ? "HerNest couldn't reach the internet to sign you in. Check that HerNest can use cellular data (Settings, then Cellular, then HerNest), or try on Wi-Fi, then try again."
+          : `Sign in failed: ${detail}`);
         console.error("[Auth] sign-in failed:", e);
       }
     }
