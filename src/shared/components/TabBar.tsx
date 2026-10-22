@@ -1,38 +1,27 @@
 // ─── HerNest V2 Tab Bar ───────────────────────────────────────────
+// Five tabs, nothing hidden in "More" (simplification plan, section 3).
+// Old tab ids still work: each screen lights up the tab it lives under.
 import React from "react";
 import { T, F } from "../../config/theme";
-import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, BriefIcon, FamilyIcon, ThriveIcon, StyleIcon, TripsIcon, CircleIcon, CalendarIcon, ProfileIcon, SettingsIcon, UpgradeIcon, MoreIcon } from "./Icons";
+import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, HeartIcon } from "./Icons";
 import { useStore } from "../../core/store";
+import { tabFor } from "./tabParents";
 
 const TABS = [
-  { id: "home",     label: "Home",    IC: HomeIcon },
-  { id: "cleo",     label: "Cleo",    IC: CleoIcon },
-  { id: "plan",     label: "Plan",    IC: PlanIcon },
-  { id: "budget",   label: "Bills",   IC: BudgetIcon },
-  { id: "briefing", label: "Brief",   IC: BriefIcon },
-];
-
-const MORE_TABS = [
-  { id: "family",   label: "Family",    IC: FamilyIcon },
-  { id: "thrive",   label: "Thrive",    IC: ThriveIcon },
-  { id: "style",    label: "Style",     IC: StyleIcon },
-  { id: "trips",    label: "Trips",     IC: TripsIcon },
-  { id: "circle",   label: "Circle",    IC: CircleIcon },
-  { id: "calendar", label: "Calendar",  IC: CalendarIcon },
-  { id: "connections", label: "Connections", IC: SettingsIcon },
-  { id: "memory",   label: "Memory",    IC: ProfileIcon },
-  { id: "profile",  label: "Profile",   IC: ProfileIcon },
-  { id: "settings", label: "Settings",  IC: SettingsIcon },
-  { id: "upgrade",  label: "Go Pro ✦",  IC: UpgradeIcon },
+  { id: "home",   label: "Today", IC: HomeIcon },
+  { id: "plan",   label: "Plan",  IC: PlanIcon },
+  { id: "cleo",   label: "Cleo",  IC: CleoIcon },
+  { id: "budget", label: "Bills", IC: BudgetIcon },   // "budget" id shows Bills
+  { id: "me",     label: "Me",    IC: HeartIcon },
 ];
 
 export function TabBar() {
-  const { activeTab, setActiveTab, showMore, setShowMore } = useStore();
-
-  const isMoreActive = MORE_TABS.some(t => t.id === activeTab);
+  const activeTab = useStore(s => s.activeTab);
+  const setActiveTab = useStore(s => s.setActiveTab);
+  const current = tabFor(activeTab);
 
   return (
-    <div style={{
+    <nav aria-label="Main" style={{
       position: "fixed", bottom: 0, left: "50%",
       transform: "translateX(-50%)",
       width: "100%", maxWidth: 430,
@@ -44,97 +33,39 @@ export function TabBar() {
       boxShadow: "0 -4px 24px rgba(46,31,20,.06)",
       paddingBottom: "env(safe-area-inset-bottom, 16px)",
     }}>
-      {/* More drawer */}
-      {showMore && (
-        <div style={{
-          background: "rgba(255,252,248,.99)",
-          borderTop: `1px solid ${T.linen}`,
-          padding: "12px 16px 16px",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-        }}>
-          {MORE_TABS.map(t => (
+      <div style={{ display: "flex", padding: "8px 4px 10px" }}>
+        {TABS.map(t => {
+          const on = current === t.id;
+          return (
             <button
               key={t.id}
-              onClick={() => { setActiveTab(t.id); setShowMore(false); }}
+              onClick={() => setActiveTab(t.id)}
+              aria-current={on ? "page" : undefined}
               style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px", borderRadius: 14,
-                background: activeTab === t.id ? T.sand : "#fff",
-                border: `1px solid ${activeTab === t.id ? T.gold : T.linen}`,
-                cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center",
+                gap: 2, background: "none", border: "none", cursor: "pointer",
+                padding: "6px 8px", borderRadius: 14, flex: 1,
+                minHeight: 44, touchAction: "manipulation",
               }}
             >
-              <t.IC size={18} color={activeTab === t.id ? T.gold : T.bark} strokeWidth={1.4}/>
+              <div style={{
+                width: 4, height: 4, borderRadius: 99,
+                background: on ? T.gold : "transparent",
+                marginBottom: 1, transition: "all .2s",
+              }} />
+              <t.IC size={20} color={on ? T.gold : T.taupe} strokeWidth={on ? 1.8 : 1.3}/>
               <span style={{
-                fontFamily: F.sans, fontSize: 12,
-                fontWeight: activeTab === t.id ? 700 : 400,
-                color: activeTab === t.id ? T.gold : T.bark,
+                fontFamily: F.sans, fontSize: 10,
+                fontWeight: on ? 700 : 500,
+                color: on ? T.goldText : T.taupe,
+                letterSpacing: 0.4,
               }}>
                 {t.label}
               </span>
             </button>
-          ))}
-
-        </div>
-      )}
-
-      {/* Primary tabs */}
-      <div style={{ display: "flex", padding: "8px 4px 10px" }}>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setActiveTab(t.id); setShowMore(false); }}
-            style={{
-              display: "flex", flexDirection: "column", alignItems: "center",
-              gap: 2, background: "none", border: "none", cursor: "pointer",
-              padding: "6px 8px", borderRadius: 14, flex: 1,
-              minHeight: 44, touchAction: "manipulation",
-            }}
-          >
-            <div style={{
-              width: 4, height: 4, borderRadius: 99,
-              background: activeTab === t.id ? T.gold : "transparent",
-              marginBottom: 1, transition: "all .2s",
-            }} />
-            <t.IC size={20} color={activeTab === t.id ? T.gold : T.taupe} strokeWidth={activeTab === t.id ? 1.8 : 1.3}/>
-            <span style={{
-              fontFamily: F.sans, fontSize: 9,
-              fontWeight: activeTab === t.id ? 700 : 500,
-              color: activeTab === t.id ? T.gold : T.taupe,
-              letterSpacing: 0.6,
-            }}>
-              {t.label}
-            </span>
-          </button>
-        ))}
-
-        {/* More button */}
-        <button
-          onClick={() => setShowMore(!showMore)}
-          style={{
-            display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 2, background: "none", border: "none", cursor: "pointer",
-            padding: "4px 8px", borderRadius: 14, flex: 1,
-          }}
-        >
-          <div style={{
-            width: 4, height: 4, borderRadius: 99,
-            background: isMoreActive || showMore ? T.gold : "transparent",
-            marginBottom: 1, transition: "all .2s",
-          }} />
-          <MoreIcon size={20} color={showMore || isMoreActive ? T.gold : T.taupe} strokeWidth={1.4}/>
-          <span style={{
-            fontFamily: F.sans, fontSize: 9,
-            fontWeight: showMore || isMoreActive ? 700 : 500,
-            color: showMore || isMoreActive ? T.gold : T.taupe,
-            letterSpacing: 0.6,
-          }}>
-            More
-          </span>
-        </button>
+          );
+        })}
       </div>
-    </div>
+    </nav>
   );
 }

@@ -238,6 +238,8 @@ No layout change yet; just removes the embarrassing parts.
 7. Turn on usage tracking (privacy-friendly, e.g. PostHog), so phases 2 to 4 can be checked against real use.
 
 ### Phase 1: New tabs and the Today screen (M, 2 to 4 days)
+*Built 21 Oct (branch `claude/simplify-phase1-tabs-b88d28`, not merged yet).* Notes: the old tab names still work behind the scenes, so notifications and links land in the right place (Briefing and Thrive notifications open Today's full briefing and Me → Wellness). Screens opened from the You menu have a "‹ Today" link back. Two things are left for phase 2, because those screens belong to it: Circle's AI Companions are still inside the Circle screen (Circle is no longer in the menus, only reachable from a birthday or check-in link), and "Ask Cleo" buttons open the Cleo tab but don't yet carry the question into the chat. The partner invite still lives in Settings → Partner until "Your family" takes it over.
+
 1. Build Today (section 4) from the existing BriefingHero and Command Center pieces.
 2. New tab bar: Today, Plan, Cleo, Bills, Me. Remove "More".
 3. Build the "You" menu from Settings, and move Profile, Memory, Connections and the Family people list into it.

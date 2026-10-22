@@ -1,63 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
-import { useStore } from "../../core/store";
-import { displayAge } from "../../core/dateAwareness";
+import { useStore, openCleo } from "../../core/store";
 import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState } from "../../shared/components";
-import { ai } from "../../core/ai";
-import { s as js } from "../../core/aiSchema";
-import { detectCrisis, crisisResponse } from "../../core/crisis";
 import { db as localDb } from "../../core/db";
-import { buildAppContext, buildBriefingPrompt, selectFocusWord, TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
+import { TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
 import toast from "react-hot-toast";
-import { trackEvent } from "../../core/analytics";
 import { getWeatherByLocation, type WeatherData } from "../../core/weather";
-
-// ── Types per blueprint spec ───────────────────────────────────────
-interface Briefing {
-  focusWord:    { word: string; emoji: string; why: string };
-  greeting:     string;
-  priorities:   { rank: number; text: string; emoji: string; source: string; urgency: string; whyToday: string; estimatedMinutes?: number }[];
-  calendar:     { highlights: { time: string; title: string; icon: string }[]; densityNote?: string; conflicts?: string[] };
-  tasks:        { aiSuggestion: string; completionNote: string };
-  bills?:       { message: string } | null;  // replaced the old Budget pulse (Oct 2026)
-  trips?:       { statusMessage: string; urgentActions: string[]; excitementNote: string; packingStatus?: string };
-  circle:       { checkinMessage?: string; birthdayAlert?: string; communityNote?: string };
-  energy:       { predictedLevel: string; predictionBasis: string; tip: string; scheduleSuggestion: string };
-  affirmation:  { text: string; theme: string };
-  travelBrief?: { urgentActions: string[]; packingTip: string; weatherHint: string; kidsTip?: string; excitement: string };
-}
-
-// Fixed answer shape for the briefing (structured outputs): the API returns
-// exactly this, so no more cutting JSON out of the reply text.
-const opt = js.nullable(js.string());
-const BRIEFING_SCHEMA = js.object({
-  focusWord: js.object({ word: js.string(), emoji: js.string(), why: js.string() }),
-  greeting: js.string(),
-  priorities: js.array(js.object({
-    rank: js.integer(), text: js.string(), emoji: js.string(),
-    source: js.enum(["task", "calendar", "school", "bills", "trip", "circle", "health"]),
-    urgency: js.enum(["critical", "high", "medium", "low"]),
-    whyToday: js.string(), estimatedMinutes: js.nullable(js.integer()),
-  })),
-  calendar: js.object({
-    highlights: js.array(js.object({ time: js.string(), title: js.string(), icon: js.string() })),
-    densityNote: opt, conflicts: js.array(js.string()),
-  }),
-  tasks: js.object({ aiSuggestion: js.string(), completionNote: js.string() }),
-  bills: js.nullable(js.object({ message: js.string() })),
-  trips: js.nullable(js.object({
-    statusMessage: js.string(), urgentActions: js.array(js.string()), excitementNote: js.string(), packingStatus: opt,
-  })),
-  circle: js.object({ checkinMessage: opt, birthdayAlert: opt, communityNote: opt }),
-  energy: js.object({
-    predictedLevel: js.enum(["high", "medium", "low", "very-low"]),
-    predictionBasis: js.string(), tip: js.string(), scheduleSuggestion: js.string(),
-  }),
-  affirmation: js.object({ text: js.string(), theme: js.string() }),
-  travelBrief: js.nullable(js.object({
-    urgentActions: js.array(js.string()), packingTip: js.string(), weatherHint: js.string(), kidsTip: opt, excitement: js.string(),
-  })),
-});
+import { generateBriefing, type Briefing } from "./generateBriefing";
 
 // ── Energy level display ───────────────────────────────────────────
 const ENERGY_COLORS: Record<string,string> = {
@@ -84,9 +33,6 @@ export function BriefingScreen() {
     return "evening";
   };
   const [tab, setTab] = useState(getTimeWindow());
-  const [askInput, setAskInput] = useState("");
-  const [askResp, setAskResp]   = useState("");
-  const [asking, setAsking]     = useState(false);
   const [sunLoading, setSunLoading] = useState(false);
   const [weather, setWeather] = useState<WeatherData|null>(null);
   const [travelLoading, setTravelLoading] = useState(false);
@@ -131,69 +77,9 @@ export function BriefingScreen() {
     if (!briefing) setLoading(true);
 
     try {
-      const appCtx = await buildAppContext(user.uid, profile as any).catch(() => ({} as any));
+      const { briefing: parsed, ctx: appCtx } = await generateBriefing({ uid: user.uid, profile, familyMembers, weather });
       setCtx(appCtx);
-      const window = getTimeWindow();
-      const weatherStr = weather ? `Current weather: ${weather.temp}°${weather.unit} ${weather.condition} ${weather.icon}, feels like ${weather.feelsLike}°${weather.unit}, humidity ${weather.humidity}%, wind ${weather.windSpeed}mph.` : "";
-      const windowPrompt = window === "morning"
-        ? "Generate a warm, energizing morning briefing. Focus on today\'s priorities, schedule, and what matters most today."
-        : window === "afternoon"
-        ? "Generate a midday check-in briefing. Focus on progress made, what\'s still pending, energy levels, and afternoon priorities."
-        : "Generate a gentle evening wind-down briefing. Focus on what was accomplished today, tomorrow\'s prep, family time, and self-care.";
-      const contextStr = appCtx ? `${buildBriefingPrompt(appCtx)}\n\nTime of day: ${window}. ${windowPrompt}` : windowPrompt;
-      const focusData  = selectFocusWord(appCtx.tone);
-
-      const familyRoster = familyMembers.length > 0
-        ? "Family: " + familyMembers.map(m => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""}${m.notes ? ", " + m.notes : ""})`; }).join("; ")
-        : "";
-
-      const date = new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" });
-
-      const sys = `You are Cleo, ${appCtx?.name || profile?.name || "her"}'s AI chief of staff inside HerNest.
-Generate her Morning Briefing as a warm, intelligent, SPECIFIC summary.
-
-${familyRoster ? familyRoster + "\n" : ""}TONE: ${appCtx?.tone || "steady"} (${appCtx?.toneConfig?.label || "Steady"})
-RULES:
-- Be SPECIFIC — use real names, amounts, dates from the data
-- Be CONCISE — every word earns its place
-- Be WARM — this is the first thing she reads
-- Be ACTIONABLE — every priority needs a clear next step
-- NEVER mention total debt amounts in the briefing unless a payment is due today or a milestone was reached. Focus on what's going well and what needs action today.
-- NEVER invent facts not in the data. If data is missing, say "I don't have that info yet" — never fill gaps with plausible-sounding details.
-- If tone is tired/struggling: reduce demands, increase compassion
-- If tone is thriving: energise and celebrate
-
-Answer in this shape (null for anything you have no data for):
-{
-  "focusWord": {"word":"${focusData.word}","emoji":"${focusData.emoji}","why":"one personal sentence why this word today"},
-  "greeting": "warm personal greeting using her name and today ${date}",
-  "priorities": [{"rank":1,"text":"specific action","emoji":"emoji","source":"task|calendar|school|bills|trip|circle","urgency":"critical|high|medium|low","whyToday":"why now","estimatedMinutes":5}],
-  "calendar": {"highlights":[{"time":"","title":"","icon":""}],"densityNote":"optional note if heavy","conflicts":[]},
-  "tasks": {"aiSuggestion":"one specific task suggestion","completionNote":"encouraging note on completion rate"},
-  "bills": {"message":"one short, calm line about bills that are overdue or due in the next few days, using only the BILLS data"} or null if no bills are overdue or due soon,
-  "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
-  "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
-  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest signals you have — body readiness if present, else sleep + mood (e.g. \"readiness 62 + 5.8h sleep\")","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
-  "affirmation": {"text":"warm personal affirmation","theme":"${appCtx.toneConfig.affirmationTheme}"},
-  "travelBrief": ${appCtx?.trips?.isClose ? '{"urgentActions":[""],"packingTip":"","weatherHint":"","kidsTip":"","excitement":""}' : 'null'}
-}
-Return exactly 5 priorities. Set trips and travelBrief to null unless that data exists.`;
-
-      const result = await ai(sys, contextStr, "morning_briefing", [], { schema: BRIEFING_SCHEMA });
-      if (result.error) { console.error("[Briefing] AI error:", result.error); setLoading(false); return; }
-
-        const parsed = JSON.parse(result.text) as Briefing;
-        if (!parsed.priorities) parsed.priorities = [];
-        if (!parsed.calendar) parsed.calendar = { highlights: [] };
-        if (!parsed.tasks) parsed.tasks = { aiSuggestion: "", completionNote: "" };
-        if (!parsed.energy) parsed.energy = { predictedLevel: "medium", predictionBasis: "", tip: "", scheduleSuggestion: "" };
-        if (!parsed.affirmation) parsed.affirmation = { text: "", theme: "" };
-        if (!parsed.circle) parsed.circle = {};
-        if (!parsed.focusWord) parsed.focusWord = { word: "Today", emoji: "✦", why: "Focus on what matters most." };
-        if (!parsed.greeting) parsed.greeting = "Good morning.";
       setBriefing(parsed);
-      trackEvent("briefing_generated");
-      await localDb.cacheBriefing({ ...parsed, generatedAt: new Date().toISOString() } as any);
 
 
     } catch(e) {
@@ -201,18 +87,6 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
       toast.error("Briefing failed — tap ↻ to retry");
     }
     setLoading(false);
-  };
-
-  // ── Ask Cleo ──────────────────────────────────────────────────────
-  const askCleo = async () => {
-    if (!askInput.trim() || asking) return;
-    // Same safety net as Cleo chat: a crisis message never goes to the AI.
-    if (detectCrisis(askInput)) { setAskResp(crisisResponse().replace(/\*\*/g, "")); return; }
-    setAsking(true);
-    const ctxStr = ctx ? `Today's tone: ${ctx.tone}. Focus: ${briefing?.focusWord?.word}. Tasks: ${ctx.tasks.total} pending. Bills: ${ctx.bills?.overdue.length ?? 0} overdue, ${ctx.bills?.dueSoon.length ?? 0} due in the next 7 days.` : "";
-    const result = await ai(`You are Cleo. ${ctxStr} Answer in 2-3 warm, specific sentences. Never generic. CRITICAL: Only reference facts explicitly provided in the context above — never invent events, names, amounts, or dates.`, askInput, "briefing_ask");
-    if (!result.error) setAskResp(result.text);
-    setAsking(false);
   };
 
   // ── Tabs ──────────────────────────────────────────────────────────
@@ -432,27 +306,17 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
           </div>
         )}
 
-        {/* Ask Cleo */}
+        {/* Questions go to the Cleo tab (one chat, with its memory). */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>ASK CLEO</p>
-          {askResp && (
-            <div style={{ background:T.sand, borderRadius:12, padding:"12px 14px", marginBottom:10, border:`1px solid ${T.linen}` }}>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.6, whiteSpace:"pre-line" }}>{askResp}</p>
-            </div>
-          )}
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {["What should I tackle first?","Which bills are due soon?","What's urgent?"].map(q=>(
-              <button key={q} onClick={()=>setAskInput(q)} style={{ padding:"5px 10px", borderRadius:20, border:`1px solid ${T.linen}`, background:"#fff", fontFamily:F.sans, fontSize:11, color:T.bark, cursor:"pointer", touchAction:"manipulation" }}>{q}</button>
+              <button key={q} onClick={()=>openCleo(q)} style={{ padding:"8px 12px", borderRadius:20, border:`1px solid ${T.linen}`, background:"#fff", fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
             ))}
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <input value={askInput} onChange={e=>setAskInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askCleo()} placeholder="Ask Cleo anything about your day..." style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
-            <button onClick={askCleo} disabled={!askInput.trim()||asking} style={{ width:44, height:44, borderRadius:12, background:askInput.trim()?toneColor:T.linen, border:"none", color:"#fff", fontSize:16, cursor:askInput.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
-              {asking?<Spinner size={14} color="#fff"/>:"→"}
-            </button>
+            <button onClick={()=>openCleo()} style={{ padding:"8px 12px", borderRadius:20, border:"none", background:toneColor, fontFamily:F.sans, fontSize:12, fontWeight:700, color:"#fff", cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>Open Cleo →</button>
           </div>
         </Card>
-      
+
 
       {/* ── SUNDAY RESET TAB ──────────────────────────────────────── */}
       {(true) && (
