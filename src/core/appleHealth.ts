@@ -22,9 +22,13 @@ export function appleHealthSupported(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 }
 
+// Returns the plugin wrapped in an object. Never return a Capacitor plugin
+// itself from an async function: its proxy pretends to have a "then" method,
+// so JavaScript treats it as a promise, calls then() and waits forever. That
+// silent hang was why "Connect Apple Health" did nothing.
 async function plugin() {
   const { Health } = await import("@capgo/capacitor-health");
-  return Health;
+  return { Health };
 }
 
 // Local YYYY-MM-DD for an ISO timestamp (HealthKit returns UTC instants).
@@ -73,21 +77,36 @@ export function workoutMinutesByDay(workouts: Workout[]): Record<string, number>
   return out;
 }
 
+// Why the last connect didn't work, in plain words, for the error message.
+export let lastAppleHealthError = "";
+
+// Fails with "timeout" instead of hanging forever, so the screen can say so.
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timeout: ${what}`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
 // Asks iOS for read access. iOS never says whether the person allowed it, so
 // we just try to read afterwards.
-export async function connectAppleHealth(uid: string): Promise<"connected" | "unavailable" | "error"> {
-  if (!appleHealthSupported()) return "unavailable";
+export async function connectAppleHealth(uid: string): Promise<"connected" | "unavailable" | "error" | "timeout"> {
+  lastAppleHealthError = "";
+  if (!appleHealthSupported()) { lastAppleHealthError = "Apple Health only works in the iPhone app."; return "unavailable"; }
   try {
-    const Health = await plugin();
-    const { available } = await Health.isAvailable();
-    if (!available) return "unavailable";
-    await Health.requestAuthorization({ read: READ_TYPES });
-    await saveData(uid, "apple_health", { connected: true, connectedAt: Date.now(), readTypesVersion: READ_TYPES_VERSION });
-    await syncAppleHealth(uid);
+    const { Health } = await plugin();
+    const { available } = await withTimeout(Health.isAvailable(), 10_000, "isAvailable");
+    if (!available) { lastAppleHealthError = "Apple Health isn't available on this device."; return "unavailable"; }
+    // The permission sheet waits for her, so give it a few minutes.
+    await withTimeout(Health.requestAuthorization({ read: READ_TYPES }), 180_000, "requestAuthorization");
+    await withTimeout(saveData(uid, "apple_health", { connected: true, connectedAt: Date.now(), readTypesVersion: READ_TYPES_VERSION }), 20_000, "save");
+    await withTimeout(syncAppleHealth(uid), 45_000, "read");
     return "connected";
   } catch (e) {
-    console.warn("[AppleHealth] connect failed:", e);
-    return "error";
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[AppleHealth] connect failed:", msg);
+    lastAppleHealthError = msg;
+    return msg.startsWith("timeout") ? "timeout" : "error";
   }
 }
 
@@ -136,7 +155,7 @@ export async function isAppleHealthConnected(uid: string): Promise<boolean> {
 export async function syncAppleHealth(uid: string): Promise<boolean> {
   if (!(await isAppleHealthConnected(uid))) return false;
   try {
-    const Health = await plugin();
+    const { Health } = await plugin();
     const end = new Date();
     const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (DAYS - 1));
     const range = { startDate: start.toISOString(), endDate: end.toISOString() };

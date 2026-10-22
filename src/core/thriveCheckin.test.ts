@@ -152,3 +152,11 @@ describe("Apple Health days: Cleo reads the body, doesn't ask", () => {
     expect(t).not.toMatch(/readiness|\?/i);
   });
 });
+
+describe("greeting matches the time of day", () => {
+  it("doesn't say good morning at night", () => {
+    expect(buildCheckinFallback(null, "Amy", 8)).toMatch(/^Good morning, Amy/);
+    expect(buildCheckinFallback(null, "Amy", 14)).toMatch(/^Good afternoon, Amy/);
+    expect(buildCheckinFallback(null, "Amy", 22)).toMatch(/^Good evening, Amy/);
+  });
+});
