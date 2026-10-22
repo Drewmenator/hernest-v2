@@ -183,11 +183,21 @@ export function ThriveScreen() {
     if (!uid) return;
     if (!onIphone) { useStore.getState().setActiveTab("connections"); return; }
     setConnecting(true);
-    const { connectAppleHealth } = await import("../../core/appleHealth");
+    const { connectAppleHealth, appleHealthState } = await import("../../core/appleHealth");
     const r = await connectAppleHealth(uid);
     setConnecting(false);
     setHealthUpgrade(false);
-    if (r === "connected") { trackEvent("apple_health_connected", { from: "wellness" }); applyWearable(await fetchWearable(uid)); }
+    if (r !== "connected") return;
+    trackEvent("apple_health_connected", { from: "wellness" });
+    // iPhone only asks once. If sharing was skipped before, nothing comes
+    // through: send her to the steps in Connections instead of a dead end.
+    if (await appleHealthState(uid) === "no_data") {
+      const { default: toast } = await import("react-hot-toast");
+      toast("Your iPhone isn't sharing Health data with HerNest yet. Here's how to switch it on.", { icon: "♡", duration: 6000 });
+      useStore.getState().setActiveTab("connections");
+      return;
+    }
+    applyWearable(await fetchWearable(uid));
   };
 
   const askCleo = () => {

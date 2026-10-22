@@ -8,9 +8,9 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { auth } from "../../core/firebase";
 import { PageTitle } from "../../shared/components";
-import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
+import { connectOAuth, disconnectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
-import { appleHealthSupported, connectAppleHealth, isAppleHealthConnected } from "../../core/appleHealth";
+import { appleHealthSupported, connectAppleHealth, appleHealthState, disconnectAppleHealth, syncAppleHealth } from "../../core/appleHealth";
 import { PLAN_TAB_KEY } from "../plan/planHelpers";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
@@ -66,6 +66,10 @@ export function ConnectionsScreen() {
   const [scanningGmail, setScanningGmail] = useState(false);
   const [healthSetup, setHealthSetup] = useState<{ token: string; endpoint: string } | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  // Which connected row has its Reconnect / Disconnect choices open
+  const [managing, setManaging] = useState<string | null>(null);
+  const [confirmOff, setConfirmOff] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const loadHealth = async (uid: string) => {
     const checks = CONNECTORS.filter(c => c.statusDoc);
@@ -75,8 +79,9 @@ export function ConnectionsScreen() {
     const map: Record<string, ConnectorHealth> = Object.fromEntries(results);
     // On the iPhone, Apple Health is read directly (no Shortcut), and its
     // status lives in the user's own data rather than integrations/.
-    if (appleHealthSupported() && await isAppleHealthConnected(uid)) {
-      map.apple_health = { connected: true, lastError: null };
+    if (appleHealthSupported()) {
+      const st = await appleHealthState(uid);
+      map.apple_health = st === "off" ? { connected: false } : { connected: true, lastError: null, noData: st === "no_data" };
     }
     setHealth(map);
   };
@@ -104,8 +109,10 @@ export function ConnectionsScreen() {
     } else if (c.kind === "health") {
       if (appleHealthSupported() && user?.uid) {
         const r = await connectAppleHealth(user.uid);
-        if (r === "connected") { toast.success("Apple Health connected ✓"); await loadHealth(user.uid); }
-        else toast.error("Couldn't connect Apple Health — check Settings → Health → Data Access");
+        await loadHealth(user.uid);
+        if (r !== "connected") toast.error("Couldn't connect Apple Health. Try again in a moment.");
+        else if (await appleHealthState(user.uid) === "no_data") toast("Connected, but your iPhone isn't sharing Health data yet. See the steps below.", { icon: "♡", duration: 6000 });
+        else toast.success("Apple Health connected ✓");
       } else {
         await setupHealth();
       }
@@ -127,6 +134,36 @@ export function ConnectionsScreen() {
       toast.error("Couldn't set up — try again");
     }
     setHealthLoading(false);
+  };
+
+  const reconnect = async (c: Connector) => {
+    setManaging(null); setConfirmOff(null);
+    await onConnect(c);
+  };
+
+  const disconnect = async (c: Connector) => {
+    if (!user?.uid || busy) return;
+    setBusy(c.id);
+    try {
+      const ok = c.kind === "health"
+        ? (await disconnectAppleHealth(user.uid), true)
+        : c.oauthProvider ? await disconnectOAuth(c.oauthProvider) : false;
+      if (ok) toast.success(`${c.name} disconnected`);
+      else toast.error(`Couldn't disconnect ${c.name}. Try again.`);
+      await loadHealth(user.uid);
+    } finally {
+      setBusy(null); setManaging(null); setConfirmOff(null);
+    }
+  };
+
+  const checkHealthAgain = async () => {
+    if (!user?.uid) return;
+    setBusy("apple_health");
+    await syncAppleHealth(user.uid).catch(() => false);
+    await loadHealth(user.uid);
+    setBusy(null);
+    if (await appleHealthState(user.uid) === "ok") toast.success("Apple Health data is coming in ✓");
+    else toast("Still nothing from Apple Health. Check the steps above.", { icon: "♡" });
   };
 
   const onSyncNow = async () => {
@@ -198,18 +235,23 @@ export function ConnectionsScreen() {
                       <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
                       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
                         {hasError
-                          ? <span style={{ color: T.blush }}>Needs reconnecting — token expired</span>
+                          ? <span style={{ color: T.blush }}>Needs reconnecting. Tap Reconnect.</span>
+                          : isConnected && h?.noData
+                          ? <span style={{ color: T.blush }}>Connected, but your iPhone isn't sharing Health data</span>
                           : isConnected && h?.lastSyncedAt
                           ? <>✓ {h.itemCount ?? 0} item{(h.itemCount ?? 0) === 1 ? "" : "s"} · synced {timeAgo(h.lastSyncedAt)}</>
                           : c.blurb}
                       </p>
                     </div>
-                    {c.kind === "health" ? (
+                    {c.kind === "health" && !appleHealthSupported() ? (
                       <button onClick={() => onConnect(c)} disabled={healthLoading} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: isConnected ? T.esp : "#fff", background: isConnected ? "none" : T.esp, border: isConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {healthLoading ? "..." : isConnected ? "Setup" : "Set up"}
                       </button>
                     ) : isConnected && !hasError ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
+                      <button onClick={() => { setManaging(m => (m === c.id ? null : c.id)); setConfirmOff(null); }} aria-expanded={managing === c.id} aria-label={`${c.name} options`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: h?.noData ? T.blush : T.sage, background: "none", border: `1.5px solid ${h?.noData ? `${T.blush}50` : `${T.sage}40`}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                        {h?.noData ? "Fix" : "✓ On"} ▾
+                      </button>
                     ) : c.kind === "soon" ? (
                       <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
                     ) : (
@@ -218,6 +260,43 @@ export function ConnectionsScreen() {
                       </button>
                     )}
                   </div>
+                  {managing === c.id && isConnected && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      {confirmOff === c.id ? (
+                        <>
+                          <button onClick={() => disconnect(c)} disabled={busy === c.id}
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.blush, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
+                            {busy === c.id ? "..." : `Yes, disconnect ${c.name}`}
+                          </button>
+                          <button onClick={() => setConfirmOff(null)}
+                            style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => reconnect(c)}
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>Reconnect</button>
+                          <button onClick={() => setConfirmOff(c.id)}
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Disconnect</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {c.id === "apple_health" && isConnected && h?.noData && (
+                    <div style={{ marginTop: 10, padding: "12px 14px", background: T.sand, borderRadius: 12, border: `1px solid ${T.linen}` }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px", fontWeight: 700 }}>Turn on Health sharing for HerNest</p>
+                      <p style={{ fontFamily: F.sans, fontSize: 12.5, color: T.esp, margin: "0 0 6px", lineHeight: 1.5 }}>iPhone only asks once, so if the question was skipped, switch it on here:</p>
+                      <ol style={{ fontFamily: F.sans, fontSize: 12.5, color: T.esp, margin: "0 0 10px", paddingLeft: 18, lineHeight: 1.6 }}>
+                        <li>Open the <strong>Settings</strong> app and tap <strong>Health</strong></li>
+                        <li>Tap <strong>Data Access & Devices</strong>, then <strong>HerNest</strong></li>
+                        <li>Tap <strong>Turn On All</strong>, then come back here</li>
+                      </ol>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", lineHeight: 1.5 }}>Or in the Health app: tap your picture, then Apps, then HerNest. No Apple Watch? Steps and sleep from your iPhone still count.</p>
+                      <button onClick={checkHealthAgain} disabled={busy === "apple_health"}
+                        style={{ width: "100%", padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
+                        {busy === "apple_health" ? "Checking..." : "Check again"}
+                      </button>
+                    </div>
+                  )}
                   {c.id === "gmail" && isConnected && !hasError && (
                     <button onClick={onScanGmail} disabled={scanningGmail}
                       style={{ width: "100%", marginTop: 10, padding: "10px", background: `${T.gold}12`, border: `1.5px solid ${T.gold}30`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>

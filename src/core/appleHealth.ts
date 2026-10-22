@@ -98,6 +98,34 @@ export async function appleHealthNeedsUpgrade(uid: string): Promise<boolean> {
   return !!d?.connected && ((d.readTypesVersion as number) || 1) < READ_TYPES_VERSION;
 }
 
+// True if the saved summary has any real number in it. iOS gives an app
+// empty results (not an error) when Health sharing is off for it.
+export function hasHealthData(d: Record<string, unknown> | null | undefined): boolean {
+  if (!d) return false;
+  const vals = [d.lastSleepHours, d.lastSteps, d.restingHr, d.avgHrv, d.exerciseMins, d.mindfulMins];
+  if (vals.some(v => typeof v === "number" && v > 0)) return true;
+  const hist = Array.isArray(d.history) ? (d.history as Record<string, unknown>[]) : [];
+  return hist.some(p => ["sleepHours", "steps", "hrv", "restingHr", "activeMins"].some(k => typeof p?.[k] === "number" && (p[k] as number) > 0));
+}
+
+// "off": not connected · "no_data": connected but the iPhone shares nothing
+// (Health permission skipped or turned off) · "ok": data is coming in.
+export async function appleHealthState(uid: string): Promise<"off" | "no_data" | "ok"> {
+  if (!appleHealthSupported()) return "off";
+  const d = await loadData(uid, "apple_health").catch(() => null);
+  if (!d?.connected) return "off";
+  return hasHealthData(d) ? "ok" : "no_data";
+}
+
+// Stops reading and clears the saved summary. (Only iOS can withdraw the
+// permission itself: Settings > Health > Data Access & Devices.)
+export async function disconnectAppleHealth(uid: string): Promise<void> {
+  await saveData(uid, "apple_health", {
+    connected: false, disconnectedAt: Date.now(),
+    lastSleepHours: null, lastSteps: null, restingHr: null, avgHrv: null, exerciseMins: null, mindfulMins: null, history: [],
+  });
+}
+
 export async function isAppleHealthConnected(uid: string): Promise<boolean> {
   if (!appleHealthSupported()) return false;
   const d = await loadData(uid, "apple_health").catch(() => null);
