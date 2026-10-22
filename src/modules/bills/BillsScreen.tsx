@@ -243,7 +243,7 @@ export function BillsScreen() {
 
       {bills.length === 0 ? (
         <Card>
-          <EmptyState tint="household"
+          <EmptyState bare tint="household"
             icon={<BudgetIcon size={26} color={T.householdInk} />}
             title="Never miss a bill"
             body="Tell HerNest which bills you have and roughly when they're due. We'll remind you before each one."

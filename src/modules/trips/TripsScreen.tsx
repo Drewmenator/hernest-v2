@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { T, F, alpha } from "../../config/theme";
+import { T, F, S, TYPE } from "../../config/theme";
+import { ChevronLeft } from "lucide-react";
 import { useStore } from "../../core/store";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
@@ -12,10 +13,10 @@ import {
   estimateBudgetBreakdown, normTrip, STATE_CONFIG, PRE_DEPARTURE_TASKS,
 } from "./tripsShared";
 import type { Trip, Traveller, TripDocument, PackingSection } from "./tripsShared";
-import { ReadinessRing } from "./ReadinessRing";
+import { ReadinessRing, TripStageChip } from "./ReadinessRing";
 import { TripListView } from "./TripListView";
 import { TripDetailTabs } from "./TripDetailTabs";
-import { Emoji } from "../../shared/components";
+import { Emoji, GlowCard, HeroNumber, Headline, Detail } from "../../shared/components";
 
 export type { TripState } from "./tripsShared";
 
@@ -309,52 +310,58 @@ Weather: pack for typical ${trip.destination} conditions.`;
   const completedTasks = trip.preDeparture.filter(t => t.completed).length;
   const docsReady = trip.documents.filter(d => d.status === "ready").length;
 
+  const tabs = [
+    { id: "overview",  icon: "✦",  label: "Overview" },
+    { id: "itinerary", icon: "📅", label: "Itinerary" },
+    { id: "packing",   icon: "🧳", label: `Pack${totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}` },
+    { id: "checklist", icon: "✓",  label: `Prep${completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}` },
+    { id: "budget",    icon: "💰", label: "Budget" },
+    { id: "edit",      icon: "✎",  label: "Edit" },
+  ] as const;
+
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <button onClick={() => setActiveTrip(null)}
-        style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 13, color: T.taupe, cursor: "pointer", marginBottom: 12, padding: "8px 0", minHeight: 44, touchAction: "manipulation" }}>
-        ← All trips
+        style={{ background: "none", border: "none", display: "inline-flex", alignItems: "center", gap: 2, fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.action, cursor: "pointer", marginBottom: S.sm, padding: 0, minHeight: 44, touchAction: "manipulation" }}>
+        <ChevronLeft size={18} aria-hidden="true" /> All trips
       </button>
 
       {/* ── HERO ─────────────────────────────────────────────────── */}
-      <div style={{ background: T.action, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${alpha(cfg.color, 0.15)}`, padding: "3px 10px", borderRadius: 20 }}>
-              <Emoji e={cfg.emoji} size={14} /> {cfg.label}
-            </span>
-            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: T.onAction, margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
-            <p style={{ fontFamily: F.sans, fontSize: 12, color: alpha(T.onAction, 0.6), margin: 0 }}>
-              {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </p>
+      <GlowCard tint="cleo">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: S.md }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ marginBottom: S.md }}><TripStageChip label={cfg.label} color={cfg.color} bg={cfg.bg} /></div>
             {du > 0 && (
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.gold, margin: "6px 0 0", fontWeight: 600 }}>
-                {du === 1 ? "Tomorrow!" : `${du} days away`}
-              </p>
+              du === 1
+                ? <HeroNumber value="Tomorrow" size={40} />
+                : <HeroNumber value={du} unit="days" size={48} />
             )}
             {du === 0 && (
-              <p style={{ fontFamily: F.sans, fontSize: 14, color: T.danger, margin: "6px 0 0", fontWeight: 700 }}><Emoji e="✈" size={14} /> TRAVEL DAY</p>
+              <p style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: TYPE.section, fontWeight: 700, color: T.danger, margin: 0 }}><Emoji e="✈" size={18} /> Travel day</p>
             )}
+            <Headline size={26} style={{ marginTop: du >= 0 ? S.md : 0 }}>{trip.destination}</Headline>
+            <Detail>
+              {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            </Detail>
           </div>
-          <ReadinessRing score={readiness.overall} size={80} />
+          <ReadinessRing score={readiness.overall} size={84} />
         </div>
-      </div>
+      </GlowCard>
 
       {/* ── TABS ──────────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 16 }}>
-        {([
-          { id: "overview",  label: "Overview" },
-          { id: "itinerary", label: <><Emoji e="📅" size={14} /> Itinerary</> },
-          { id: "packing",   label: <><Emoji e="🧳" size={14} /> Pack{totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}</> },
-          { id: "checklist", label: <><Emoji e="✓" size={14} /> Prep{completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}</> },
-          { id: "budget",    label: <><Emoji e="💰" size={14} /> Budget</> },
-          { id: "edit",      label: <><Emoji e="✎" size={14} /> Edit</> },
-        ] as const).map(t => (
-          <button key={t.id} onClick={() => setDetailTab(t.id as any)}
-            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : T.surface, fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? T.onAction : T.taupe, cursor: "pointer", textAlign: "center" }}>
-            {t.label}
-          </button>
-        ))}
+      <div role="tablist" aria-label="Trip sections"
+        style={{ display: "flex", gap: 8, overflowX: "auto", margin: `0 -${S.xs}px ${S.lg}px`, padding: `${S.xs}px`, scrollbarWidth: "none" }}>
+        {tabs.map(t => {
+          const on = detailTab === t.id;
+          return (
+            <button key={t.id} role="tab" aria-selected={on} onClick={() => setDetailTab(t.id)}
+              style={{ flex: "none", minHeight: 40, padding: "0 14px", borderRadius: 99, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", touchAction: "manipulation", whiteSpace: "nowrap",
+                border: `1px solid ${on ? T.action : T.divider}`, background: on ? T.action : T.surface, color: on ? T.onAction : T.text,
+                fontFamily: F.sans, fontSize: 14, fontWeight: on ? 600 : 500 }}>
+              <Emoji e={t.icon} size={15} /> {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <TripDetailTabs

@@ -1,10 +1,9 @@
 import React from "react";
-import { T, F, alpha } from "../../config/theme";
-import { Card, PageTitle, EmptyState, Emoji } from "../../shared/components";
+import { T, F, S, TYPE, R, alpha } from "../../config/theme";
+import { Card, PageTitle, SectionHeader, ListRow, Button, Pill, Input, CheckBox, EmptyState, GlowCard, Headline, Detail, Emoji } from "../../shared/components";
 import { safeDate, daysUntil, computeTripState, computeReadiness, normTrip, STATE_CONFIG } from "./tripsShared";
 import type { Trip, Traveller } from "./tripsShared";
-import { ReadinessRing } from "./ReadinessRing";
-import { onEnterSpace } from "../../shared/utils/a11y";
+import { ReadinessRing, TripStageChip, TravelerAvatars } from "./ReadinessRing";
 
 export function TripListView({
   trips, householdSnapshot, showAdd, setShowAdd,
@@ -27,94 +26,81 @@ export function TripListView({
   const upcoming = trips.filter(t => daysUntil(t.departureDate) >= -7 && t.state !== "completed");
   const past = trips.filter(t => t.state === "completed" || daysUntil(t.departureDate) < -7);
 
+  const fieldLabel: React.CSSProperties = { display: "block", fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text, margin: "0 0 6px" };
+  const open = (trip: Trip) => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); };
+
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-    {/* Household state banner */}
-    {householdSnapshot?.householdStressLevel === "high" && (
-      <div style={{ background:`${alpha(T.blush, 0.08)}`, border:`1px solid ${alpha(T.blush, 0.19)}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-        <Emoji e="💛" size={18} />
-        <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-          Things look heavy right now. Focus on what matters most — Cleo's got the rest.
-        </p>
-      </div>
-    )}
-    {householdSnapshot?.calendarLoad === "critical" && householdSnapshot?.householdStressLevel !== "high" && (
-      <div style={{ background:`${alpha(T.gold, 0.07)}`, border:`1px solid ${alpha(T.gold, 0.19)}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-        <Emoji e="📅" size={18} />
-        <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-          Busy week ahead — consider what can wait until next week.
-        </p>
-      </div>
-    )}
+      {/* Household state banner */}
+      {householdSnapshot?.householdStressLevel === "high" && (
+        <div style={{ background: alpha(T.blush, 0.10), border: `1px solid ${alpha(T.blush, 0.22)}`, borderRadius: R.button, padding: "10px 14px", marginBottom: S.md, display: "flex", alignItems: "center", gap: 10 }}>
+          <Emoji e="💛" size={18} />
+          <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text, margin: 0, lineHeight: 1.5 }}>
+            Things look heavy right now. Focus on what matters most, Cleo's got the rest.
+          </p>
+        </div>
+      )}
+      {householdSnapshot?.calendarLoad === "critical" && householdSnapshot?.householdStressLevel !== "high" && (
+        <div style={{ background: T.warnBg, border: `1px solid ${alpha(T.warn, 0.25)}`, borderRadius: R.button, padding: "10px 14px", marginBottom: S.md, display: "flex", alignItems: "center", gap: 10 }}>
+          <Emoji e="📅" size={18} />
+          <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text, margin: 0, lineHeight: 1.5 }}>
+            Busy week ahead. Consider what can wait until next week.
+          </p>
+        </div>
+      )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <PageTitle title="Trips" />
-        <button onClick={() => setShowAdd(!showAdd)}
-          style={{ background: showAdd ? T.linen : T.esp, color: showAdd ? T.bark : T.onAction, border: "none", borderRadius: 12, padding: "8px 16px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          {showAdd ? "Cancel" : "+ Plan Trip"}
-        </button>
-      </div>
+      <PageTitle title="Trips" right={
+        <Button size="sm" variant={showAdd ? "secondary" : "primary"} onClick={() => setShowAdd(!showAdd)} style={{ width: "auto" }}>
+          {showAdd ? "Cancel" : "Plan a trip"}
+        </Button>
+      } />
 
       {/* ── ADD TRIP FORM ────────────────────────────────────────── */}
       {showAdd && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 16px" }}>New trip</p>
+          <h2 style={{ fontFamily: F.display, fontSize: TYPE.section, fontWeight: 500, color: T.text, margin: `0 0 ${S.lg}px` }}>New trip</h2>
 
-          <input value={dest} onChange={e => setDest(e.target.value)}
-            placeholder="Where to? (e.g. Lagos, Nigeria)"
-            style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Departure</p>
-              <input type="date" value={depDate} onChange={e => setDepDate(e.target.value)}
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
-            </div>
-            <div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Return</p>
-              <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
-            </div>
+          <div style={{ marginBottom: S.md }}>
+            <Input label="Where to?" value={dest} onChange={setDest} placeholder="Where to? (e.g. Lagos, Nigeria)" />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10, marginBottom: S.md }}>
+            <Input label="Departure" type="date" value={depDate} onChange={setDepDate} style={{ minWidth: 0, padding: "12px 10px", fontSize: 15 }} />
+            <Input label="Return" type="date" value={retDate} onChange={setRetDate} style={{ minWidth: 0, padding: "12px 10px", fontSize: 15 }} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr)", gap: 10, marginBottom: S.lg }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Currency</p>
-              <select value={currency} onChange={e => setCurrency(e.target.value)}
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }}>
+              <label htmlFor="trip-currency" style={fieldLabel}>Currency</label>
+              <select id="trip-currency" value={currency} onChange={e => setCurrency(e.target.value)}
+                style={{ width: "100%", background: T.surface, border: `1.5px solid ${T.divider}`, borderRadius: R.button, padding: "12px 10px", minHeight: 48, fontFamily: F.sans, fontSize: 16, color: T.text, outline: "none", boxSizing: "border-box" }}>
                 {["USD","GBP","EUR","NGN","CAD","AUD","ZAR"].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
-            <div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Total Budget</p>
-              <input type="number" value={budget} onChange={e => setBudget(e.target.value)}
-                placeholder="e.g. 5000"
-                style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
-            </div>
+            <Input label="Total budget" type="number" value={budget} onChange={setBudget} placeholder="e.g. 5000" />
           </div>
 
-          {/* Travellers — select from profile + add guests */}
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>Who's coming</p>
-          <div style={{ marginBottom: 12 }}>
+          {/* Travellers: select from profile + add guests */}
+          <p style={fieldLabel}>Who's coming</p>
+          <div style={{ marginBottom: S.md }}>
             {travellers.map((t, i) => (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.linen}` }}>
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${T.divider}` }}>
                 {t.fromProfile ? (
-                  <button onClick={() => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, selected: !(tt as any).selected } : tt))}
-                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${(t as any).selected === false ? T.linen : T.sage}`, background: (t as any).selected === false ? "transparent" : T.sage, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13, cursor: "pointer" }}>
-                    {(t as any).selected !== false ? "✓" : ""}
-                  </button>
+                  <CheckBox checked={(t as any).selected !== false} label={`Include ${t.name || "traveler"}`}
+                    onToggle={() => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, selected: !(tt as any).selected } : tt))} />
                 ) : (
-                  <button onClick={() => setTravellers(prev => prev.filter((_, ti) => ti !== i))}
-                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${alpha(T.blush, 0.25)}`, background: "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.blush, fontSize: 14, cursor: "pointer" }}>
+                  <button onClick={() => setTravellers(prev => prev.filter((_, ti) => ti !== i))} aria-label={`Remove ${t.name || "traveler"}`}
+                    style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${alpha(T.blush, 0.35)}`, background: "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.blush, fontSize: 16, cursor: "pointer" }}>
                     ×
                   </button>
                 )}
-                <span style={{ flexShrink: 0, display: "inline-flex" }}><Emoji e={t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"} size={18} /></span>
+                <span style={{ flexShrink: 0, display: "inline-flex", marginLeft: t.fromProfile ? 8 : 0 }}><Emoji e={t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"} size={18} /></span>
                 <input value={t.name} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, name: e.target.value } : tt))}
-                  placeholder="Name"
-                  style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minWidth: 0 }} />
+                  placeholder="Name" aria-label="Traveler name"
+                  style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 16, color: T.text, outline: "none", minWidth: 0 }} />
                 <select value={t.type} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, type: e.target.value as any } : tt))}
-                  style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "4px 8px", fontFamily: F.sans, fontSize: 12, color: T.taupe }}>
+                  aria-label="Traveler type"
+                  style={{ background: T.sand, border: `1px solid ${T.divider}`, borderRadius: 8, padding: "6px 8px", fontFamily: F.sans, fontSize: 14, color: T.text2 }}>
                   <option value="adult">Adult</option>
                   <option value="child">Child</option>
                   <option value="infant">Infant</option>
@@ -123,68 +109,46 @@ export function TripListView({
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: S.lg, flexWrap: "wrap" }}>
             {[
               { label: "+ Partner", role: "partner", type: "adult" as const },
               { label: "+ Parent", role: "parent", type: "adult" as const },
               { label: "+ Friend", role: "friend", type: "adult" as const },
               { label: "+ Child", role: "kid", type: "child" as const },
             ].map(btn => (
-              <button key={btn.label} onClick={() => setTravellers(prev => [...prev, {
+              <Pill key={btn.label} label={btn.label} onClick={() => setTravellers(prev => [...prev, {
                 id: crypto.randomUUID(), name: "", age: btn.type === "child" ? 8 : 35,
                 type: btn.type, role: btn.role as any, fromProfile: false,
-              }])}
-                style={{ padding: "6px 12px", background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 20, fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer" }}>
-                {btn.label}
-              </button>
+              }])} />
             ))}
           </div>
 
-          <button onClick={addTrip} disabled={!dest || !depDate}
-            style={{ width: "100%", padding: "14px", background: dest && depDate ? T.esp : T.linen, color: T.onAction, border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: dest && depDate ? "pointer" : "not-allowed" }}>
-            Add Trip
-          </button>
+          <Button onClick={addTrip} disabled={!dest || !depDate}>Add trip</Button>
         </Card>
       )}
 
       {/* ── UPCOMING TRIPS ───────────────────────────────────────── */}
       {upcoming.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "20px 0 10px" }}>Upcoming</p>
+          <SectionHeader title="Upcoming" style={{ marginTop: S.lg }} />
           {upcoming.map(trip => {
-            const du = daysUntil(trip.departureDate);
             const state = computeTripState(trip);
             const cfg = STATE_CONFIG[state];
             const readiness = computeReadiness(trip);
             return (
-              <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
-                role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}
-                style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12, cursor: "pointer" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${alpha(cfg.color, 0.08)}`, padding: "2px 10px", borderRadius: 20 }}>
-                        <Emoji e={cfg.emoji} size={14} /> {cfg.label}
-                      </span>
-                    </div>
-                    <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 22, color: T.esp, margin: "0 0 2px", fontWeight: 700 }}>{trip.destination}</p>
-                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>
-                      {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </p>
+              <GlowCard key={trip.id} tint="cleo" onClick={() => open(trip)} ariaLabel={`View trip to ${trip.destination}`}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: S.md, marginBottom: S.md }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ marginBottom: 8 }}><TripStageChip label={cfg.label} color={cfg.color} bg={cfg.bg} /></div>
+                    <Headline size={26}>{trip.destination}</Headline>
+                    <Detail>
+                      {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </Detail>
                   </div>
-                  <ReadinessRing score={readiness.overall} size={64} />
+                  <ReadinessRing score={readiness.overall} size={72} />
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {trip.travellers.slice(0, 4).map((t, i) => (
-                    <span key={i} style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, background: T.sand, padding: "3px 8px", borderRadius: 20 }}>
-                      <Emoji e={t.type === "adult" ? "👩" : "🧒"} size={13} /> {t.name.split(" ")[0]}
-                    </span>
-                  ))}
-                  {trip.travellers.length > 4 && (
-                    <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>+{trip.travellers.length - 4}</span>
-                  )}
-                </div>
-              </div>
+                <TravelerAvatars names={trip.travellers.map(t => t.name)} />
+              </GlowCard>
             );
           })}
         </>
@@ -193,32 +157,27 @@ export function TripListView({
       {/* ── PAST TRIPS ───────────────────────────────────────────── */}
       {past.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "20px 0 10px" }}>Past</p>
-          {past.map(trip => (
-            <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
-              role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}
-              style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 8, cursor: "pointer", opacity: 0.85 }}>
-              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: "0 0 2px" }}>{trip.destination}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>
-                {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-              </p>
-            </div>
-          ))}
+          <SectionHeader title="Past" />
+          <Card style={{ paddingTop: 0, paddingBottom: 0 }}>
+            {past.map((trip, i) => (
+              <ListRow key={trip.id} divider={i > 0} onClick={() => open(trip)} ariaLabel={`View trip to ${trip.destination}`}
+                leading={<Emoji e="✈" tile size={16} />}
+                title={trip.destination}
+                detail={`${trip.nights} nights · ${safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`} />
+            ))}
+          </Card>
         </>
       )}
 
       {trips.length > 0 && !showAdd && (
-        <button onClick={() => setShowAdd(true)}
-          style={{ width:"100%", marginTop:8, padding:"14px", background:"none", border:`1.5px dashed ${T.linen}`, borderRadius:16, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", touchAction:"manipulation" }}>
-          + Plan another trip
-        </button>
+        <Button variant="ghost" onClick={() => setShowAdd(true)} style={{ marginTop: S.sm }}>Plan another trip</Button>
       )}
 
       {trips.length === 0 && !showAdd && (
         <EmptyState
-          icon="→"
+          icon={<Emoji e="✈" size={26} />}
           title="Where next?"
-          body="Plan a trip and I'll help carry the load at every step — packing, prep, and budget"
+          body="Plan a trip and I'll help carry the load at every step: packing, prep, and budget."
           actionLabel="Plan a trip"
           onAction={() => setShowAdd(true)}
         />

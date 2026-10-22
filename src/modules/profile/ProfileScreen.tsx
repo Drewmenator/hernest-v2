@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { T, F, alpha } from "../../config/theme";
+import { T, F, S, TYPE, alpha } from "../../config/theme";
 import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Button, Input, Emoji } from "../../shared/components";
+import { Card, PageTitle, ListRow, Button, Input, Pill, Segmented, GlowCard, Headline, Detail, Emoji } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
@@ -130,70 +130,77 @@ export function ProfileScreen() {
     }
   };
 
+  const label = (t: string, hint?: string) => (
+    <div style={{ marginBottom: S.md }}>
+      <p style={{ fontFamily:F.sans, fontSize:TYPE.card, fontWeight:600, color:T.text, margin:0 }}>{t}</p>
+      {hint && <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:"2px 0 0", lineHeight:1.4 }}>{hint}</p>}
+    </div>
+  );
+  const chips: React.CSSProperties = { display:"flex", flexWrap:"wrap", gap:S.sm };
+  const saveBtn = (text: string) => (
+    <Button onClick={save} variant="primary" disabled={saving}>{saving ? "Saving..." : text}</Button>
+  );
+
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle eyebrow="Your account" title="Profile"/>
 
       {/* Avatar + name */}
-      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:20 }}>
-        <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},${T.actionPress})`, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction }}><Emoji e="👩" size={30} color={T.onAction} /></div>
-        <div>
-          <h2 style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:22, color:T.esp, margin:0 }}>{name||"Your name"}</h2>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>{user?.email}</p>
+      <GlowCard tint="personal" style={{ marginBottom: S.lg }}>
+        <div style={{ display:"flex", alignItems:"center", gap:S.lg }}>
+          <div style={{ width:64, height:64, flexShrink:0, borderRadius:"50%", background:`linear-gradient(135deg,${T.action},${T.actionPress})`, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction }}>
+            {name.trim()
+              ? <span aria-hidden="true" style={{ fontFamily:F.display, fontSize:28, fontWeight:500, color:T.onAction }}>{name.trim().charAt(0).toUpperCase()}</span>
+              : <Emoji e="👩" size={30} color={T.onAction} />}
+          </div>
+          <div style={{ minWidth:0 }}>
+            <Headline size={26}>{name||"Your name"}</Headline>
+            <Detail style={{ overflowWrap:"anywhere" }}>{user?.email}</Detail>
+          </div>
         </div>
-      </div>
+      </GlowCard>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
-        {SECTIONS.map(s=>(
-          <button key={s} onClick={()=>setSection(s)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${section===s?T.esp:T.linen}`, background:section===s?T.esp:T.surface, color:section===s?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
-            {s.charAt(0).toUpperCase()+s.slice(1)}
-          </button>
-        ))}
-      </div>
+      {/* Sections */}
+      <Segmented label="Profile sections" value={section} onChange={setSection}
+        options={SECTIONS.map(s => ({ id: s, label: s.charAt(0).toUpperCase()+s.slice(1) }))} />
 
       {/* ── PERSONAL ──────────────────────────────────────────────── */}
       {section==="personal" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Personal details</p>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            <Input value={name} onChange={setName} placeholder="Your first name"/>
-            <Input value={role} onChange={setRole} placeholder="Your role / job title"/>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <Input value={city} onChange={setCity} placeholder="City"/>
-              <Input value={country} onChange={setCountry} placeholder="Country"/>
+          {label("Personal details")}
+          <div style={{ display:"flex", flexDirection:"column", gap:S.md }}>
+            <Input label="First name" value={name} onChange={setName} placeholder="Your first name"/>
+            <Input label="Role or job title" value={role} onChange={setRole} placeholder="Your role / job title"/>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:S.md }}>
+              <Input label="City" value={city} onChange={setCity} placeholder="City"/>
+              <Input label="Country" value={country} onChange={setCountry} placeholder="Country"/>
             </div>
-            <Input value={phone} onChange={setPhone} placeholder="Phone (optional)"/>
-            <Input value={challenge} onChange={setChallenge} placeholder="Biggest challenge right now"/>
+            <Input label="Phone, optional" value={phone} onChange={setPhone} placeholder="Phone (optional)"/>
+            <Input label="Biggest challenge right now" value={challenge} onChange={setChallenge} placeholder="Biggest challenge right now"/>
           </div>
         </Card>
 
         {/* Focus word theme per blueprint */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Focus word theme</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalize your morning focus word</p>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {label("Focus word theme", "Cleo uses this to personalize your morning focus word")}
+          <div style={chips}>
             {FOCUS_THEMES.map(t=>(
-              <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:T.surface, color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
-                <Emoji e={t.emoji} size={15} /> {t.label}
-              </button>
+              <Pill key={t.value} label={t.label} active={focusTheme===t.value} onClick={()=>setFocusTheme(t.value)} />
             ))}
           </div>
         </Card>
 
         {/* Priorities per blueprint with ranking */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px" }}>LIFE PRIORITIES (up to 5)</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to understand what matters most to you</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+          {label("Life priorities, up to 5", "Cleo uses this to understand what matters most to you")}
+          <div style={chips}>
             {PRIORITY_AREAS.map(area=>{
-              const isSelected = priorities.some(p=>p.area===area);
               const rank = priorities.find(p=>p.area===area)?.rank;
               return (
-                <button key={area} onClick={()=>togglePriority(area)} style={{ padding:"7px 14px", borderRadius:20, border:`1.5px solid ${isSelected?T.esp:T.linen}`, background:isSelected?T.esp:T.surface, color:isSelected?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", position:"relative" }}>
-                  {rank && <span style={{ position:"absolute", top:-6, right:-6, width:16, height:16, borderRadius:"50%", background:T.gold, color:T.onAction, fontFamily:F.sans, fontSize: 12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>{rank}</span>}
-                  {area}
-                </button>
+                <span key={area} style={{ position:"relative", display:"inline-flex" }}>
+                  <Pill label={area} active={priorities.some(p=>p.area===area)} onClick={()=>togglePriority(area)} />
+                  {rank && <span aria-hidden="true" style={{ position:"absolute", top:-6, right:-4, minWidth:18, height:18, borderRadius:9, background:T.surface, color:T.action, border:`1.5px solid ${T.action}`, fontFamily:F.sans, fontSize:TYPE.meta, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, pointerEvents:"none" }}>{rank}</span>}
+                </span>
               );
             })}
           </div>
@@ -201,113 +208,120 @@ export function ProfileScreen() {
 
         {/* Family people live in one place now */}
         <Card>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <Emoji e="💛" tile size={18} />
-            <div style={{ flex:1 }}>
-              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:0 }}>Your family</p>
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>Partner, kids, grandparents and friends, with birthdays and school details</p>
-            </div>
-            <button onClick={()=>setActiveTab("family")} style={{ background:T.goldP, border:`1px solid ${alpha(T.gold, 0.25)}`, borderRadius:10, padding:"8px 12px", fontFamily:F.sans, fontSize:12, color:T.gold, cursor:"pointer", minHeight:36, flexShrink:0 }}>Open ›</button>
-          </div>
+          <ListRow divider={false}
+            leading={<Emoji e="💛" tile size={18} />}
+            title="Your family"
+            detail="Partner, kids, grandparents and friends, with birthdays and school details"
+            trailing={<Button size="sm" variant="gentle" onClick={()=>setActiveTab("family")} style={{ width:"auto", flexShrink:0 }}>Open</Button>} />
         </Card>
 
-        <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Personal"}</Button>
+        {saveBtn("Save personal")}
       </>}
 
       {/* ── HEALTH per blueprint ───────────────────────────────────── */}
       {section==="health" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Energy pattern</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-            {ENERGY_PATTERNS.map(e=>(
-              <button key={e.value} onClick={()=>setEnergyPattern(e.value)} style={{ padding:"10px", borderRadius:14, border:`2px solid ${energyPattern===e.value?T.sky:T.linen}`, background:energyPattern===e.value?T.skyP:T.surface, color:energyPattern===e.value?T.sky:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", minHeight:48 }}>
-                <Emoji e={e.emoji} size={15} /> {e.label}
-              </button>
-            ))}
+          {label("Energy pattern")}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:S.sm }}>
+            {ENERGY_PATTERNS.map(e=>{
+              const on = energyPattern===e.value;
+              return (
+                <button key={e.value} onClick={()=>setEnergyPattern(e.value)} aria-pressed={on} style={{ padding:"10px", borderRadius:14, border:`1.5px solid ${on?T.action:T.divider}`, background:on?alpha(T.action, 0.12):T.surface, color:on?T.action:T.text, fontFamily:F.sans, fontSize:TYPE.support, fontWeight:on?600:500, cursor:"pointer", touchAction:"manipulation", minHeight:48, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                  <Emoji e={e.emoji} size={16} /> {e.label}
+                </button>
+              );
+            })}
           </div>
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Fitness level</p>
-          <div style={{ display:"flex", gap:6 }}>
+          {label("Fitness level")}
+          <div style={chips}>
             {FITNESS_LEVELS.map(f=>(
-              <button key={f} onClick={()=>setFitnessLevel(f)} style={{ flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${fitnessLevel===f?T.sage:T.linen}`, background:fitnessLevel===f?`${alpha(T.sage, 0.08)}`:T.surface, color:fitnessLevel===f?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{f}</button>
+              <Pill key={f} label={f} active={fitnessLevel===f} onClick={()=>setFitnessLevel(f)} />
             ))}
           </div>
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Daily goals</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+          {label("Daily goals")}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:S.md, marginBottom:S.lg }}>
             <div>
-              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 6px" }}>Sleep goal (hours)</p>
-              <div style={{ display:"flex", gap:4 }}>
+              <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:T.text, margin:`0 0 ${S.sm}px` }}>Sleep goal, hours</p>
+              <div style={{ display:"flex", gap:S.xs }}>
                 {[6,7,8,9].map(h=>(
-                  <button key={h} onClick={()=>setSleepGoal(h)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${sleepGoal===h?T.sky:T.linen}`, background:sleepGoal===h?T.skyP:T.surface, color:sleepGoal===h?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{h}</button>
+                  <button key={h} onClick={()=>setSleepGoal(h)} aria-pressed={sleepGoal===h} style={{ flex:1, minHeight:44, padding:"8px 0", borderRadius:10, border:`1.5px solid ${sleepGoal===h?T.action:T.divider}`, background:sleepGoal===h?T.action:T.surface, color:sleepGoal===h?T.onAction:T.text, fontFamily:F.sans, fontSize:TYPE.body, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>{h}</button>
                 ))}
               </div>
             </div>
             <div>
-              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 6px" }}>Water goal (glasses)</p>
-              <div style={{ display:"flex", gap:4 }}>
+              <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:T.text, margin:`0 0 ${S.sm}px` }}>Water goal, glasses</p>
+              <div style={{ display:"flex", gap:S.xs }}>
                 {[6,8,10,12].map(w=>(
-                  <button key={w} onClick={()=>setWaterGoal(w)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${waterGoal===w?T.sky:T.linen}`, background:waterGoal===w?T.skyP:T.surface, color:waterGoal===w?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{w}</button>
+                  <button key={w} onClick={()=>setWaterGoal(w)} aria-pressed={waterGoal===w} style={{ flex:1, minHeight:44, padding:"8px 0", borderRadius:10, border:`1.5px solid ${waterGoal===w?T.action:T.divider}`, background:waterGoal===w?T.action:T.surface, color:waterGoal===w?T.onAction:T.text, fontFamily:F.sans, fontSize:TYPE.body, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>{w}</button>
                 ))}
               </div>
             </div>
           </div>
-          <Input value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal (e.g. run 5k, yoga daily)" style={{ marginBottom:8 }}/>
-          <Input value={allergies} onChange={setAllergies} placeholder="Allergies / medications (comma separated)"/>
+          <div style={{ display:"flex", flexDirection:"column", gap:S.md }}>
+            <Input label="Fitness goal" value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal (e.g. run 5k, yoga daily)"/>
+            <Input label="Allergies and medications, separated by commas" value={allergies} onChange={setAllergies} placeholder="Allergies / medications (comma separated)"/>
+          </div>
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Dietary preferences</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          {label("Dietary preferences")}
+          <div style={chips}>
             {["Vegetarian","Vegan","Gluten-free","Dairy-free","Halal","Kosher","Pescatarian","No restrictions"].map(d=>(
-              <button key={d} onClick={()=>setDiet(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${diet.includes(d)?T.sage:T.linen}`, background:diet.includes(d)?`${alpha(T.sage, 0.08)}`:T.surface, color:diet.includes(d)?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{d}</button>
+              <Pill key={d} label={d} active={diet.includes(d)} onClick={()=>setDiet(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d])} />
             ))}
           </div>
         </Card>
 
-        <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Health"}</Button>
+        {saveBtn("Save health")}
       </>}
 
       {/* ── GOALS per blueprint ────────────────────────────────────── */}
       {section==="goals" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Your goals</p>
-          <Input value={biggestChallenge} onChange={setBiggestChallenge} placeholder="Biggest challenge right now" style={{ marginBottom:8 }}/>
-          <Input value={nextTrip} onChange={setNextTrip} placeholder="Next trip goal (e.g. Bali in December)" style={{ marginBottom:8 }}/>
-          <Input value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal" style={{ marginBottom:8 }}/>
-          <Input value={savingsGoal} onChange={setSavingsGoal} placeholder={`Savings goal (e.g. Emergency fund ${currencySymbol(getCurrency())}10k)`}/>
+          {label("Your goals")}
+          <div style={{ display:"flex", flexDirection:"column", gap:S.md }}>
+            <Input label="Biggest challenge right now" value={biggestChallenge} onChange={setBiggestChallenge} placeholder="Biggest challenge right now"/>
+            <Input label="Next trip goal" value={nextTrip} onChange={setNextTrip} placeholder="Next trip goal (e.g. Bali in December)"/>
+            <Input label="Fitness goal" value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal"/>
+            <Input label="Savings goal" value={savingsGoal} onChange={setSavingsGoal} placeholder={`Savings goal (e.g. Emergency fund ${currencySymbol(getCurrency())}10k)`}/>
+          </div>
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Active goals</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+          {label("Active goals")}
+          <div style={chips}>
             {["Get promoted","Run 5k",`Save ${currencySymbol(getCurrency())}5k`,"Travel more","Read 12 books","Learn to cook","Better sleep","More self-care","Make new friends","Work-life balance"].map(g=>(
-              <button key={g} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${activeGoals.includes(g)?T.esp:T.linen}`, background:activeGoals.includes(g)?T.esp:T.surface, color:activeGoals.includes(g)?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{g}</button>
+              <Pill key={g} label={g} active={activeGoals.includes(g)} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} />
             ))}
           </div>
         </Card>
 
-        <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Goals"}</Button>
+        {saveBtn("Save goals")}
       </>}
 
       {/* ── MEMORY: one place to manage it now (What Cleo knows) ─────── */}
       {section==="memory" && (
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:14, color:T.bark, margin:"0 0 12px", lineHeight:1.6 }}>
-            Everything Cleo remembers is in one place now: see it, add to it, or ask her to forget something.
-          </p>
-          <Button onClick={() => setActiveTab("memory")} variant="secondary">Open What Cleo knows</Button>
+          <ListRow divider={false}
+            leading={<Emoji e="🧠" tile size={18} />}
+            title="What Cleo knows"
+            detail="Everything Cleo remembers is in one place now: see it, add to it, or ask her to forget something." />
+          <div style={{ marginTop: S.md }}>
+            <Button onClick={() => setActiveTab("memory")} variant="secondary">Open What Cleo knows</Button>
+          </div>
         </Card>
       )}
 
       {/* Sign out */}
-      <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:14, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", marginTop:8, minHeight:44 }}>
+      <Button variant="secondary" style={{ marginTop: S.sm }} onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }}>
         Sign out
-      </button>
+      </Button>
     </div>
   );
 }

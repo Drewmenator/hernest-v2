@@ -51,9 +51,61 @@ export const sampleWearable: WearableDay = {
   activeMins: 10, mindfulMins: 5, history: hist,
 };
 
+
+const sampleTrips = [
+  {
+    id: "trip1", destination: "Lisbon, Portugal", country: "Portugal", departureDate: day(12), returnDate: day(17), nights: 5, state: "preparing",
+    travellers: [
+      { id: "self", name: "Jess", age: 36, type: "adult", role: "other", fromProfile: true },
+      { id: "p1", name: "Sam", age: 38, type: "adult", role: "partner", fromProfile: true },
+      { id: "k1", name: "Maya", age: 7, type: "child", role: "kid", fromProfile: true },
+      { id: "k2", name: "Leo", age: 4, type: "child", role: "kid", fromProfile: true },
+    ],
+    budget: { total: 4800, currency: "USD", spent: 1700, breakdown: { flights: 1680, accommodation: 1440, food: 720, activities: 480, transport: 240, contingency: 240 } },
+    itinerary: [
+      { day: 1, date: day(12), theme: "Arrive and wander Alfama", morning: "Land, taxi to the apartment", afternoon: "Slow walk through Alfama's lanes", evening: "Early family dinner near the square", tip: "Grab a rechargeable transit card at the airport.", mumMoment: "A quiet coffee on the terrace while the kids nap." },
+      { day: 2, date: day(13), theme: "Belem and the river", morning: "Pastries and the riverside park", afternoon: "Tram ride and a playground stop", evening: "Casual seafood spot by the water", tip: "Go to Belem before 10 to skip the lines.", mumMoment: "A long, unhurried lunch with a glass of vinho verde." },
+    ],
+    packingList: [
+      { name: "Mom", items: [
+        { name: "Passport", quantity: 1, essential: true, checked: true, custom: false },
+        { name: "Comfortable walking shoes", quantity: 1, essential: true, checked: false, custom: false, weatherDependent: true },
+        { name: "Light rain jacket", quantity: 1, essential: false, checked: false, custom: false, weatherDependent: true },
+      ] },
+      { name: "Kids", items: [
+        { name: "Favorite stuffed animals", quantity: 2, essential: true, checked: false, custom: false },
+        { name: "Sun hats", quantity: 2, essential: false, checked: true, custom: false, weatherDependent: true },
+        { name: "Snack stash", quantity: 1, essential: false, checked: false, custom: false },
+      ] },
+    ],
+    preDeparture: [
+      { task: "Check passport expiry dates", deadline: "60 days before", category: "document", completed: true },
+      { task: "Book flights and accommodation", deadline: "90 days before", category: "booking", completed: true },
+      { task: "Arrange travel insurance", deadline: "30 days before", category: "document", completed: false },
+      { task: "Notify bank of travel dates", deadline: "7 days before", category: "notification", completed: false },
+      { task: "Pack medications and first aid", deadline: "2 days before", category: "health", completed: false },
+    ],
+    documents: [
+      { type: "passport", status: "ready", traveller: "Jess" },
+      { type: "passport", status: "needed", traveller: "Sam" },
+      { type: "passport", status: "expired", traveller: "Maya" },
+      { type: "insurance", status: "needed" },
+      { type: "booking", status: "ready" },
+    ],
+    createdAt: Date.now() - 86400000 * 20,
+  },
+  {
+    id: "trip2", destination: "Asheville, North Carolina", country: "North Carolina", departureDate: day(-70), returnDate: day(-66), nights: 4, state: "completed",
+    travellers: [{ id: "self", name: "Jess", age: 36, type: "adult" }, { id: "k1", name: "Maya", age: 7, type: "child" }],
+    budget: { total: 1800, currency: "USD", spent: 1650, breakdown: { flights: 0, accommodation: 800, food: 400, activities: 300, transport: 200, contingency: 100 } },
+    itinerary: [], packingList: [], preDeparture: [], documents: [], createdAt: Date.now() - 86400000 * 120,
+  },
+];
+
 export const sampleDocs: Record<string, Record<string, unknown>> = {
   calendar: sampleCalendar,
   thrive: { moveGoal: { type: "minutes", amount: 20, days: 3 }, movedDays: [day(-2)], habitPicks: ["water", "stretch"] },
+  trips: { trips: sampleTrips },
   circle: { contacts: [{ name: "Aunt Jo", birthday: day(3).slice(5) }] },
 };
 

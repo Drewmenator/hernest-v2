@@ -4,7 +4,7 @@
 // and props; new screens should prefer the Wisteria pieces below them
 // (SectionHeader, ListRow, StatusChip, TintCard, QuickAction, ...).
 import React from "react";
-import { T, F, R, S, TYPE, SHADOWS, alpha } from "../../config/theme";
+import { T, F, R, S, TYPE, SHADOWS, alpha, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { SparkleIcon, CheckIcon } from "./Icons";
 import { useReveal } from "../motion";
 import { haptic } from "../haptics";
@@ -348,15 +348,18 @@ export function CleoActionCard({
   const done = state === "done";
   const label = state === "preparing" ? "Preparing" : state === "waiting" ? "Waiting for your OK" : "Done";
   return (
-    <div role={state === "preparing" ? "status" : undefined} style={{ background: T.surface, borderRadius: R.card, padding: "12px 14px", boxShadow: `inset 0 0 0 1.5px ${done ? T.householdBg : T.cleoBg}`, marginBottom: S.sm }}>
-      <p style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: done ? T.householdInk : T.action, margin: 0 }}>
+    <div role={state === "preparing" ? "status" : undefined} style={{
+      background: done ? ATMOS.household.base : ATMOS.cleo.base, boxShadow: done ? ATMOS.household.shadow : ATMOS.cleo.shadow,
+      border: `1px solid ${T.glass}`, borderRadius: R.card + 4, padding: "14px 16px", marginBottom: S.sm,
+    }}>
+      <p style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: done ? ATMOS.household.ink : ATMOS.cleo.ink, margin: 0, background: T.glassStrong, borderRadius: 99, padding: "4px 10px" }}>
         {state === "preparing" && <Spinner size={13} />}
-        {state === "waiting" && <SparkleIcon size={14} color={T.action} filled />}
-        {done && <CheckIcon size={14} color={T.householdInk} strokeWidth={2.6} />}
+        {state === "waiting" && <SparkleIcon size={14} color={ATMOS.cleo.ink} filled />}
+        {done && <CheckIcon size={14} color={ATMOS.household.ink} strokeWidth={2.6} />}
         {label}
       </p>
-      <div style={{ fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 600, color: T.text, marginTop: 6, lineHeight: 1.4 }}>{title}</div>
-      {detail && <div style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text2, marginTop: 2 }}>{detail}</div>}
+      <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 500, letterSpacing: "-0.01em", color: T.text, marginTop: 10, lineHeight: 1.3 }}>{title}</div>
+      {detail && <div style={{ fontFamily: F.sans, fontSize: TYPE.support, color: ATMOS_TEXT2, marginTop: 4 }}>{detail}</div>}
       {state === "waiting" && (onConfirm || onDecline) && (
         <div style={{ display: "flex", gap: S.sm, marginTop: S.md }}>
           {onConfirm && <Button size="sm" onClick={onConfirm} style={{ width: "auto" }}>{confirmLabel}</Button>}
@@ -540,6 +543,7 @@ export function EmptyState({
   actionLabel,
   onAction,
   tint = "cleo",
+  bare,
 }: {
   icon?: React.ReactNode;
   title: string;
@@ -547,10 +551,18 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
   tint?: Tint;
+  // Already inside a card: skip the frosted panel.
+  bare?: boolean;
 }) {
   const c = TINT[tint];
+  // On the open page it sits on a frosted panel, so the tab's artwork
+  // never runs behind the words.
+  const panel: React.CSSProperties = bare ? {} : {
+    background: T.frost, border: `1px solid ${T.glass}`, borderRadius: R.card + 6, boxShadow: SHADOWS.sm,
+    backdropFilter: "blur(18px) saturate(160%)", WebkitBackdropFilter: "blur(18px) saturate(160%)", marginBottom: S.md,
+  };
   return (
-    <div style={{ textAlign: "center", padding: "32px 20px" }}>
+    <div style={{ textAlign: "center", padding: "32px 20px", ...panel }}>
       <div style={{ width: 60, height: 60, borderRadius: 20, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 24, color: c.ink }}>
         {icon ?? <SparkleIcon size={26} color={c.ink} filled />}
       </div>
@@ -578,7 +590,7 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
         return (
           <button key={o.id} role="tab" aria-selected={on} onClick={() => onChange(o.id)}
             style={{ flex: 1, minWidth: 0, minHeight: 40, borderRadius: 11, border: "none", cursor: "pointer", touchAction: "manipulation",
-              background: on ? T.surface : "transparent", boxShadow: on ? "0 1px 3px rgba(28,61,90,.12)" : "none",
+              background: on ? T.surface : "transparent", boxShadow: on ? SHADOWS.sm : "none",
               fontFamily: F.sans, fontSize: 14, fontWeight: on ? 700 : 500, color: on ? T.text : T.text2,
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 6px", whiteSpace: "nowrap" }}>
             {o.label}
