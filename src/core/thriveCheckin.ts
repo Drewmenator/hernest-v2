@@ -2,7 +2,7 @@
 // Cleo's morning check-in paragraph + the single contextual nudge.
 // Pure logic exported for tests; AI generation with a strict
 // no-invented-data prompt and a static fallback built from real numbers.
-import type { WearableDay } from "./wellnessAutoTrack";
+import { vsUsual, type WearableDay } from "./wellnessAutoTrack";
 import { todayLocal } from "./dateAwareness";
 
 // ── Nudge: at most ONE, priority-ordered, always skippable ─────────
@@ -25,24 +25,63 @@ export function pickNudge(w: WearableDay | null, waterGlasses: number, hour: num
   return null;
 }
 
-// ── Static check-in (fallback + no-AI path). Real numbers only. ────
+// ── What Cleo reads the day from ────────────────────────────────────
+// She doesn't ask how you feel: the measured numbers say more. With Oura the
+// tone follows readiness; with Apple Health (no readiness score) it follows
+// sleep and how heart rate variability compares with her own usual.
+export type DayTone = "lighter" | "steady" | "strong" | null;
+
+export function dayTone(w: WearableDay | null): DayTone {
+  if (!w) return null;
+  if (w.readiness != null) return w.readiness >= 85 ? "strong" : w.readiness >= 60 ? "steady" : "lighter";
+  const hrv = vsUsual(w.avgHrv, w.history, "hrv", w.date);
+  const short = w.sleepHours != null && w.sleepHours < 6;
+  const rested = w.sleepHours != null && w.sleepHours >= 7;
+  if (short || (hrv?.word === "below" && hrv.diffPct <= -15)) return "lighter";
+  if (rested && hrv?.word !== "below") return "strong";
+  if (w.sleepHours == null && !hrv) return null;
+  return "steady";
+}
+
+// The measured facts Cleo's note may use. Nothing here is estimated.
+export function checkinFacts(w: WearableDay): string[] {
+  const hrv = vsUsual(w.avgHrv, w.history, "hrv", w.date);
+  const rhr = vsUsual(w.restingHr, w.history, "restingHr", w.date);
+  const usual = (v: ReturnType<typeof vsUsual>, unit: string) => (v ? ` (${v.word} her usual ${v.usual}${unit})` : "");
+  return [
+    w.sleepHours != null ? `Sleep: ${w.sleepHours}h${w.sleepScore != null ? `, score ${w.sleepScore}/100` : ""}` : null,
+    w.readiness != null ? `Readiness: ${w.readiness}/100` : null,
+    w.avgHrv != null ? `Heart rate variability: ${w.avgHrv}ms${usual(hrv, "ms")}` : null,
+    w.restingHr != null ? `Resting heart rate: ${w.restingHr}bpm${usual(rhr, "bpm")}` : null,
+    w.stressDay ? `Yesterday's stress balance: ${w.stressDay} (${w.stressHighMins ?? 0}min stress-high vs ${w.recoveryHighMins ?? 0}min recovery-high)` : null,
+    w.steps != null ? `Steps so far today: ${w.steps}` : null,
+    w.activeMins != null ? `Active minutes today: ${w.activeMins}` : null,
+    w.mindfulMins ? `Mindful minutes today: ${w.mindfulMins}` : null,
+  ].filter((x): x is string => !!x);
+}
+
+// ── Static note (fallback + no-AI path). Real numbers only. ────────
 export function buildCheckinFallback(w: WearableDay | null, name: string): string {
-  if (!w || (w.sleepHours == null && w.readiness == null)) {
-    return `Good morning${name ? `, ${name}` : ""} ✦ I don't have your night's data yet — how are you feeling today?`;
+  const hi = `Good morning${name ? `, ${name}` : ""} ✦`;
+  if (!w || (w.sleepHours == null && w.readiness == null && w.avgHrv == null)) {
+    return `${hi} I don't have last night's numbers yet. Once Apple Health or Oura syncs, your note for today will be here.`;
   }
   const bits: string[] = [];
   if (w.sleepHours != null) bits.push(`you slept ${w.sleepHours}h${w.sleepScore != null ? ` (score ${w.sleepScore})` : ""}`);
   if (w.readiness != null) bits.push(`your body's at ${w.readiness} readiness`);
+  else {
+    const hrv = vsUsual(w.avgHrv, w.history, "hrv", w.date);
+    if (hrv && hrv.word !== "about") bits.push(`your heart rate variability is ${hrv.word} your usual`);
+  }
   if (w.stressDay === "restored") bits.push("and yesterday ended more restored than stressed");
-  else if (w.stressDay === "stressful") bits.push("and yesterday ran stressful — today gets to be gentler");
+  else if (w.stressDay === "stressful") bits.push("and yesterday ran stressful, so today gets to be gentler");
 
-  const tone =
-    w.readiness == null ? "" :
-    w.readiness >= 85 ? " A genuinely strong day — good one for the thing you've been putting off." :
-    w.readiness >= 60 ? " A steady day — pace yourself and it'll all fit." :
-    " Your body's asking for a lighter day. Protect what you can.";
-
-  return `Good morning${name ? `, ${name}` : ""} ✦ ${bits.join(", ")}.${tone} The one thing I can't measure: how do you feel?`;
+  const tone = {
+    strong: " A strong day. A good one for the thing you've been putting off.",
+    steady: " A steady day. Pace yourself and it'll all fit.",
+    lighter: " Your body's asking for a lighter day. Protect what you can.",
+  }[dayTone(w) || "steady"];
+  return bits.length ? `${hi} ${bits.join(", ")}.${tone}` : `${hi}${tone}`;
 }
 
 // ── AI check-in with cache + fallback ───────────────────────────────
@@ -54,30 +93,25 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
     const [{ ai }, { loadData, saveData }] = await Promise.all([import("./ai"), import("./firebase")]);
     const today = todayLocal();
 
-    // Cache: one generation per day
+    // Cache: one generation per day (v2: notes no longer end with a question)
     const cached = await loadData(uid, "thrive_checkin");
-    if (cached?.date === today && typeof cached.text === "string" && cached.text) return cached.text as string;
+    if (cached?.date === today && cached.v === 2 && typeof cached.text === "string" && cached.text) return cached.text as string;
 
-    const facts = [
-      w.sleepHours != null ? `Sleep: ${w.sleepHours}h${w.sleepScore != null ? `, score ${w.sleepScore}/100` : ""}` : null,
-      w.readiness != null ? `Readiness: ${w.readiness}/100` : null,
-      w.avgHrv != null ? `Average HRV: ${w.avgHrv}ms` : null,
-      w.restingHr != null ? `Resting HR: ${w.restingHr}bpm` : null,
-      w.stressDay ? `Yesterday's stress balance: ${w.stressDay} (${w.stressHighMins ?? 0}min stress-high vs ${w.recoveryHighMins ?? 0}min recovery-high)` : null,
-      w.steps != null ? `Steps so far today: ${w.steps}` : null,
-    ].filter(Boolean).join("\n");
+    const facts = checkinFacts(w).join("\n");
+    const tone = dayTone(w);
 
-    const sys = `You are Cleo, a warm household chief of staff. Write ONE short check-in paragraph (2-3 sentences, max 55 words) for ${name || "her"} using ONLY the measured data below. Rules:
-- Reference 2-3 of the strongest signals in plain language — no jargon, no listing every number
+    const sys = `You are Cleo, a warm household chief of staff. Write ONE short note for today (2-3 sentences, max 55 words) for ${name || "her"} using ONLY the measured data below. Rules:
+- Reference 2-3 of the strongest signals in plain language. No jargon, no listing every number.
 - Never invent data. Never mention data you weren't given.
-- Tone follows readiness: low (<60) = protective and permission-giving; mid = steady; high (85+) = quietly energizing
-- End by asking how she feels — that's the one thing you can't measure
-- No greetings like "Good morning" (the UI adds context), no emoji except at most one ✦`;
+- Read her day from the numbers; don't ask how she feels or how her energy is.
+- Tone: ${tone === "lighter" ? "protective and permission-giving, her body needs a lighter day" : tone === "strong" ? "quietly energizing, it's a strong day" : "steady and encouraging"}.
+- End with one small, practical suggestion for today, not a question.
+- No greetings like "Good morning" (the UI adds context), no emoji except at most one ✦, no em dashes.`;
 
     const result = await ai(sys, facts, "cleo_checkin");
     if (result.error || !result.text.trim()) return fallback;
     const text = result.text.trim();
-    await saveData(uid, "thrive_checkin", { date: today, text }).catch(() => {});
+    await saveData(uid, "thrive_checkin", { date: today, text, v: 2 }).catch(() => {});
     return text;
   } catch {
     return fallback;

@@ -2,7 +2,6 @@
 // OLD versions, so existing users don't hit a blank or broken screen.
 import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { todayLocal } from "../../core/dateAwareness";
 
 const setActiveTab = vi.fn();
 vi.mock("../../core/store", () => {
@@ -17,20 +16,19 @@ vi.mock("../../core/ai", () => ({ ai: vi.fn() }));
 vi.mock("../../core/upcomingEvents", () => ({ loadUpcomingEvents: vi.fn(() => Promise.resolve([])) }));
 vi.mock("../../core/appleHealth", () => ({ appleHealthSupported: () => false, appleHealthNeedsUpgrade: () => Promise.resolve(false) }));
 vi.mock("../../core/wellnessAutoTrack", () => ({ autoTrackWellness: vi.fn(() => Promise.resolve({ wearable: null, sleepLogged: false, moveDone: false })) }));
-vi.mock("../../core/thriveCheckin", () => ({ generateCheckin: vi.fn(() => Promise.resolve("I don't have your night's data yet.")) }));
+vi.mock("../../core/thriveCheckin", () => ({ generateCheckin: vi.fn(() => Promise.resolve("I don't have your night's data yet.")), dayTone: () => null }));
 vi.mock("../style/styleWeather", () => ({ weatherForOutfit: vi.fn(() => Promise.resolve({ temp: 54, feelsLike: 52, condition: "Light rain", icon: "🌧", humidity: 80, windSpeed: 5, unit: "F" })) }));
 
-import { loadData, saveData } from "../../core/firebase";
+import { loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { ThriveScreen } from "./ThriveScreen";
 import { StyleScreen } from "../style/StyleScreen";
 import { CLEO_PREFILL_KEY } from "../../shared/utils/openCleo";
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); sessionStorage.clear(); });
-const today = todayLocal();
 
 describe("Wellness screen", () => {
-  it("opens on an old thrive doc, logs mood in the shared format, and hands off to Cleo", async () => {
+  it("opens on an old thrive doc without asking about mood or energy, and hands off to Cleo", async () => {
     (loadData as Mock).mockResolvedValue({
       moodLog: [{ date: "2026-01-02", rating: 9, label: "Good" }],
       habits: [{ id: "water", name: "Drink 8 glasses", done: false, streak: 3 }],
@@ -43,11 +41,10 @@ describe("Wellness screen", () => {
     expect(screen.queryByText(/Weekly Score/i)).toBeNull();
     expect(screen.getByText("+ Add small habits (optional)")).toBeTruthy();
 
-    fireEvent.click(screen.getByLabelText("Feeling Good"));
-    await waitFor(() => expect(saveData).toHaveBeenCalled());
-    const [, coll, data] = (saveData as Mock).mock.calls[0];
-    expect(coll).toBe("thrive");
-    expect(data.moodLog[1]).toMatchObject({ date: today, rating: 9, label: "Good", value: 4 });
+    // Cleo reads the day from the body data now; no mood or energy question
+    expect(screen.queryByText("How are you feeling?")).toBeNull();
+    expect(screen.queryByText("Energy?")).toBeNull();
+    expect(screen.queryByLabelText("Feeling Good")).toBeNull();
 
     fireEvent.click(screen.getByText("7,000 steps a day"));
     await screen.findByText("I moved today");

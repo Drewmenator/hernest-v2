@@ -9,7 +9,7 @@ import { currencySymbol } from "../shared/utils/money";
 import { daysUntilBirthday, todayLocal } from "./dateAwareness";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
 import { buildHouseholdSnapshot } from "./household/householdSnapshot";
-import { readWearable, type WearableDay } from "./wellnessAutoTrack";
+import { readWearable, vsUsual, type WearableDay } from "./wellnessAutoTrack";
 import type { HouseholdSnapshot } from "./store";
 
 // ── Tone Profiles (unchanged) ─────────────────────────────────────
@@ -106,6 +106,9 @@ export interface AppContext {
     sleepScore: number | null;  // Oura sleep score (0-100)
     wearableSource: WearableDay["source"] | null;
     stressDay: "restored" | "normal" | "stressful" | null;
+    // Measured body facts in plain words (Apple Health or Oura), e.g.
+    // "heart rate variability 38ms, below her usual 45ms". No readiness needed.
+    bodyFacts?: string[];
   };
 
   // Trips
@@ -143,6 +146,19 @@ export interface AppContext {
 }
 
 // ── Select tone (unchanged) ───────────────────────────────────────
+// Plain-words body facts for Cleo, from measured data only.
+export function bodyFactsFor(w: WearableDay | null): string[] {
+  if (!w) return [];
+  const usual = (v: ReturnType<typeof vsUsual>, unit: string) => (v ? `, ${v.word} her usual ${v.usual}${unit}` : "");
+  return [
+    w.sleepHours != null ? `slept ${w.sleepHours}h` : null,
+    w.avgHrv != null ? `heart rate variability ${w.avgHrv}ms${usual(vsUsual(w.avgHrv, w.history, "hrv", w.date), "ms")}` : null,
+    w.restingHr != null ? `resting heart rate ${w.restingHr}bpm${usual(vsUsual(w.restingHr, w.history, "restingHr", w.date), "bpm")}` : null,
+    w.steps != null ? `${w.steps} steps so far` : null,
+    w.activeMins != null ? `${w.activeMins} active minutes` : null,
+  ].filter((x): x is string => !!x);
+}
+
 export function selectToneProfile(sleepTrend: number[], moodTrend: number[]): ToneProfile {
   const avgSleep = sleepTrend.length ? sleepTrend.reduce((a,b)=>a+b,0)/sleepTrend.length : 0;
   const avgMood  = moodTrend.length  ? moodTrend.reduce((a,b)=>a+b,0)/moodTrend.length   : 3;
@@ -364,6 +380,7 @@ export async function buildAppContext(
       sleepScore: wearable?.sleepScore ?? null,
       wearableSource: wearable?.source ?? null,
       stressDay: wearable?.stressDay ?? null,
+      bodyFacts: bodyFactsFor(wearable),
     },
 
     // Trips
@@ -447,10 +464,14 @@ export function buildBriefingPrompt(ctx: AppContext): string {
 
   lines.push(`=== THRIVE ===`);
   lines.push(`Sleep last night: ${ctx.thrive.sleepLast||"not logged"}h. 7-day trend: ${ctx.thrive.sleepTrend.join(", ")||"no data"}.`);
-  lines.push(`Water: ${ctx.thrive.water}/8. Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done. Mood: ${ctx.thrive.mood||"not logged"}/5.`);
+  // Mood and energy are no longer asked; read her day from the body data.
+  lines.push(`Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`);
   if (ctx.thrive.readiness != null) {
     const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
     lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}${ctx.thrive.stressDay ? `. Yesterday's stress balance: ${ctx.thrive.stressDay}` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task. If yesterday was stressful, acknowledge it and keep today's asks lighter.`);
+  }
+  if (ctx.thrive.readiness == null && ctx.thrive.bodyFacts?.length) {
+    lines.push(`BODY (${ctx.thrive.wearableSource === "apple_health" ? "Apple Health" : "wearable"}, measured): ${ctx.thrive.bodyFacts.join("; ")}. Use this instead of asking how she feels. Short sleep (under 6h) or heart rate variability well below her usual: protect her day and suggest trimming non-essentials. Rested and steady: a good day for the hardest task. Never invent a readiness score.`);
   }
   if (ctx.thrive.weeklyScore) lines.push(`Weekly wellness score: ${ctx.thrive.weeklyScore}/10.`);
   lines.push(``);
