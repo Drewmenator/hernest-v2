@@ -476,10 +476,11 @@ ${stateAddendum}`;
     } else if (FLAGS.CLEO_AGENT && classification.feature === "cleo_chat") {
       // ── Cleo v2 agent (Phase 2): tool loop so she can ACT, not just answer ──
       const todayStr = todayLocal();
+      const nowStr = new Date().toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" });
       const agentSystem = `${systemPrompt}
 
 === ACTIONS YOU CAN TAKE ===
-Today is ${todayStr}. You can act in the app using tools: add_task, complete_task, add_calendar_event. When the user asks you to add/note/remind, schedule/book, or mark something done, CALL THE TOOL — don't just say you will. Resolve relative dates like "tomorrow" to YYYY-MM-DD using today's date. After acting, confirm briefly and warmly. For anything that isn't an action request, just answer normally.`;
+Today is ${todayStr} (${nowStr} now). You can act in the app using tools: add_task, complete_task, add_calendar_event. When the user asks you to add/note/remind, schedule/book, or mark something done, CALL THE TOOL — don't just say you will. Resolve relative dates like "tomorrow" to YYYY-MM-DD using today's date. When the user asks to be reminded at a time ("remind me at 3pm", "tomorrow morning"), pass remindAt to add_task and then say exactly when you'll remind them. After acting, confirm briefly and warmly. For anything that isn't an action request, just answer normally.`;
       const agentHistory = conversationHistory
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
