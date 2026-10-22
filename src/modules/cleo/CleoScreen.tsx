@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
@@ -6,11 +6,10 @@ import { Spinner } from "../../shared/components";
 import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
-import { useAdaptiveUX } from "../../core/household/adaptiveUX";
-import { useContextGraph } from "../../core/graph";
 import { saveData, loadData } from "../../core/firebase";
 import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
 import toast from "react-hot-toast";
+import { CLEO_PREFILL_KEY } from "../../shared/utils/openCleo";
 
 interface Msg { role: "user"|"assistant"; content: string; type?: "text"|"task-suggestion"|"crisis"; tasks?: ExtractedTask[]; }
 interface ExtractedTask { id: string; title: string; category: string; dueDate?: string; confidence: number; }
@@ -62,9 +61,7 @@ const QUICK_REPLIES = [
 ];
 
 export function CleoScreen() {
-  const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
-  const adaptiveConfig = useAdaptiveUX(householdSnapshot ?? null);
-  const { cleoPack } = useContextGraph();
+  const { user, profile, householdSnapshot, setHouseholdSnapshot } = useStore();
   const [msgs, setMsgs]       = useState<Msg[]>([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,6 +73,26 @@ export function CleoScreen() {
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   const name = (profile as any)?.name || "lovely";
+
+  // Another screen's "Ask Cleo" button can leave a message ready to send.
+  // Put it in the box (don't auto-send) and clear it so it only shows once.
+  useEffect(() => {
+    let prefill: string | null = null;
+    try {
+      prefill = sessionStorage.getItem(CLEO_PREFILL_KEY);
+      if (prefill) sessionStorage.removeItem(CLEO_PREFILL_KEY);
+    } catch { /* private mode */ }
+    if (!prefill) return;
+    setInput(prefill);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      el.focus();
+      el.setSelectionRange(prefill!.length, prefill!.length);
+    });
+  }, []);
 
   // ── Load household context on mount ──────────────────────────────
   useEffect(() => {
@@ -333,8 +350,9 @@ export function CleoScreen() {
     const current = (existing?.tasks as any[]) || [];
     const newTasks = pendingTasks.map(t => ({
       id: t.id, title: t.title, category: t.category,
-      done: false, priority: "medium", source: "cleo",
-      dueDate: t.dueDate || undefined, createdAt: Date.now(),
+      status: "pending", priority: "must", source: "cleo",
+      energyRequired: "medium", userConfirmed: true,
+      ...(t.dueDate ? { dueDate: t.dueDate } : {}), createdAt: Date.now(),
     }));
     await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
     for (const task of newTasks) {

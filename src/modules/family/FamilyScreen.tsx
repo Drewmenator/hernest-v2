@@ -1,516 +1,303 @@
-import React, { useState, useEffect } from "react";
+// ─── Your family: the one people list ────────────────────────────
+// Partner, kids, grandparents and close friends, each with birthday, gift
+// ideas, school (kids) and an optional check-in reminder. Opened from the You
+// menu. Chores and dinners now live in Plan; school dates are added in
+// Plan → School. On first open, Circle and Profile people are copied in
+// (ensurePeopleMerged) — the old data is never deleted.
+import { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
-import { useStore, FamilyMember, SchoolInfo }  from "../../core/store";
-import { Card, PageTitle, Pill, Spinner, EmptyState } from "../../shared/components";
+import { useStore, type FamilyMember } from "../../core/store";
+import { Card, PageTitle, EmptyState } from "../../shared/components";
 import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
-import { displayAge } from "../../core/dateAwareness";
-import { ai } from "../../core/ai";
-import { s } from "../../core/aiSchema";
+import { displayAge, daysUntilBirthday, todayLocal } from "../../core/dateAwareness";
+import { ensurePeopleMerged } from "../../core/familyPeopleSync";
+import { relationLabel, checkInDueIn, type Person, type CheckInEvery } from "../../core/familyPeople";
+import { openCleo } from "../../shared/utils/openCleo";
 import toast from "react-hot-toast";
 
-const ROLE_COLORS: Record<string, string> = {
-  partner: T.blush, child: T.sky, parent: T.sage, inlaw: T.orange, other: T.taupe,
-};
-const ROLE_ICONS: Record<string, string> = {
-  partner: "💛", child: "⭐", parent: "🌿", inlaw: "🌸", other: "✦",
-};
+const ROLE_ICONS: Record<string, string> = { partner: "💛", child: "⭐", parent: "🌿", inlaw: "🌸", other: "✦" };
 const MEMBER_COLORS = [T.gold, T.sage, T.sky, T.blush, T.esp, "#9b7ec8", "#e07b54"];
+const US_GRADES = ["Pre-K", "K", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
-interface FamilyTask {
-  id: string; title: string; assignedTo: string; done: boolean; dueDate?: string;
-}
-interface MealDay {
-  day: string; dinner: string;
-}
+// The relation chips map onto the stored role (+ a finer label).
+const RELATIONS: Array<{ id: string; label: string; role: FamilyMember["role"]; relation?: string }> = [
+  { id: "partner", label: "Partner", role: "partner" },
+  { id: "child", label: "Child", role: "child" },
+  { id: "grandparent", label: "Grandparent", role: "parent", relation: "grandparent" },
+  { id: "inlaw", label: "In-law", role: "inlaw" },
+  { id: "sibling", label: "Sibling", role: "other", relation: "sibling" },
+  { id: "friend", label: "Friend", role: "other", relation: "friend" },
+  { id: "other", label: "Other", role: "other", relation: "other" },
+];
+const relationIdOf = (p: Person) =>
+  p.role === "partner" ? "partner" : p.role === "child" ? "child" : p.role === "parent" ? "grandparent"
+  : p.role === "inlaw" ? "inlaw" : (RELATIONS.find(r => r.relation === p.relation)?.id || "friend");
 
-
-const COUNTRIES = [
-  { id:"US", flag:"🇺🇸", label:"United States" },
-  { id:"UK", flag:"🇬🇧", label:"United Kingdom" },
-  { id:"AU", flag:"🇦🇺", label:"Australia" },
-  { id:"CA", flag:"🇨🇦", label:"Canada" },
-  { id:"NG", flag:"🇳🇬", label:"Nigeria" },
-  { id:"GH", flag:"🇬🇭", label:"Ghana" },
-  { id:"ZA", flag:"🇿🇦", label:"South Africa" },
-  { id:"AE", flag:"🇦🇪", label:"UAE" },
-  { id:"other", flag:"🌍", label:"Other" },
+const CHECK_INS: Array<{ id: CheckInEvery | ""; label: string }> = [
+  { id: "", label: "Off" }, { id: "weekly", label: "Weekly" }, { id: "biweekly", label: "Every 2 weeks" },
+  { id: "monthly", label: "Monthly" }, { id: "quarterly", label: "Every 3 months" },
 ];
 
-const US_GRADES = ["Pre-K","K","1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th","11th","12th"];
-const UK_YEARS  = ["Nursery","Reception","Year 1","Year 2","Year 3","Year 4","Year 5","Year 6","Year 7","Year 8","Year 9","Year 10","Year 11","Year 12","Year 13"];
-const AU_YEARS  = ["Prep","Year 1","Year 2","Year 3","Year 4","Year 5","Year 6","Year 7","Year 8","Year 9","Year 10","Year 11","Year 12"];
+const GROUPS: Array<{ title: string; match: (p: Person) => boolean }> = [
+  { title: "Partner & kids", match: p => p.role === "partner" || p.role === "child" },
+  { title: "Grandparents & family", match: p => p.role === "parent" || p.role === "inlaw" || (p.role === "other" && p.relation !== "friend" && p.relation !== "colleague" && !!p.relation) },
+  { title: "Close friends", match: p => p.role === "other" && (!p.relation || p.relation === "friend" || p.relation === "colleague") },
+];
 
-function getGrades(country: string): string[] {
-  if (country === "UK") return UK_YEARS;
-  if (country === "AU") return AU_YEARS;
-  return US_GRADES;
+interface Draft {
+  name: string; relationId: string; birthDate: string; age: string; notes: string;
+  giftIdeas: string; checkIn: CheckInEvery | ""; schoolName: string; grade: string;
 }
+const EMPTY_DRAFT: Draft = { name: "", relationId: "child", birthDate: "", age: "", notes: "", giftIdeas: "", checkIn: "", schoolName: "", grade: "" };
 
-
-// ── Simple iCal parser ───────────────────────────────────────────
-function parseICal(text: string, childName: string, childColor: string) {
-  const events: any[] = [];
-  const blocks = text.split("BEGIN:VEVENT");
-  for (const block of blocks.slice(1)) {
-    const get = (key: string) => {
-      const match = block.match(new RegExp(key + "[^:]*:([^\r\n]+)"));
-      return match ? match[1].trim() : "";
-    };
-    const title = get("SUMMARY");
-    const dtstart = get("DTSTART");
-    const dtend = get("DTEND");
-    if (!title || !dtstart) continue;
-    const formatDate = (d: string) => {
-      const clean = d.replace(/T.*/, "");
-      return `${clean.slice(0,4)}-${clean.slice(4,6)}-${clean.slice(6,8)}`;
-    };
-    events.push({
-      id: `school_${childName}_${dtstart}_${Math.random().toString(36).slice(2,6)}`,
-      title: `${childName}: ${title}`,
-      date: formatDate(dtstart),
-      endDate: dtend ? formatDate(dtend) : undefined,
-      source: "school-term",
-      color: childColor,
-      child: childName,
-    });
-  }
-  return events;
-}
+const inputStyle = { width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" as const };
+const labelStyle = { display: "block", fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 4px 2px" };
+const chip = (on: boolean, color: string = T.esp) => ({ padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${on ? color : T.linen}`, background: on ? `${color}15` : "#fff", color: on ? color : T.bark, fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 });
 
 export function FamilyScreen() {
-  const { user, profile, familyMembers, setFamilyMembers } = useStore();
-  const [tab, setTab] = useState("members");
-  const [tasks, setTasks] = useState<FamilyTask[]>([]);
-  const [taskInput, setTaskInput] = useState("");
-  const [assignTo, setAssignTo] = useState("");
-  const [meals, setMeals] = useState<MealDay[]>([]);
-  const [generatingMeals, setGeneratingMeals] = useState(false);
-  const [cleoInput, setCleoInput] = useState("");
-  const [cleoResp, setCleoResp] = useState("");
-  const [cleoLoading, setCleoLoading] = useState(false);
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newRole, setNewRole] = useState<FamilyMember["role"]>("child");
-  const [newAge, setNewAge] = useState("");
-  const [newBirthDate, setNewBirthDate] = useState("");
-  const [newNotes, setNewNotes] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [schoolEditId, setSchoolEditId] = useState<string|null>(null);
-  const [schoolDraft, setSchoolDraft] = useState<SchoolInfo>({ country:"US", schoolType:"public" });
+  const { user, familyMembers, setFamilyMembers } = useStore();
+  const people = familyMembers as Person[];
+  const [editingId, setEditingId] = useState<string | null>(null);   // "new" for a new person
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const today = todayLocal();
 
   useEffect(() => {
     if (!user?.uid) return;
-    loadData(user.uid, "family").then(async d => {
-      if (d?.members && (d.members as any[]).length > 0) {
-        // Backfill birthDate onto members that predate date-of-birth tracking,
-        // matching profile kids by name. This makes ages self-correct (a child
-        // saved as "6" gets their real DOB and computes the current age live).
-        let members = d.members as FamilyMember[];
-        try {
-          const profileData = await loadData(user.uid, "profile");
-          const kids = ((profileData?.kids || profileData?.children || []) as any[]);
-          let changed = false;
-          members = members.map(m => {
-            if (m.birthDate || !m.name) return m;
-            const kid = kids.find(k => k?.name?.trim().toLowerCase() === m.name.trim().toLowerCase() && k?.birthDate);
-            if (kid) { changed = true; return { ...m, birthDate: kid.birthDate }; }
-            return m;
-          });
-          if (changed) await saveData(user.uid, "family", JSON.parse(JSON.stringify({ members, tasks: d.tasks || [], meals: d.meals || [] })));
-        } catch { /* non-fatal */ }
-        setFamilyMembers(members);
-      } else {
-        // Seed from profile if no family members yet
-        const profileData = await loadData(user.uid, "profile");
-        if (profileData) {
-          const seeded: FamilyMember[] = [];
-          const colors = ["#F472A0","#5BB8E8","#4CAF7D","#F97316","#C9A961","#8B7BB5"];
-          let ci = 0;
+    let alive = true;
+    (async () => {
+      const merged = await ensurePeopleMerged(user.uid);
+      const d = merged ? null : await loadData(user.uid, "family");
+      const members = merged || (d?.members as Person[]) || [];
+      if (alive) setFamilyMembers(members);
+    })();
+    return () => { alive = false; };
+  }, [user?.uid, setFamilyMembers]);
 
-          // Add partner
-          if (profileData.partner && (profileData.partner as any).name) {
-            seeded.push({
-              id: crypto.randomUUID(),
-              name: (profileData.partner as any).name,
-              role: "partner",
-              color: colors[ci++ % colors.length],
-            });
-          }
-
-          // Add children
-          const kids = (profileData.kids || profileData.children || []) as any[];
-          for (const k of kids) {
-            if (!k.name) continue;
-            seeded.push({
-              id: k.id || crypto.randomUUID(),
-              name: k.name,
-              role: "child",
-              // Store the DOB, not a frozen age — age is computed live on display.
-              birthDate: k.birthDate || undefined,
-              age: typeof k.age === "number" ? k.age : undefined,
-              notes: [k.school, (k.allergies||[]).join(", ")].filter(Boolean).join(" · ") || undefined,
-              color: colors[ci++ % colors.length],
-            });
-          }
-
-          if (seeded.length > 0) {
-            setFamilyMembers(seeded);
-            await saveData(user.uid, "family", JSON.parse(JSON.stringify({ members: seeded, tasks: [], meals: [] })));
-          }
-        }
-      }
-      if (d?.tasks) setTasks(d.tasks as FamilyTask[]);
-      if (d?.meals) setMeals(d.meals as MealDay[]);
-    });
-  }, [user?.uid]);
-
-  const saveSchoolInfo = async (memberId: string) => {
-    const updated = familyMembers.map(m =>
-      m.id === memberId ? { ...m, schoolInfo: schoolDraft } : m
-    );
+  const persist = async (updated: Person[]) => {
     setFamilyMembers(updated);
-    await saveData(user!.uid, "family", JSON.parse(JSON.stringify({ members: updated, tasks, meals })));
-    await bus.publish("family.updated", { memberId }, { userId: user!.uid, source: "family" });
-    setSchoolEditId(null);
-    toast.success("School calendar saved ✦");
-  };
-
-  const persistAll = async (members: FamilyMember[], t: FamilyTask[], m: MealDay[]) => {
     if (!user?.uid) return;
-    await saveData(user.uid, "family", JSON.parse(JSON.stringify({ members, tasks: t, meals: m })));
+    await saveData(user.uid, "family", { members: JSON.parse(JSON.stringify(updated)) });
+    await bus.publish("family.updated", { count: updated.length }, { userId: user.uid, source: "family" });
   };
 
-  const saveMember = async () => {
-    if (!newName.trim()) return;
-    let updated: FamilyMember[];
-    if (editingId) {
-      updated = familyMembers.map(m => m.id === editingId
-        ? { ...m, name: newName.trim(), role: newRole, birthDate: newBirthDate || undefined, age: newAge ? parseInt(newAge) : undefined, notes: newNotes || undefined }
-        : m
-      );
-    } else {
-      const member: FamilyMember = {
-        id: crypto.randomUUID(),
-        name: newName.trim(),
-        role: newRole,
-        birthDate: newBirthDate || undefined,
-        age: newAge ? parseInt(newAge) : undefined,
-        notes: newNotes || undefined,
-        color: MEMBER_COLORS[familyMembers.length % MEMBER_COLORS.length],
-      };
-      updated = [...familyMembers, member];
-    }
-    setFamilyMembers(updated);
-    await persistAll(updated, tasks, meals);
-    setShowAdd(false); setNewName(""); setNewRole("child"); setNewAge(""); setNewBirthDate(""); setNewNotes(""); setEditingId(null);
-    toast.success(editingId ? "Updated ✓" : "Family member added ✓");
-  };
-
-  const deleteMember = async (id: string) => {
-    const updated = familyMembers.filter(m => m.id !== id);
-    setFamilyMembers(updated);
-    await persistAll(updated, tasks, meals);
-  };
-
-  const startEdit = (m: FamilyMember) => {
-    setEditingId(m.id); setNewName(m.name); setNewRole(m.role);
-    setNewAge(m.age?.toString() || ""); setNewBirthDate(m.birthDate || ""); setNewNotes(m.notes || "");
-    setShowAdd(true);
-  };
-
-  const addTask = async () => {
-    if (!taskInput.trim()) return;
-    const task: FamilyTask = {
-      id: crypto.randomUUID(), title: taskInput.trim(),
-      assignedTo: assignTo || "Everyone", done: false,
-    };
-    const updated = [task, ...tasks];
-    setTasks(updated); setTaskInput(""); setAssignTo("");
-    await persistAll(familyMembers, updated, meals);
-  };
-
-  const toggleTask = async (id: string) => {
-    const updated = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
-    setTasks(updated);
-    await persistAll(familyMembers, updated, meals);
-  };
-
-  const deleteTask = async (id: string) => {
-    const updated = tasks.filter(t => t.id !== id);
-    setTasks(updated);
-    await persistAll(familyMembers, updated, meals);
-  };
-
-  const generateFamilyMeals = async () => {
-    setGeneratingMeals(true);
-    const kids = familyMembers.filter(m => m.role === "child").map(m => m.name).join(", ") || "none";
-    const diet = (profile as any)?.diet || "no restrictions";
-    const sys = `You are Cleo. Plan 7 dinners, one per day Monday to Sunday ("day" is the full day name, "dinner" a meal name under 6 words).
-Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
-    const familyCtx = familyMembers.map((m: any) => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""})`; }).join(", ");
-    const schema = s.object({
-      meals: s.array(s.object({ day: s.enum(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]), dinner: s.string("meal name under 6 words") })),
+  const startEdit = (p: Person | null) => {
+    if (!p) { setEditingId("new"); setDraft(EMPTY_DRAFT); return; }
+    setEditingId(p.id);
+    setDraft({
+      name: p.name, relationId: relationIdOf(p), birthDate: p.birthDate || "", age: p.age?.toString() || "",
+      notes: p.notes || "", giftIdeas: p.giftIdeas || "", checkIn: p.checkIn || "",
+      schoolName: p.schoolInfo?.schoolName || "", grade: p.schoolInfo?.grade || "",
     });
-    const result = await ai(sys, `Plan this week's family dinners. Family: ${familyCtx || "not specified"}. Keep it practical and family-friendly.`, "meal_plan", [], { schema });
-    if (!result.error) {
-      try {
-        const parsed: MealDay[] = JSON.parse(result.text).meals;
-        setMeals(parsed);
-        await persistAll(familyMembers, tasks, parsed);
-        toast.success("Dinner plan ready ✦");
-      } catch { toast.error("Couldn't parse meal plan"); }
-    }
-    setGeneratingMeals(false);
+  };
+  const closeEdit = () => { setEditingId(null); setDraft(EMPTY_DRAFT); };
+
+  const savePerson = async () => {
+    if (!draft.name.trim()) return;
+    const rel = RELATIONS.find(r => r.id === draft.relationId) || RELATIONS[1];
+    const base = editingId && editingId !== "new" ? people.find(p => p.id === editingId) : undefined;
+    const isChild = rel.role === "child";
+    const person: Person = {
+      ...(base || { id: crypto.randomUUID(), color: MEMBER_COLORS[people.length % MEMBER_COLORS.length] }),
+      name: draft.name.trim(),
+      role: rel.role,
+      relation: rel.relation,
+      birthDate: draft.birthDate || undefined,
+      // A year-less birthday from Circle stays unless a full date replaces it.
+      birthday: draft.birthDate ? undefined : base?.birthday,
+      age: !draft.birthDate && draft.age ? parseInt(draft.age, 10) : undefined,
+      notes: draft.notes.trim() || undefined,
+      giftIdeas: draft.giftIdeas.trim() || undefined,
+      checkIn: draft.checkIn || undefined,
+      schoolInfo: isChild && (draft.schoolName || draft.grade || base?.schoolInfo)
+        ? { ...(base?.schoolInfo || { country: "US", schoolType: "public" }), schoolName: draft.schoolName || undefined, grade: draft.grade || undefined }
+        : base?.schoolInfo,
+    };
+    const updated = base ? people.map(p => p.id === base.id ? person : p) : [...people, person];
+    await persist(updated);
+    toast.success(base ? "Saved ✓" : `${person.name} added ✓`);
+    closeEdit();
   };
 
-  const askCleo = async () => {
-    if (!cleoInput.trim() || cleoLoading) return;
-    setCleoLoading(true);
-    const roster = familyMembers.map(m => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""}${m.notes ? ", " + m.notes : ""})`; }).join("; ");
-    const taskList = tasks.filter((t: any) => !t.done).slice(0, 5).map((t: any) => `- ${t.title}${t.assignedTo ? " → " + t.assignedTo : ""}`).join("\n") || "No tasks";
-    const mealList = meals.slice(0, 3).map((m: any) => `${m.dayName}: ${m.dinner}`).join(", ") || "No meals planned";
-    const sys = `You are Cleo, family AI chief of staff for ${(profile as any)?.name || "this household"}.
-
-FAMILY: ${roster || "not set up yet"}
-
-THIS WEEK'S TASKS:
-${taskList}
-
-MEALS PLANNED: ${mealList}
-
-CRITICAL: Only reference the information above — never invent events, names, dates, or facts not listed here. If asked about something not in the data above, say warmly "I don't have that info yet — want to add it?"
-Be warm, direct, and specific. Use family members' names. Answer in 2-4 sentences.`;
-    const result = await ai(sys, cleoInput, "cleo_chat");
-    if (!result.error) setCleoResp(result.text);
-    setCleoLoading(false);
+  const deletePerson = async (p: Person) => {
+    if (!window.confirm(`Remove ${p.name} from your family list?`)) return;
+    await persist(people.filter(m => m.id !== p.id));
+    closeEdit();
   };
 
-  const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const markTalked = async (p: Person) => {
+    await persist(people.map(m => m.id === p.id ? { ...m, lastCheckIn: today } : m));
+    toast.success(`Nice — checked in with ${p.name} ✓`);
+  };
+
+  const askGiftIdeas = (p: Person) => {
+    const age = displayAge(p);
+    const bits = [
+      `${p.name} (${relationLabel(p)}${age != null ? `, age ${age}` : ""})`,
+      p.notes ? `Notes: ${p.notes}.` : "",
+      p.giftIdeas ? `Ideas I already have: ${p.giftIdeas}.` : "",
+    ].filter(Boolean).join(" ");
+    openCleo(`Can you suggest 5 thoughtful gift ideas for ${bits} Include rough prices in dollars.`);
+  };
+
+  const bdayOf = (p: Person) => daysUntilBirthday(p.birthDate || p.birthday);
+  const upcoming = people.filter(p => { const d = bdayOf(p); return d != null && d <= 30; })
+    .sort((a, b) => (bdayOf(a) ?? 999) - (bdayOf(b) ?? 999));
+  const checkInsDue = people.filter(p => { const d = checkInDueIn(p, today); return d != null && d <= 0; });
+
+  const editor = (
+    <Card>
+      <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>
+        {editingId === "new" ? "ADD SOMEONE" : `EDIT ${draft.name.toUpperCase()}`}
+      </p>
+      <input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="Name" style={inputStyle} />
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        {RELATIONS.map(r => (
+          <button key={r.id} onClick={() => setDraft({ ...draft, relationId: r.id })} style={chip(draft.relationId === r.id, T.gold)}>{r.label}</button>
+        ))}
+      </div>
+      <label style={labelStyle}>Birthday</label>
+      <input value={draft.birthDate} onChange={e => setDraft({ ...draft, birthDate: e.target.value })} type="date" max={today} style={inputStyle} />
+      {!draft.birthDate && draft.relationId === "child" && (
+        <input value={draft.age} onChange={e => setDraft({ ...draft, age: e.target.value })} placeholder="Age (if you'd rather not add a birthday)" type="number" style={inputStyle} />
+      )}
+      {draft.relationId === "child" && (
+        <>
+          <label style={labelStyle}>School</label>
+          <input value={draft.schoolName} onChange={e => setDraft({ ...draft, schoolName: e.target.value })} placeholder="School name (optional)" style={inputStyle} />
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+            {US_GRADES.map(g => (
+              <button key={g} onClick={() => setDraft({ ...draft, grade: draft.grade === g ? "" : g })} style={{ ...chip(draft.grade === g, T.sky), padding: "4px 9px", fontSize: 11, minHeight: 28 }}>{g}</button>
+            ))}
+          </div>
+          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 10px 2px", lineHeight: 1.5 }}>
+            School dates and newsletters go in Plan → School.
+          </p>
+        </>
+      )}
+      <input value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} placeholder="Notes, e.g. nut allergy, soccer Tuesdays" style={inputStyle} />
+      <label style={labelStyle}>Gift ideas</label>
+      <textarea value={draft.giftIdeas} onChange={e => setDraft({ ...draft, giftIdeas: e.target.value })} placeholder="Jot ideas down as you think of them" rows={2} style={{ ...inputStyle, resize: "vertical", fontFamily: F.sans }} />
+      {draft.relationId !== "child" && draft.relationId !== "partner" && (
+        <>
+          <label style={labelStyle}>Remind me to check in</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {CHECK_INS.map(c => (
+              <button key={c.id || "off"} onClick={() => setDraft({ ...draft, checkIn: c.id })} style={chip(draft.checkIn === c.id, T.sage)}>{c.label}</button>
+            ))}
+          </div>
+        </>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={savePerson} disabled={!draft.name.trim()} style={{ flex: 1, padding: "12px", background: draft.name.trim() ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 12, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: draft.name.trim() ? "pointer" : "not-allowed", minHeight: 48 }}>
+          {editingId === "new" ? "Add" : "Save"}
+        </button>
+        <button onClick={closeEdit} style={{ padding: "12px 20px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 12, fontFamily: F.sans, fontSize: 14, color: T.taupe, cursor: "pointer", minHeight: 48 }}>Cancel</button>
+      </div>
+      {editingId !== "new" && (() => {
+        const p = people.find(m => m.id === editingId);
+        return p ? (
+          <button onClick={() => deletePerson(p)} style={{ width: "100%", marginTop: 10, background: "none", border: "none", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer", minHeight: 36 }}>Remove {p.name}</button>
+        ) : null;
+      })()}
+    </Card>
+  );
+
+  const row = (p: Person) => {
+    if (editingId === p.id) return <div key={p.id}>{editor}</div>;
+    const age = displayAge(p);
+    const bday = bdayOf(p);
+    const schoolBits = p.role === "child" ? [p.schoolInfo?.grade, p.schoolInfo?.schoolName].filter(Boolean).join(" · ") : "";
+    const details = [relationLabel(p), age != null ? `age ${age}` : "", bday != null && bday <= 30 ? `🎂 in ${bday}d` : "", schoolBits].filter(Boolean).join(" · ");
+    return (
+      <div key={p.id} style={{ padding: "14px 16px", background: T.ivory, borderRadius: 16, border: `1.5px solid ${T.linen}`, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${p.color}25`, border: `2px solid ${p.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+            {p.emoji || ROLE_ICONS[p.role] || "✦"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{p.name}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{details}</p>
+            {p.notes && <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0", fontStyle: "italic" }}>{p.notes}</p>}
+          </div>
+          <button onClick={() => startEdit(p)} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer", minHeight: 30 }}>Edit</button>
+        </div>
+        {(p.giftIdeas || (bday != null && bday <= 30)) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingLeft: 56 }}>
+            {p.giftIdeas && <p style={{ flex: 1, fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0 }}>🎁 {p.giftIdeas}</p>}
+            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}>✦ Gift ideas</button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="HOME" title="Family HQ" />
+      <PageTitle eyebrow="YOU" title="Your family" />
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
-        {[
-          { id: "members", label: "👨‍👩‍👧 Members" },
-          { id: "tasks",   label: "✓ Chores" },
-          { id: "meals",   label: "🍽 Dinners" },
-          { id: "cleo",    label: "✦ Ask Cleo" },
-        ].map(t => <Pill key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />)}
-      </div>
-
-      {tab === "members" && <>
-        {familyMembers.length === 0 && !showAdd && (
-          <EmptyState
-            icon="◉"
-            title="Who's in your nest?"
-            body="Add your people and Cleo starts connecting the dots — school events to the right child, plans to the right person."
-            actionLabel="Add your first person ✦"
-            onAction={() => setShowAdd(true)}
-          />
-        )}
-
-        {familyMembers.map(m => (
-          <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: T.ivory, borderRadius: 16, border: `1.5px solid ${T.linen}`, marginBottom: 8 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${m.color}25`, border: `2px solid ${m.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-              {ROLE_ICONS[m.role]}
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{m.name}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>
-                {m.role}{displayAge(m) != null ? ` · age ${displayAge(m)}` : ""}{m.notes ? ` · ${m.notes}` : ""}
-              </p>
-            </div>
-            {m.role === "child" && (
-              <button onClick={() => { setSchoolEditId(m.id); setSchoolDraft(m.schoolInfo || { country:"US", schoolType:"public" }); }}
-                style={{ background:m.schoolInfo?`${T.sage}15`:"none", border:`1px solid ${m.schoolInfo?T.sage:T.linen}`, borderRadius:8, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:m.schoolInfo?T.sage:T.taupe, cursor:"pointer", minHeight:30 }}>
-                {m.schoolInfo ? "✓ School" : "🎒 School"}
-              </button>
-            )}
-            <button onClick={() => startEdit(m)} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer", minHeight: 30 }}>Edit</button>
-            <button onClick={() => deleteMember(m.id)} style={{ background: "none", border: "none", color: T.taupe, fontSize: 18, cursor: "pointer", padding: 4, minHeight: 36 }}>×</button>
-          </div>
-        ))}
-
-        {/* School Setup Modal — simple iCal upload */}
-        {schoolEditId && (() => {
-          const member = familyMembers.find(m => m.id === schoolEditId);
-          if (!member) return null;
-          return (
-            <Card>
-              <p style={{ fontFamily:F.serif, fontSize:22, fontStyle:"italic", color:T.esp, margin:"0 0 6px" }}>
-                {member.name}'s School Calendar
-              </p>
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
-                Download the .ics calendar file from your school's website and upload it here. Cleo will import all events automatically.
-              </p>
-
-              {/* Show existing events count */}
-              {member.schoolInfo?.calendarEvents && member.schoolInfo.calendarEvents.length > 0 && (
-                <div style={{ background:`${T.sage}10`, border:`1px solid ${T.sage}30`, borderRadius:12, padding:"10px 14px", marginBottom:14 }}>
-                  <p style={{ fontFamily:F.sans, fontSize:13, color:T.sage, margin:0 }}>
-                    ✓ {member.schoolInfo.calendarEvents.length} events loaded
-                  </p>
-                </div>
-              )}
-
-              {/* Upload button */}
-              <label style={{ display:"block", background:T.esp, color:"#fff", borderRadius:14, padding:"14px", textAlign:"center", cursor:"pointer", fontFamily:F.sans, fontSize:14, fontWeight:600, marginBottom:12 }}>
-                📅 Upload School Calendar (.ics)
-                <input type="file" accept=".ics,.ical" onChange={async e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const text = await file.text();
-                  const events = parseICal(text, member.name, member.color);
-                  if (events.length === 0) { alert("No events found in file — make sure it's a valid .ics calendar file"); return; }
-                  const updated = familyMembers.map(m =>
-                    m.id === schoolEditId ? { ...m, schoolInfo: { ...m.schoolInfo, country: m.schoolInfo?.country||"US", schoolType: m.schoolInfo?.schoolType||"public", calendarEvents: events } } : m
-                  );
-                  setFamilyMembers(updated);
-                  await saveData(user!.uid, "family", JSON.parse(JSON.stringify({ members: updated, tasks, meals })));
-                  // Sync to master calendar
-                  const calendarData = await loadData(user!.uid, "calendar");
-                  const existing = ((calendarData?.events as any[]) || []).filter((e:any) => e.child !== member.name);
-                  await saveData(user!.uid, "calendar", { events: [...existing, ...events] });
-                  await bus.publish("family.updated", { memberId: schoolEditId }, { userId: user!.uid, source: "family" });
-                  toast.success(`${events.length} events imported for ${member.name} ✦`);
-                  setSchoolEditId(null);
-                }} style={{ display:"none" }}/>
-              </label>
-
-              <button onClick={() => setSchoolEditId(null)}
-                style={{ width:"100%", padding:"12px", background:"none", border:`1.5px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:14, color:T.bark, cursor:"pointer" }}>
-                Cancel
-              </button>
-            </Card>
-          );
-        })()}
-
-        {showAdd && (
-          <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>
-              {editingId ? "EDIT MEMBER" : "ADD FAMILY MEMBER"}
-            </p>
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
-            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-              {(["partner","child","parent","inlaw","other"] as const).map(r => (
-                <button key={r} onClick={() => setNewRole(r)} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${newRole === r ? ROLE_COLORS[r] : T.linen}`, background: newRole === r ? `${ROLE_COLORS[r]}15` : "#fff", color: newRole === r ? ROLE_COLORS[r] : T.bark, fontFamily: F.sans, fontSize: 11, cursor: "pointer" }}>
-                  {ROLE_ICONS[r]} {r}
-                </button>
-              ))}
-            </div>
-            <label style={{ display: "block", fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 4px 2px" }}>Date of birth (keeps age up to date)</label>
-            <input value={newBirthDate} onChange={e => setNewBirthDate(e.target.value)} type="date" max={new Date().toISOString().split("T")[0]} style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
-            {!newBirthDate && <input value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="Age (optional, if no date of birth)" type="number" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />}
-            <input value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Notes e.g. nut allergy, soccer Tuesdays (optional)" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={saveMember} disabled={!newName.trim()} style={{ flex: 1, padding: "12px", background: newName.trim() ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 12, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: newName.trim() ? "pointer" : "not-allowed", minHeight: 48 }}>
-                {editingId ? "Save Changes" : "Add Member"}
-              </button>
-              <button onClick={() => { setShowAdd(false); setEditingId(null); setNewName(""); setNewAge(""); setNewNotes(""); }} style={{ padding: "12px 20px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 12, fontFamily: F.sans, fontSize: 14, color: T.taupe, cursor: "pointer", minHeight: 48 }}>
-                Cancel
-              </button>
-            </div>
-          </Card>
-        )}
-
-        {!showAdd && (
-          <button onClick={() => setShowAdd(true)} style={{ width: "100%", padding: "14px", background: T.ivory, border: `1.5px dashed ${T.linen}`, borderRadius: 16, fontFamily: F.sans, fontSize: 14, color: T.taupe, cursor: "pointer", marginTop: 4, minHeight: 52 }}>
-            + Add family member
-          </button>
-        )}
-      </>}
-
-      {tab === "tasks" && <>
-        <Card>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input value={taskInput} onChange={e => setTaskInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="Add a chore or task..." style={{ flex: 1, background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minHeight: 44 }} />
-            <button onClick={addTask} disabled={!taskInput.trim()} style={{ width: 44, height: 44, borderRadius: 12, background: taskInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 22, cursor: taskInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>+</button>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {["Everyone", ...familyMembers.map(m => m.name)].map(name => (
-              <button key={name} onClick={() => setAssignTo(name)} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${assignTo === name ? T.gold : T.linen}`, background: assignTo === name ? T.goldP : "#fff", color: assignTo === name ? T.gold : T.bark, fontFamily: F.sans, fontSize: 11, cursor: "pointer" }}>
-                {name}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {tasks.length === 0 ? (
-          <Card><p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0" }}>No family tasks yet</p></Card>
-        ) : tasks.map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: T.ivory, borderRadius: 16, border: `1.5px solid ${T.linen}`, marginBottom: 8 }}>
-            <button onClick={() => toggleTask(t.id)} style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${t.done ? T.sage : T.linen}`, background: t.done ? T.sage : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, minHeight: 24 }}>
-              {t.done ? "✓" : ""}
-            </button>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: t.done ? T.taupe : T.esp, margin: 0, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, margin: "2px 0 0" }}>→ {t.assignedTo}</p>
-            </div>
-            <button onClick={() => deleteTask(t.id)} style={{ background: "none", border: "none", color: T.taupe, fontSize: 18, cursor: "pointer", padding: 4, minHeight: 36 }}>×</button>
-          </div>
-        ))}
-      </>}
-
-      {tab === "meals" && <>
-        <button onClick={generateFamilyMeals} disabled={generatingMeals} style={{ width: "100%", padding: "14px", background: generatingMeals ? T.linen : T.esp, color: "#fff", border: "none", borderRadius: 16, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: generatingMeals ? "not-allowed" : "pointer", marginBottom: 16, minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          {generatingMeals ? <><Spinner size={16} color="#fff" /> Planning dinners...</> : "✦ Plan This Week's Dinners"}
-        </button>
-
-        {meals.length > 0 ? meals.map((m, i) => {
-          const isToday = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] === m.day;
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: isToday ? `${T.gold}10` : T.ivory, borderRadius: 16, border: `1.5px solid ${isToday ? T.gold : T.linen}`, marginBottom: 8 }}>
-              <div style={{ width: 44, textAlign: "center", flexShrink: 0 }}>
-                <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: isToday ? T.gold : T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{m.day.slice(0, 3)}</p>
-                {isToday && <p style={{ fontFamily: F.sans, fontSize: 9, color: T.gold, margin: "2px 0 0", fontWeight: 700 }}>TODAY</p>}
+      {upcoming.length > 0 && (
+        <div style={{ background: `linear-gradient(135deg,${T.blush}15,${T.gold}10)`, border: `1px solid ${T.blush}30`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
+          {upcoming.map(p => {
+            const d = bdayOf(p);
+            return (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0" }}>
+                <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>{p.name}</p>
+                <span style={{ fontFamily: F.sans, fontSize: 12, color: T.blush, fontWeight: 600 }}>{d === 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`}</span>
               </div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, margin: 0, flex: 1 }}>{m.dinner}</p>
-            </div>
-          );
-        }) : !generatingMeals && (
-          <Card><p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>Cleo will plan 7 family dinners based on your kids, diet preferences, and budget.</p></Card>
-        )}
-      </>}
-
-      {tab === "cleo" && <>
-        <div style={{ background: `linear-gradient(135deg,${T.esp},#4a2e18)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", margin: "0 0 6px" }}>CLEO · FAMILY MODE</p>
-          <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.6 }}>
-            Ask me anything about your family's week — prep, logistics, who needs what.
-          </p>
+            );
+          })}
         </div>
+      )}
 
-        {cleoResp && (
-          <Card>
-            <div style={{ display: "flex", gap: 10 }}>
-              <span style={{ color: T.gold, flexShrink: 0, fontSize: 18 }}>✦</span>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.7 }}>{cleoResp}</p>
+      {checkInsDue.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
+          {checkInsDue.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: T.ivory, borderRadius: 14, border: `1.5px solid ${T.sage}30`, marginBottom: 6 }}>
+              <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>
+                {p.name} <span style={{ color: T.taupe, fontSize: 11 }}>· {p.lastCheckIn ? `last ${p.lastCheckIn.slice(5).replace("-", "/")}` : "no check-in yet"}</span>
+              </p>
+              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, cursor: "pointer", minHeight: 32 }}>✓ Talked</button>
             </div>
-          </Card>
-        )}
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-          {[
-            "What does the family need this week?",
-            "Who needs attention right now?",
-            "Help me prep for the weekend",
-            "What am I forgetting?",
-          ].map(q => (
-            <button key={q} onClick={() => setCleoInput(q)} style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer", touchAction: "manipulation", minHeight: 36 }}>{q}</button>
           ))}
         </div>
+      )}
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <input value={cleoInput} onChange={e => setCleoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && askCleo()} placeholder="Ask Cleo about your family..." style={{ flex: 1, background: T.ivory, border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minHeight: 48 }} />
-          <button onClick={askCleo} disabled={!cleoInput.trim() || cleoLoading} style={{ width: 48, height: 48, borderRadius: 16, background: cleoInput.trim() ? T.esp : T.linen, border: "none", color: "#fff", fontSize: 18, cursor: cleoInput.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>
-            {cleoLoading ? <Spinner size={16} color="#fff" /> : "→"}
-          </button>
-        </div>
-      </>}
+      {people.length === 0 && editingId !== "new" && (
+        <EmptyState
+          icon="◉"
+          title="Who's in your nest?"
+          body="Add your partner, kids, grandparents and close friends. HerNest remembers birthdays, gift ideas and school details for you."
+          actionLabel="Add your first person ✦"
+          onAction={() => startEdit(null)}
+        />
+      )}
+
+      {GROUPS.map(g => {
+        const list = people.filter(g.match);
+        if (!list.length) return null;
+        return (
+          <div key={g.title} style={{ marginBottom: 14 }}>
+            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>{g.title}</p>
+            {list.map(row)}
+          </div>
+        );
+      })}
+
+      {editingId === "new" ? editor : (
+        <button onClick={() => startEdit(null)} style={{ width: "100%", padding: "14px", background: T.ivory, border: `1.5px dashed ${T.linen}`, borderRadius: 16, fontFamily: F.sans, fontSize: 14, color: T.taupe, cursor: "pointer", marginTop: 4, minHeight: 52 }}>
+          + Add someone
+        </button>
+      )}
+
+      {people.length > 0 && (
+        <button onClick={() => openCleo("Looking at my family this week, what should I be thinking about or preparing for?")}
+          style={{ width: "100%", marginTop: 12, padding: "12px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 14, fontFamily: F.sans, fontSize: 13, color: T.esp, cursor: "pointer", minHeight: 44 }}>
+          ✦ Ask Cleo about your family
+        </button>
+      )}
     </div>
   );
 }
