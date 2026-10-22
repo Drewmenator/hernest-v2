@@ -22,16 +22,18 @@ export function deviceCalendarSupported(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 }
 
+// Wrapped in an object: a Capacitor plugin returned straight from an async
+// function is mistaken for a promise and hangs forever (see appleHealth.ts).
 async function plugin() {
   const { CapacitorCalendar } = await import("@ebarooni/capacitor-calendar");
-  return CapacitorCalendar;
+  return { CapacitorCalendar };
 }
 
 // Granted already? (No prompt.)
 export async function deviceCalendarConnected(): Promise<boolean> {
   if (!deviceCalendarSupported()) return false;
   try {
-    const { result } = await (await plugin()).checkAllPermissions();
+    const { result } = await (await plugin()).CapacitorCalendar.checkAllPermissions();
     return result.readCalendar === "granted";
   } catch { return false; }
 }
@@ -41,7 +43,7 @@ export async function deviceCalendarConnected(): Promise<boolean> {
 export async function connectDeviceCalendar(): Promise<boolean> {
   if (!deviceCalendarSupported()) return false;
   try {
-    const { result } = await (await plugin()).requestFullCalendarAccess();
+    const { result } = await (await plugin()).CapacitorCalendar.requestFullCalendarAccess();
     return result === "granted";
   } catch { return false; }
 }
@@ -67,7 +69,7 @@ export function toDeviceEvent(e: { id: string; title: string; startDate: number;
 export async function fetchDeviceEvents(): Promise<DeviceEvent[]> {
   if (!(await deviceCalendarConnected())) return [];
   const now = Date.now();
-  const { result } = await (await plugin()).listEventsInRange({
+  const { result } = await (await plugin()).CapacitorCalendar.listEventsInRange({
     from: now - DAYS_BACK * 86400000,
     to: now + DAYS_AHEAD * 86400000,
   });

@@ -183,17 +183,26 @@ export function ThriveScreen() {
     if (!uid) return;
     if (!onIphone) { useStore.getState().setActiveTab("connections"); return; }
     setConnecting(true);
-    const { connectAppleHealth, appleHealthState } = await import("../../core/appleHealth");
+    const ah = await import("../../core/appleHealth");
+    const { connectAppleHealth, appleHealthState } = ah;
     const r = await connectAppleHealth(uid);
     setConnecting(false);
     setHealthUpgrade(false);
-    if (r !== "connected") return;
+    if (r !== "connected") {
+      // Never fail silently: say what happened.
+      const { default: toast } = await import("react-hot-toast");
+      toast.error(r === "timeout"
+        ? "Apple Health didn't answer. Close HerNest fully, open it again and try once more."
+        : `Couldn't connect Apple Health. ${ah.lastAppleHealthError || "Try again in a moment."}`, { duration: 7000 });
+      trackEvent("apple_health_connect_failed", { result: r, reason: ah.lastAppleHealthError.slice(0, 80) });
+      return;
+    }
     trackEvent("apple_health_connected", { from: "wellness" });
     // iPhone only asks once. If sharing was skipped before, nothing comes
     // through: send her to the steps in Connections instead of a dead end.
     if (await appleHealthState(uid) === "no_data") {
       const { default: toast } = await import("react-hot-toast");
-      toast("Your iPhone isn't sharing Health data with HerNest yet. Here's how to switch it on.", { icon: "♡", duration: 6000 });
+      toast("No Health data has come through yet. If sharing is off, here's how to switch it on.", { icon: "♡", duration: 6000 });
       useStore.getState().setActiveTab("connections");
       return;
     }
