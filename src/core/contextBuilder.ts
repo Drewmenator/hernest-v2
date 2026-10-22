@@ -463,9 +463,12 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   lines.push(``);
 
   lines.push(`=== THRIVE ===`);
-  lines.push(`Sleep last night: ${ctx.thrive.sleepLast||"not logged"}h. 7-day trend: ${ctx.thrive.sleepTrend.join(", ")||"no data"}.`);
+  // Only what we have: "not logged" lines made the brief ask her to log sleep.
+  if (ctx.thrive.sleepLast || ctx.thrive.sleepTrend.length)
+    lines.push(`Sleep last night: ${ctx.thrive.sleepLast ? `${ctx.thrive.sleepLast}h` : "unknown"}. 7-day trend: ${ctx.thrive.sleepTrend.join(", ") || "none"}.`);
   // Mood and energy are no longer asked; read her day from the body data.
-  lines.push(`Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`);
+  if (ctx.thrive.totalHabits || ctx.thrive.mood)
+    lines.push(`${ctx.thrive.totalHabits ? `Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.` : ""}${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`.trim());
   if (ctx.thrive.readiness != null) {
     const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
     lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}${ctx.thrive.stressDay ? `. Yesterday's stress balance: ${ctx.thrive.stressDay}` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task. If yesterday was stressful, acknowledge it and keep today's asks lighter.`);
