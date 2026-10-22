@@ -121,6 +121,12 @@ export async function buildBriefingLine(uid, now = new Date()) {
     }
   } catch { /* skip */ }
   try {
+    // Waiting in "From your email" (school forms, RSVPs, payments due).
+    const items = ((await docData(`users/${uid}/data/mail_inbox`)).items) || [];
+    const waiting = items.filter(t => t?.status === "pending").length;
+    if (waiting) bits.push(`${waiting} new from your email`);
+  } catch { /* skip */ }
+  try {
     const soon = (await birthdayPeople(uid))
       .map(p => ({ name: p.name, days: daysUntilBirthday(p.date, now) }))
       .filter(p => p.days != null && p.days > 0 && p.days <= 7)

@@ -14,6 +14,7 @@ import { Spinner } from "../../shared/components";
 import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, invalidateHomeDocs } from "./homeData";
 import { GetStartedCard } from "./GetStartedCard";
+import { MailInboxCard } from "./MailInboxCard";
 import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, type NeedsItem, type Person, type DayEvent } from "./todayData";
 import { cachedBriefing, generateBriefing, type Briefing } from "../briefing/generateBriefing";
 import { Avatar, YouMenu } from "../me/YouMenu";
@@ -317,6 +318,7 @@ export function TodayScreen() {
       <GetStartedCard />
       <MorningNote weather={weather} />
       <NeedsYou data={data} reload={reload} />
+      <MailInboxCard />
       <ThisWeek data={data} />
       <QuickAdd />
       <YouToday weather={weather} />
