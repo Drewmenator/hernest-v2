@@ -9,6 +9,7 @@ import { subscribeItems, createItem, updateItem, removeItem } from "../../core/h
 import { ownershipView, awaitsAnswerFrom, type OwnedTask } from "../../core/taskOwnership";
 import { otherAdults, currentWho, proposeNewTask, answerTask, setTaskDone, takeBack, askAgainTask } from "../../core/taskActions";
 import { normalizeName } from "../../core/familyPeople";
+import { formatRemindAt, parseRemindAt, remindAtDate, toRemindAt } from "../../core/taskReminders";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
@@ -31,6 +32,7 @@ interface Task extends OwnedTask {
   energyRequired: "high"|"medium"|"low";
   userConfirmed: boolean;
   dueDate?: string; estimatedMinutes?: number;
+  remindAt?: string;    // local "YYYY-MM-DDTHH:mm": alerts the person the task belongs to
   createdAt: number;
   who?: string;         // chores: who does it
   isChore?: boolean;    // a chore record (users/{owner}/chores), not a task
@@ -102,6 +104,8 @@ export function PlanScreen() {
   const [priority, setPriority] = useState<Task["priority"]>("must");
   const [energy]             = useState<Task["energyRequired"]>("medium");
   const [dueDate, setDueDate] = useState("");
+  const [remindAt, setRemindAt] = useState("");     // "" = no reminder
+  const [remindEdit, setRemindEdit] = useState<{ id: string; value: string } | null>(null);
   const [filter, setFilter]   = useState("all");
 
   // School
@@ -159,13 +163,56 @@ export function PlanScreen() {
   const uid = user?.uid;
   const saveFailed = (e: unknown) => { console.error("[Plan] save failed:", e); toast.error("Couldn't save. Try again."); };
 
+  // ── Reminders ──────────────────────────────────────────────────────
+  // A sensible first pick: the due date at 9:00 AM, or an hour from now.
+  const defaultRemindAt = () => {
+    const due = dueDate && dueDate >= today ? new Date(`${dueDate}T09:00`) : null;
+    if (due && due.getTime() > Date.now()) return toRemindAt(due);
+    const d = new Date(Date.now() + 3600000);
+    d.setMinutes(0, 0, 0);
+    return toRemindAt(d);
+  };
+  // null = fine; otherwise why the time can't be used.
+  const remindProblem = (v: string) => {
+    const d = remindAtDate(v);
+    if (!d) return "Pick a date and time for the reminder.";
+    if (d.getTime() <= Date.now()) return "Pick a time later than now.";
+    return null;
+  };
+  // Notification permission is asked here, the first time she sets one.
+  const afterReminderSet = async (v: string) => {
+    toast.success(`Reminder set for ${formatRemindAt(v)}`);
+    if (!uid) return;
+    const { ensureReminderPermission } = await import("../../core/localNotifications");
+    if (await ensureReminderPermission(uid) === false) {
+      toast("Notifications are off, so this reminder can't alert you. You can turn them on in Settings.", { duration: 6000 });
+    }
+  };
+  const saveReminder = async (t: Task, value: string) => {
+    if (!uid) return;
+    const v = value ? parseRemindAt(value) : null;
+    if (value) {
+      const problem = remindProblem(value);
+      if (problem || !v) { toast.error(problem || "Pick a date and time for the reminder."); return; }
+    }
+    setRemindEdit(null);
+    await updateItem(uid, "tasks", t.id, { remindAt: v || undefined }).catch(saveFailed);
+    if (v) await afterReminderSet(v);
+    else toast.success("Reminder removed");
+  };
+
   // ── Add task with energy level per blueprint ───────────────────────
   const addTask = async () => {
     if (!input.trim()) return;
+    const reminder = remindAt ? parseRemindAt(remindAt) : null;
+    if (remindAt) {
+      const problem = remindProblem(remindAt);
+      if (problem || !reminder) { toast.error(problem || "Pick a date and time for the reminder."); return; }
+    }
     const adult = who.startsWith("uid:") ? adults.find(a => `uid:${a.uid}` === who) : undefined;
     if (who && !adult) {
       const chore: Chore = { id: crypto.randomUUID(), title: input.trim(), assignedTo: who, done: false, ...(dueDate ? { dueDate } : {}), ...(uid ? { createdBy: uid } : {}) };
-      setInput(""); setDueDate(""); setWho("");
+      setInput(""); setDueDate(""); setWho(""); setRemindAt("");
       if (uid) await createItem(uid, "chores", chore).catch(saveFailed);
       return;
     }
@@ -174,19 +221,22 @@ export function PlanScreen() {
       priority, status: "pending", source: "manual",
       energyRequired: energy, userConfirmed: true,
       ...(dueDate ? { dueDate } : {}),
+      ...(reminder ? { remindAt: reminder } : {}),
       createdAt: Date.now(),
       ...(uid ? { createdBy: uid, createdByName: currentWho()?.name } : {}),
     };
-    setInput(""); setDueDate(""); setWho("");
+    setInput(""); setDueDate(""); setWho(""); setRemindAt("");
     if (!uid) return;
     if (adult) {
       // Asked, not assigned: it counts as handled only once they say yes.
+      // The reminder goes to their phone once they accept.
       const ok = await proposeNewTask(task, adult).catch(saveFailed);
       if (ok) toast.success(`Asked ${adult.name}. We'll show when they answer.`);
       return;
     }
     await createItem(uid, "tasks", task).catch(saveFailed);
     await bus.publish("plan.task.created", task, { userId: user!.uid, source: "plan" });
+    if (reminder) await afterReminderSet(reminder);
   };
 
   // ── Confirm AI-extracted task per blueprint ────────────────────────
@@ -409,6 +459,18 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
             ))}
             <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:16, color:T.bark, outline:"none" }}/>
           </div>
+          {/* Reminder: an alert on her phone at this time (tasks only, not family chores) */}
+          {(!who || who.startsWith("uid:")) && (
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginTop:10 }}>
+              {remindAt ? <>
+                <span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>Remind me:</span>
+                <input type="datetime-local" aria-label="Reminder date and time" value={remindAt} onChange={e=>setRemindAt(e.target.value)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:16, color:T.bark, outline:"none" }}/>
+                <button onClick={()=>setRemindAt("")} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:"#fff", color:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>No reminder</button>
+              </> : (
+                <button onClick={()=>setRemindAt(defaultRemindAt())} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:"#fff", color:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>🔔 Remind me</button>
+              )}
+            </div>
+          )}
           {/* Who does it: another adult is asked first; kids and "Everyone" make a family chore */}
           {who.startsWith("uid:") && (
             <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"8px 0 0" }}>They'll be asked to accept or decline. It shows as waiting until they say yes.</p>
@@ -447,7 +509,21 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                 {own && <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:OWNERSHIP_COLORS[own.tone], padding:"2px 8px", borderRadius:10, background:`${OWNERSHIP_COLORS[own.tone]}15` }}>{own.label}</span>}
                 {t.dueDate && <span style={{ fontFamily:F.sans, fontSize:10, color:t.dueDate<today?T.taupe:T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?`was due ${fmtDate(t.dueDate)}`:`due ${fmtDate(t.dueDate)}`}</span>}
                 {t.source!=="manual" && t.source!=="chore" && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold }}>✦ {t.source}</span>}
+                {!t.isChore && t.status!=="completed" && (
+                  <button onClick={()=>setRemindEdit(remindEdit?.id===t.id ? null : { id:t.id, value:t.remindAt || defaultRemindAt() })} aria-label={t.remindAt ? "Change reminder" : "Add a reminder"}
+                    style={{ fontFamily:F.sans, fontSize:10, color:t.remindAt?T.sky:T.taupe, fontWeight:t.remindAt?700:400, background:"none", border:"none", padding:"2px 0", cursor:"pointer" }}>
+                    {t.remindAt ? `🔔 ${formatRemindAt(t.remindAt)}` : "🔔 Remind"}
+                  </button>
+                )}
               </div>
+              {remindEdit?.id===t.id && (
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginTop:8 }}>
+                  <input type="datetime-local" aria-label="Reminder date and time" value={remindEdit.value} onChange={e=>setRemindEdit({ id:t.id, value:e.target.value })} style={{ padding:"5px 10px", borderRadius:20, border:`1.5px solid ${T.linen}`, background:T.sand, fontFamily:F.sans, fontSize:16, color:T.bark, outline:"none" }}/>
+                  <button onClick={()=>saveReminder(t, remindEdit.value)} style={smallBtn(T.esp, "#fff")}>Save</button>
+                  {t.remindAt && <button onClick={()=>saveReminder(t, "")} style={smallBtn("#fff", T.bark, T.linen)}>Remove</button>}
+                  <button onClick={()=>setRemindEdit(null)} style={smallBtn("#fff", T.bark, T.linen)}>Cancel</button>
+                </div>
+              )}
             </div>
             {/* Confirm button for unconfirmed tasks per blueprint */}
             {!t.userConfirmed && (
