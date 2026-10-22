@@ -18,7 +18,7 @@ import { formatMoney } from "../../shared/utils/money";
 import {
   Card, SectionHeader, ListRow, StatusChip, QuickAction, Button, TextButton,
   Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh,
-  DayTimeline, SparkArea,
+  TimelineChart, TrendChart,
 } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
 import { haptic } from "../../shared/haptics";
@@ -147,7 +147,12 @@ function TodayHero({ data, failed }: { data: TodayData | null; failed: boolean }
       <Headline size={21} style={{ marginTop: 14 }}>{dayHeadline(events, needs)}</Headline>
       {events.some(e => e.time) && (
         <div style={{ marginTop: 16 }}>
-          <DayTimeline times={events.map(e => e.time || "")} color={a.chart} soft={a.chartSoft} textColor={ATMOS_TEXT2} />
+          <TimelineChart color={a.chart} height={60}
+            events={events.filter(e => e.time && /^\d{1,2}:\d{2}$/.test(e.time.trim())).map(e => {
+              const [h, mm] = e.time!.trim().split(":").map(Number);
+              return { hour: h + mm / 60, label: e.title, time: clockTime(e.time) };
+            })}
+            ariaLabel={`Today's timed events from 6 AM to 10 PM: ${events.filter(e => e.time).map(e => `${e.title} at ${clockTime(e.time)}`).join(", ")}.`} />
         </div>
       )}
     </GlowCard>
@@ -401,12 +406,12 @@ function QuickActions() {
 function MomentForYou({ weather }: { weather: WeatherData | null }) {
   const uid = useStore(s => s.user?.uid);
   const setActiveTab = useStore(s => s.setActiveTab);
-  const [body, setBody] = useState<{ sleep: number | null; steps: number | null; week: (number | null)[] } | null>(null);
+  const [body, setBody] = useState<{ sleep: number | null; steps: number | null; week: (number | null)[]; days: string[] } | null>(null);
   const [look, setLook] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) return;
     import("../../core/wellnessAutoTrack").then(m => m.readWearable(uid))
-      .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps, week: (w.history || []).slice(-7).map(p => p.sleepHours) } : null)).catch(() => {});
+      .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps, week: (w.history || []).slice(-7).map(p => p.sleepHours), days: (w.history || []).slice(-7).map(p => p.day) } : null)).catch(() => {});
     // Today's look from Style, if Cleo already put one together today
     loadData(uid, "style").then((d: Record<string, unknown> | null) => {
       const t = d?.todayOutfit as { date?: string; outfit?: { headline?: string } } | undefined;
@@ -428,7 +433,10 @@ function MomentForYou({ weather }: { weather: WeatherData | null }) {
           <HeroNumber value={sleep} unit="hours" label="Sleep last night" size={44} />
           {(body?.week.filter(v => v != null).length ?? 0) >= 3 && (
             <div style={{ flex: 1, minWidth: 0, paddingBottom: 6 }}>
-              <SparkArea id="today-sleep" points={body!.week} color={a.chart} guide={7} height={48} />
+              <TrendChart compact values={body!.week} color={a.chart} guide={{ value: 7, label: "7 hours" }} height={52}
+                detailLabel={i => { const d = body!.days[i]; return d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""; }}
+                format={v => `${Math.round(v * 10) / 10} hours`}
+                ariaLabel={`Sleep over the last ${body!.week.length} nights against a 7 hour line.`} />
             </div>
           )}
         </div>

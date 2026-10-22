@@ -119,6 +119,7 @@ export const globalStyles = `
   /* Small charts: bars rise, lines fade in. */
   .hn-grow { transform-origin: 50% 100%; animation: hnGrow .7s ${MOTION.ease} both; }
   @keyframes hnGrow { from { transform: scaleY(0) } to { transform: scaleY(1) } }
+  .hn-grow-svg { transform-box: fill-box; transform-origin: 50% 100%; animation: hnGrow .7s ${MOTION.ease} both; }
   .hn-fade { animation: hnFade .8s ease both; }
   /* A chart line draws itself from left to right (stroke-dashoffset). */
   .hn-draw { stroke-dashoffset: 1; animation: hnDraw .85s ${MOTION.ease} .1s forwards; }

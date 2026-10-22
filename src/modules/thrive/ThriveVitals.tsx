@@ -5,7 +5,7 @@
 // own usual. Tiles and trends with no data are left out, never filled in.
 import React from "react";
 import { T, F, ATMOS, ATMOS_TEXT2, SHADOWS, alpha } from "../../config/theme";
-import { GlowCard, HeroNumber, Headline, Detail, SparkArea, ProgressRing, TrendChart } from "../../shared/components";
+import { GlowCard, HeroNumber, Headline, Detail, ProgressRing, TrendChart } from "../../shared/components";
 import { vsUsual, type WearableDay, type WearableDayPoint } from "../../core/wellnessAutoTrack";
 
 // Apple Health: last night's sleep in plain words.
@@ -147,11 +147,11 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
       {hist.length >= 2 && (
         <div style={{ background: T.surface, borderRadius: 20, padding: "16px 16px 6px", marginBottom: 12, boxShadow: SHADOWS.sm }}>
           <p style={{ fontFamily: F.sans, fontSize: 16, fontWeight: 700, color: T.text, margin: "0 0 12px" }}>Last 7 days</p>
-          {enough("sleepHours") && <TrendRow label="Sleep" points={trend("sleepHours")} color={T.navy} last={w.sleepHours != null ? `${w.sleepHours}h` : "—"} />}
-          {enough("readiness") && <TrendRow label="Readiness" points={trend("readiness")} color={T.sage} last={w.readiness != null ? String(w.readiness) : "—"} />}
-          {enough("hrv") && <TrendRow label="HRV" points={trend("hrv")} color={T.goldText} last={w.avgHrv != null ? `${w.avgHrv}ms` : "—"} />}
-          {!hasReadiness && enough("restingHr") && <TrendRow label="Resting HR" points={trend("restingHr")} color={T.blush} last={w.restingHr != null ? `${w.restingHr}` : "—"} />}
-          {!hasReadiness && enough("steps") && <TrendRow label="Steps" points={trend("steps")} color={T.sage} last={stepsStr} />}
+          {enough("sleepHours") && <TrendRow label="Sleep" days={hist.map(p => p.day)} unit={v => `${Math.round(v * 10) / 10} hours`} points={trend("sleepHours")} color={T.navy} last={w.sleepHours != null ? `${w.sleepHours}h` : "—"} />}
+          {enough("readiness") && <TrendRow label="Readiness" days={hist.map(p => p.day)} unit={v => `${Math.round(v)}`} points={trend("readiness")} color={T.sage} last={w.readiness != null ? String(w.readiness) : "—"} />}
+          {enough("hrv") && <TrendRow label="HRV" days={hist.map(p => p.day)} unit={v => `${Math.round(v)} ms`} points={trend("hrv")} color={T.goldText} last={w.avgHrv != null ? `${w.avgHrv}ms` : "—"} />}
+          {!hasReadiness && enough("restingHr") && <TrendRow label="Resting HR" days={hist.map(p => p.day)} unit={v => `${Math.round(v)} bpm`} points={trend("restingHr")} color={T.blush} last={w.restingHr != null ? `${w.restingHr}` : "—"} />}
+          {!hasReadiness && enough("steps") && <TrendRow label="Steps" days={hist.map(p => p.day)} unit={v => `${Math.round(v).toLocaleString("en-US")} steps`} points={trend("steps")} color={T.sage} last={stepsStr} />}
         </div>
       )}
     </>
@@ -167,11 +167,16 @@ function Row({ label, value, valueColor = T.esp }: { label: string; value: strin
   );
 }
 
-function TrendRow({ label, points, color, last }: { label: string; points: (number | null)[]; color: string; last: string }) {
+// One metric's last 7 days: a small line you can scrub, and today's value.
+function TrendRow({ label, points, color, last, days, unit }: { label: string; points: (number | null)[]; color: string; last: string; days: string[]; unit: (v: number) => string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
       <span style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.text, width: 72, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, minWidth: 0 }}><SparkArea id={`trend-${label}`} points={points} color={color} height={30} /></div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <TrendChart compact values={points} color={color} height={36}
+          detailLabel={i => dayName(days[i])} format={unit}
+          ariaLabel={`${label} over the last ${points.length} days, latest ${last}.`} />
+      </div>
       <span style={{ fontFamily: F.sans, letterSpacing: "-0.02em", fontSize: 15, fontWeight: 800, color: T.text, width: 50, textAlign: "right", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{last}</span>
     </div>
   );

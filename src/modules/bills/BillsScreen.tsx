@@ -5,10 +5,10 @@
 // budget_v2 is left untouched). Design: docs/superpowers/specs/2026-10-21-bills-redesign-design.md
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
-import { Emoji, PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, MiniBars } from "../../shared/components";
+import { Emoji, PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, BarsChart, TipText } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
 import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/components/Icons";
 import { formatMoney } from "../../shared/utils/money";
@@ -335,13 +335,17 @@ const addBtn: React.CSSProperties = { flex: 1, minWidth: 0, width: "auto", paddi
 const amountStyle: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
 
 // What's due on each of the next 7 days (overdue bills count as today).
-function weekByDay(list: Bill[], now: Date): number[] {
-  const out = Array(7).fill(0);
+// What's due on each of the next 7 days (overdue bills count as today),
+// with the bills behind each bar for the chart's touch readout.
+function weekByDay(list: Bill[], now: Date): { amounts: number[]; bills: Bill[][] } {
+  const amounts = Array(7).fill(0);
+  const bills: Bill[][] = Array.from({ length: 7 }, () => []);
   for (const b of list) {
     const d = Math.max(0, Math.min(6, daysUntilDue(b, now) ?? 0));
-    out[d] += displayAmount(b).amount || 0.01; // a bill with no amount still shows
+    amounts[d] += displayAmount(b).amount || 0.01; // a bill with no amount still shows
+    bills[d].push(b);
   }
-  return out;
+  return { amounts, bills };
 }
 const dayLetters = (now: Date) => Array.from({ length: 7 }, (_, i) => {
   if (i === 0) return "Today";
@@ -354,7 +358,7 @@ const dayLetters = (now: Date) => Array.from({ length: 7 }, (_, i) => {
 // week; the bars show which days.
 function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days, estimate }: {
   overdue: number; count: number; total: number; autopay: number; toCheck: number; estimate?: boolean;
-  next: Bill | null; now: Date; days: number[];
+  next: Bill | null; now: Date; days: { amounts: number[]; bills: Bill[][] };
 }) {
   const late = overdue > 0;
   const tint = late ? "alert" : "household";
@@ -377,8 +381,17 @@ function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days,
       <Headline size={21} style={{ marginTop: 12 }}>{headline}</Headline>
       <Detail>{detail}</Detail>
       {count > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <MiniBars values={days} labels={dayLetters(now)} color={a.chart} soft={a.chartSoft} highlight={days.findIndex(v => v > 0)} textColor={ATMOS_TEXT2} height={52} />
+        <div style={{ marginTop: 14 }}>
+          <BarsChart values={days.amounts} labels={i => dayLetters(now)[i]} color={a.chart} height={104}
+            highlight={days.amounts.findIndex(v => v > 0)}
+            tooltip={i => {
+              const when = i === 0 ? "Today" : (() => { const d = new Date(now); d.setDate(d.getDate() + i); return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); })();
+              const list = days.bills[i];
+              if (!list.length) return <TipText title={when} value="nothing due" />;
+              const amt = list.reduce((sum, b) => sum + (displayAmount(b).amount || 0), 0);
+              return <TipText title={`${when} · ${list.map(b => b.name).join(", ")}`} value={amt > 0 ? `${list.some(b => displayAmount(b).estimate) ? "about " : ""}${formatMoney(amt)}` : undefined} />;
+            }}
+            ariaLabel={`Bills due over the next 7 days: ${days.bills.map((l, i) => l.length ? `${dayLetters(now)[i]}: ${l.map(b => b.name).join(", ")}` : null).filter(Boolean).join("; ") || "none"}.`} />
         </div>
       )}
     </GlowCard>

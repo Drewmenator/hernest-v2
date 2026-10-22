@@ -10,9 +10,9 @@ import { useReveal } from "../motion";
 import { haptic } from "../haptics";
 import { LargeTitle } from "./atmosphere";
 export { GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh, type AtmosTint } from "./atmosphere";
-export { DayTimeline, MiniBars, SparkArea, ProgressRing } from "./charts";
+export { ProgressRing } from "./charts";
 export { Emoji } from "./Emoji";
-export { ChartFrame, TrendChart } from "./ChartFrame";
+export { ChartFrame, TrendChart, TimelineChart, BarsChart, TipText } from "./ChartFrame";
 
 // ── Card ──────────────────────────────────────────────────────────
 // Standard white information card.
