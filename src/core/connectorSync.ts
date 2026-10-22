@@ -12,6 +12,9 @@ export interface ConnectorHealth {
   lastSyncedAt?: number;
   itemCount?: number;
   lastError?: string | null;
+  // Apple Health: connected, but the iPhone isn't sharing any data with us
+  // (iOS never says whether permission was given, so we check for data).
+  noData?: boolean;
 }
 
 const CALENDAR_PROVIDERS = [
@@ -83,6 +86,19 @@ export async function syncAllConnectors(uid: string): Promise<void> {
     // if one applies right now (native only, deduped per type per day).
     import("./localNotifications").then(l => l.maybeScheduleWellnessNudge(uid)).catch(() => {});
   }).catch(() => {});
+}
+
+// ── Disconnect: the server cancels HerNest's access at the provider (best
+//    effort) and deletes the stored sign-in, so Connect starts fresh. ──
+export async function disconnectOAuth(provider: "google" | "gmail" | "outlook" | "oura"): Promise<boolean> {
+  const token = await idToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(`/api/connectors?provider=${provider}&action=disconnect`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.ok;
+  } catch { return false; }
 }
 
 // ── OAuth connect: fetch the signed auth URL with a Bearer token, then

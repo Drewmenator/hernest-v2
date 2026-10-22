@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { HealthSample } from "@capgo/capacitor-health";
 
 vi.mock("./firebase", () => ({ loadData: vi.fn(), saveData: vi.fn() }));
-import { sleepHoursByNight, localDay } from "./appleHealth";
+import { sleepHoursByNight, localDay, hasHealthData } from "./appleHealth";
 
 const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min).toISOString();
 const sample = (start: string, end: string, extra: Partial<HealthSample> = {}): HealthSample =>
@@ -38,5 +38,16 @@ describe("sleepHoursByNight", () => {
       sample(night[0], at(2026, 10, 21, 5), { sourceName: "iPhone", sleepState: "asleep" }),
     ]);
     expect(res[localDay(night[1])]).toBe(7);
+  });
+});
+
+describe("connected but nothing shared", () => {
+  it("spots an iPhone that isn't sharing Health data (iOS returns empty, not an error)", () => {
+    const empty = { connected: true, lastSleepHours: null, lastSteps: null, restingHr: null, history: [{ day: "2026-10-21", sleepHours: null, steps: null }] };
+    expect(hasHealthData(empty)).toBe(false);
+    expect(hasHealthData(null)).toBe(false);
+    expect(hasHealthData({ ...empty, lastSteps: 3200 })).toBe(true);
+    expect(hasHealthData({ ...empty, history: [{ day: "2026-10-20", sleepHours: 7.1 }] })).toBe(true);
+    expect(hasHealthData({ ...empty, lastSteps: 0 })).toBe(false);
   });
 });
