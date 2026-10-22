@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore --project demo-hernest-rules \"vitest run -c vitest.rules.config.ts\"",
     "ios:sync": "npm run build && npx cap sync ios",
-    "ios:open": "npx cap open ios"
+    "ios:open": "npx cap open ios",
+    "ai:cost": "node scripts/ai-cost-report.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

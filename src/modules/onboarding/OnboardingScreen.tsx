@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData } from "../../core/firebase";
+import { crisisReply } from "../../core/crisis";
 
 interface Msg { role: "cleo" | "user"; text: string; }
 
@@ -93,6 +94,14 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
     // Add user message
     setMsgs(prev => [...prev, { role: "user", text: userMsg }]);
+
+    // Distress language gets helplines, not the next setup question. The
+    // answer isn't saved; setup carries on whenever she's ready.
+    const crisisText = crisisReply(userMsg);
+    if (crisisText) {
+      setMsgs(prev => [...prev, { role: "cleo", text: crisisText.replace(/\*\*/g, "") }]);
+      return;
+    }
 
     // Process answer
     const newData = { ...data };

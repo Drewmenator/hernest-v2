@@ -15,6 +15,7 @@ import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
+import { CrisisSheet } from "./shared/components/CrisisSheet";
 import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
 
 // Screens
@@ -115,7 +116,7 @@ const globalStyles = `
 
 
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab, setActiveTab } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab, setActiveTab } = useStore();
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)
@@ -240,9 +241,16 @@ export default function App() {
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
 
-  // AI limit
+  // AI limit: a friendly note from the server (household daily limit or the
+  // per-minute limit). Fixed toast id so an agent loop can't stack several.
   useEffect(() => {
-    const handler = () => setShowUpgrade(true);
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ code?: string; message?: string }>).detail || {};
+      const msg = d.message || (d.code === "burst_limit_reached"
+        ? "That's a lot of requests at once. Give Cleo a minute, then try again."
+        : "Cleo has done a lot for your family today. She'll be ready to help again tomorrow.");
+      import("react-hot-toast").then(({ default: toast }) => toast(msg, { id: "hn_limit", duration: 6000 }));
+    };
     window.addEventListener("hn_limit_reached", handler);
     return () => window.removeEventListener("hn_limit_reached", handler);
   }, []);
@@ -330,6 +338,7 @@ export default function App() {
             </React.Suspense>
           </div>
           <TabBar />
+          <CrisisSheet />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
         </div>
       </BrowserRouter>

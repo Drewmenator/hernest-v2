@@ -23,7 +23,8 @@ function whenText(s: BillSuggestion): string {
 }
 
 function errorText(code?: string): string {
-  if (code === "daily_limit_reached") return "You've reached today's Cleo limit. Try again tomorrow.";
+  if (code === "daily_limit_reached") return "Cleo has done a lot for your family today. She'll be ready again tomorrow.";
+  if (code === "burst_limit_reached") return "Give Cleo a minute, then try again.";
   if (code === "unauthenticated") return "Please sign in again.";
   return "Cleo couldn't read that just now. Try again in a moment.";
 }
@@ -63,7 +64,8 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
       ? await billsFromScreenshots(shots.map(s => s.image), existing)
       : await billsFromText(note.trim(), existing);
     setBusy(false);
-    if (res.error) { toast.error(errorText(res.error)); return; }
+    // crisis_detected: the crisis sheet is already showing, no error toast.
+    if (res.error) { if (res.error !== "crisis_detected") toast.error(errorText(res.error)); return; }
     setSuggestions(res.suggestions);
     // Pre-tick everything except bills you already have.
     setKeep(Object.fromEntries(res.suggestions.map(s => [s.key, !s.duplicateOf])));

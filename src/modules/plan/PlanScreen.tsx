@@ -237,7 +237,8 @@ export function PlanScreen() {
     try {
       const { extractSchoolEvents } = await import("../../core/schoolNewsletterService");
       const { events, allEvents, error } = await extractSchoolEvents(user.uid, newsletterText);
-      if (error) { toast.error("Couldn't extract events"); setExtracting(false); return; }
+      // crisis_detected: the crisis sheet is already showing, no error toast.
+      if (error) { if (error !== "crisis_detected") toast.error("Couldn't extract events"); setExtracting(false); return; }
       setSchoolEvents(allEvents as any);
       setNewsletterText("");
 

@@ -40,6 +40,8 @@ beforeEach(async () => {
     await setDoc(doc(db, "households", ALICE), { createdAt: 1 });
     await setDoc(doc(db, "households", ALICE, "events", "e1"), { actorUserId: ALICE, type: "seed" });
     await setDoc(doc(db, "invites", "tok123"), { fromUid: ALICE, status: "pending" });
+    await setDoc(doc(db, "ai_usage", "2026-10-21", "households", ALICE), { calls: 60, costUsd: 0.4 });
+    await setDoc(doc(db, "ai_burst", ALICE), { minute: "2026-10-21T14:03", count: 10 });
   });
 });
 
@@ -105,6 +107,21 @@ describe("server-only records", () => {
 
   it("owner CANNOT reset her AI usage counter", async () => {
     await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "usage", "2026-10-21"), { count: 0 }));
+  });
+
+  it("nobody can read or write the household AI usage and cost records", async () => {
+    const day = (who: string) => doc(as(who), "ai_usage", "2026-10-21", "households", ALICE);
+    await assertFails(setDoc(day(ALICE), { calls: 0 }));
+    await assertFails(updateDoc(day(ALICE), { calls: 0 }));
+    await assertFails(deleteDoc(day(ALICE)));
+    await assertFails(getDoc(day(ALICE)));
+    await assertFails(setDoc(day(BOB), { calls: 0 }));
+    await assertFails(setDoc(doc(as(ALICE), "ai_usage", "2026-10-21"), { any: 1 }));
+  });
+
+  it("a user CANNOT reset her per-minute AI counter", async () => {
+    await assertFails(setDoc(doc(as(ALICE), "ai_burst", ALICE), { minute: "x", count: 0 }));
+    await assertFails(getDoc(doc(as(ALICE), "ai_burst", ALICE)));
   });
 
   it("owner reads but CANNOT write her integration docs", async () => {

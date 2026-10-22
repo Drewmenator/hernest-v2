@@ -177,7 +177,7 @@ Make it family-friendly but include a mom moment each day.`;
         tip: s.string("local tip"), mumMoment: s.string("something special just for her — rest, beauty, joy"),
       })),
     });
-    const result = await ai(sys, prompt, "trip_planner", [], { schema });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema, userText: trip.destination });
     if (!result.error) {
       try {
         const parsed = JSON.parse(result.text);
@@ -209,7 +209,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
         items: s.array(s.object({ name: s.string(), quantity: s.integer(), essential: s.boolean(), weatherDependent: s.boolean() })),
       })),
     });
-    const result = await ai(sys, prompt, "trip_planner", [], { schema });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema, userText: trip.destination });
     if (!result.error) {
       try {
         const parsed = JSON.parse(result.text);

@@ -16,10 +16,11 @@ export const AI = {
   // each tier to the current model and ignores anything else.
   HAIKU: "haiku",
   SONNET: "sonnet",
-  // Display-only mirror of the server's authoritative limit (api/claude.js
-  // FREE_DAILY_AI_LIMIT, default 500). The server enforces; keep these in sync.
-  FREE_LIMIT: 500,
-  PRO_LIMIT: 100000,
+  // Display-only mirror of the server's per-household daily limits
+  // (api/_lib/aiUsage.js AI_HOUSEHOLD_DAILY_LIMIT / AI_PRO_HOUSEHOLD_DAILY_LIMIT).
+  // The server enforces; keep these in sync.
+  FREE_LIMIT: 60,
+  PRO_LIMIT: 200,
 };
 
 export const FLAGS = {

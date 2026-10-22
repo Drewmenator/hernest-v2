@@ -22,6 +22,7 @@ import { computeHouseholdState, buildStatePromptAddendum } from "./household/hou
 import { validateResponse } from "./household/responseValidator";
 import { retrieve } from "./contextRetrieval";
 import { todayLocal } from "./dateAwareness";
+import { crisisReply, crisisResponse } from "./crisis";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -378,6 +379,12 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     onToken,
   } = options;
 
+  // ── Step 0: Crisis check. Distress language never reaches the AI. ──
+  const crisis = crisisReply(userMessage);
+  if (crisis) {
+    return { success: true, feature: "cleo_chat", intent: "emotional_support", modelUsed: "cleo_chat", text: crisis, contextModules: [], assumptions: [], fallbackUsed: false };
+  }
+
   // ── Step 1: Classify intent ──────────────────────────────────────
   let classification = classifyIntentLocally(userMessage, sourceModule);
 
@@ -446,7 +453,11 @@ ${stateAddendum}`;
   // Single-shot chat call, used directly and as the agent's fallback.
   const singleShotChat = async () => {
     const result = await ai(systemPrompt, userMessage, feature, conversationHistory);
-    if (result.error) {
+    if (result.error && result.code === "crisis_detected") {
+      // Server backstop matched: show helplines, skip validation + memory.
+      fallbackUsed = true;
+      text = crisisResponse();
+    } else if (result.error) {
       fallbackUsed = true;
       text = FALLBACKS[classification.intent];
     } else {
