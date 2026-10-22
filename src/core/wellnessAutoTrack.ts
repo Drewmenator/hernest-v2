@@ -39,6 +39,7 @@ export interface WearableDayPoint {
   restingHr: number | null;
   steps: number | null;
   stressDay: "restored" | "normal" | "stressful" | null;
+  activeMins?: number | null;  // exercise/workout minutes (Apple Health only)
 }
 
 const STEPS_GOAL = 7000; // auto-completes the "Move your body" habit

@@ -1,513 +1,380 @@
-import React, { useState, useEffect } from "react";
+// ─── Style (made practical) ────────────────────────────────────────
+// "What do I wear today?" in one tap. Opens straight on today's outfit, built
+// from the weather and her calendar, so she types nothing first. Then: events
+// coming up worth planning for, saved looks (with the old wishlist as "Want
+// to buy") and a short set-once profile in US sizes and her currency.
+// Export name stays StyleScreen so the Me tab can render it.
+import React, { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
-import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
-import { saveData, loadData } from "../../core/firebase";
+import { Card, PageTitle, Input, Spinner } from "../../shared/components";
+import { loadData, saveData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
-import toast from "react-hot-toast";
+import { todayLocal } from "../../core/dateAwareness";
+import { formatMoney, getCurrency } from "../../shared/utils/money";
+import type { WeatherData } from "../../core/weather";
+import type { SimpleEvent } from "../../core/upcomingEvents";
+import { weatherForOutfit } from "./styleWeather";
+import {
+  OCCASIONS, STYLE_WORDS, US_SIZES, BODY_SHAPES, BUDGET_STEPS, OUTFIT_SYSTEM,
+  occasionLabel, occasionForDay, comingUp, weatherLine, dayLine, whenLabel, formatTime,
+  readStyleProfile, hasProfile, profileLine, buildOutfitPrompt, parseOutfit, lookView,
+  type Outfit, type SavedLook, type StyleProfile,
+} from "./styleLogic";
 
-// ── Types per blueprint ────────────────────────────────────────────
-interface ClothingItem { name: string; color: string; material: string; fit: string; whyItWorks: string; }
-interface OutfitRec {
-  occasion: string; mood: string; createdAt: number;
-  outfit: { top: ClothingItem; bottom?: ClothingItem; dress?: ClothingItem; outerwear?: ClothingItem; shoes: ClothingItem; accessories: ClothingItem[]; bag?: ClothingItem; };
-  styling: { colorPalette: string[]; silhouette: string; proportionTip: string; };
-  rationale: string;
-  bodyShapeTip?: string;
-  weatherAdaptation?: string;
-  confidenceBoost: string;
-  alternatives?: { item: string; alternative: string; reason: string }[];
-  estimatedCost?: { total: number; currency: string };
+interface WishItem { id: string; name: string; category: string; addedAt: number; }
+interface Shown { outfit: Outfit; occasion: string | null; }
+interface DayContext { weather: WeatherData | null; todays: SimpleEvent[]; profile: StyleProfile; }
+
+const HEIGHTS = ["Petite (under 5'4\")", "Average (5'4\"-5'7\")", "Tall (5'7\"+)"];
+const MAX_WORDS = 3;
+
+const OUTFIT_SCHEMA = s.object({
+  headline: s.string("the whole outfit in one line"),
+  pieces: s.array(s.object({ item: s.string(), note: s.string("max 8 words") })),
+  why: s.string("one or two short sentences"),
+  tip: s.nullable(s.string()),
+});
+
+const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
+const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
+const chip = (on: boolean): React.CSSProperties => ({
+  padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
+  color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 38,
+});
+const actionBtn = (primary: boolean): React.CSSProperties => ({
+  flex: 1, padding: "11px 8px", borderRadius: 12, border: primary ? "none" : `1.5px solid ${T.linen}`,
+  background: primary ? `linear-gradient(135deg,${T.esp},#4a2e18)` : "#fff", color: primary ? "#fff" : T.esp,
+  fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
+});
+
+function OutfitView({ outfit }: { outfit: Outfit }) {
+  return (
+    <>
+      <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 10px" }}>
+        {outfit.pieces.map((p, i) => (
+          <li key={i} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, padding: "5px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
+            <strong style={{ fontWeight: 600 }}>{p.item}</strong>{p.note ? <span style={{ color: T.taupe }}> · {p.note}</span> : null}
+          </li>
+        ))}
+      </ul>
+      {outfit.why && <p style={{ fontFamily: F.sans, fontSize: 13, color: T.bark, margin: "0 0 6px", lineHeight: 1.5 }}>{outfit.why}</p>}
+      {outfit.tip && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, fontStyle: "italic" }}>Tip: {outfit.tip}</p>}
+    </>
+  );
 }
-interface SavedOutfit { id: string; occasion: string; mood: string; rec: OutfitRec; savedAt: number; }
-interface WishlistItem { id: string; name: string; category: string; addedAt: number; }
-
-// ── Style profile options per blueprint ────────────────────────────
-const OCCASIONS = [
-  { id:"work",    label:"Work",    emoji:"◈", desc:"Office, meetings, presentations" },
-  { id:"casual",  label:"Casual",  emoji:"◦", desc:"Weekends, errands, school run" },
-  { id:"evening", label:"Evening", emoji:"✦", desc:"Dinner, dates, girls night" },
-  { id:"special", label:"Special", emoji:"◉", desc:"Weddings, events, celebrations" },
-];
-
-const MOODS = [
-  { id:"powerful",    label:"Powerful",    emoji:"⚡" },
-  { id:"relaxed",     label:"Relaxed",     emoji:"🌿" },
-  { id:"playful",     label:"Playful",     emoji:"🎨" },
-  { id:"elegant",     label:"Elegant",     emoji:"✨" },
-  { id:"sporty",      label:"Sporty",      emoji:"🏃" },
-  { id:"romantic",    label:"Romantic",    emoji:"🌸" },
-  { id:"comfortable", label:"Comfortable", emoji:"🛁" },
-  { id:"polished",    label:"Polished",    emoji:"💎" },
-];
-
-const BODY_SHAPES   = ["Hourglass","Pear","Apple","Rectangle","Inverted triangle","Petite","Plus size"];
-const VIBES         = ["Classic elegant","Boho casual","Minimalist","Bold & colorful","Smart casual","Athleisure","Feminine romantic","Edgy cool"];
-const DRESS_CODES   = ["Casual","Business casual","Formal","Creative","Black tie","Beach/resort"];
-const BUDGETS       = ["Budget-friendly","Mid-range","Premium","Luxury"];
-const HEIGHTS       = ["Petite (under 5'4)","Average (5'4–5'7)","Tall (5'7+)"];
-
-// ── Body shape tips per blueprint ─────────────────────────────────
-const BODY_SHAPE_TIPS: Record<string,string> = {
-  "Hourglass":          "The defined waist in this outfit celebrates your natural curves.",
-  "Pear":               "The structured top balances your proportions beautifully.",
-  "Apple":              "Vertical lines and V-necks elongate your silhouette.",
-  "Rectangle":          "Belted waists and layering create feminine definition.",
-  "Inverted triangle":  "A-line bottoms balance your broader shoulders perfectly.",
-  "Petite":             "Monochromatic palettes and fitted cuts elongate your frame.",
-  "Plus size":          "Structured pieces and bold accessories command attention.",
-};
 
 export function StyleScreen() {
-  const { user, profile, householdSnapshot } = useStore();
-  const [tab, setTab] = useState("stylist");
+  const { user, profile: userProfile } = useStore();
+  const uid = user?.uid;
+  const city = userProfile?.city || "";
+  const today = todayLocal();
+  const currency = getCurrency();
 
-  // Stylist state
-  const [occasion, setOccasion] = useState("");
-  const [mood, setMood]         = useState("");
-  const [context, setContext]   = useState("");
-  const [weather, setWeather]   = useState("");
-  const [include, setInclude]   = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [aiError, setAiError]   = useState("");
-  const [rec, setRec]           = useState<OutfitRec|null>(null);
+  const [docLoaded, setDocLoaded] = useState(false);
+  const [ctxLoaded, setCtxLoaded] = useState(false);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [events, setEvents] = useState<SimpleEvent[]>([]);
 
-  // Style profile
-  const [bodyShape, setBodyShape] = useState("");
-  const [size, setSize]           = useState("");
-  const [height, setHeight]       = useState("");
-  const [vibe, setVibe]           = useState("");
-  const [dressCode, setDressCode] = useState("");
-  const [budget, setBudget]       = useState("");
-  const [colorSeason, setColorSeason] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
+  const [profile, setProfile] = useState<StyleProfile>(readStyleProfile(null));
+  const [draft, setDraft] = useState<StyleProfile>(readStyleProfile(null));
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [moreProfile, setMoreProfile] = useState(false);
 
-  // Saved + wishlist
-  const [saved, setSaved]       = useState<SavedOutfit[]>([]);
-  const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
-  const [wishItem, setWishItem] = useState("");
-  const [wishCat, setWishCat]   = useState("Clothing");
+  const [shown, setShown] = useState<Shown | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [askOther, setAskOther] = useState(false);
+  const tried = useRef<string[]>([]);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    loadData(user.uid, "style").then(d => {
-      if (!d) return;
-      if (d.bodyShape)  setBodyShape(d.bodyShape as string);
-      if (d.size)       setSize(d.size as string);
-      if (d.height)     setHeight(d.height as string);
-      if (d.vibe)       setVibe(d.vibe as string);
-      if (d.dressCode)  setDressCode(d.dressCode as string);
-      if (d.budget)     setBudget(d.budget as string);
-      if (d.colorSeason)setColorSeason(d.colorSeason as string);
-      if (d.saved)      setSaved(d.saved as SavedOutfit[]);
-      if (d.wishlist)   setWishlist(d.wishlist as WishlistItem[]);
+  const [plan, setPlan] = useState<{ eventId: string; outfit: Outfit | null; loading: boolean } | null>(null);
+
+  const [saved, setSaved] = useState<SavedLook[]>([]);
+  const [wishlist, setWishlist] = useState<WishItem[]>([]);
+  const [savedTab, setSavedTab] = useState<"looks" | "buy">("looks");
+  const [wishText, setWishText] = useState("");
+
+  const todays = events.filter(e => e.date === today);
+  const ctx: DayContext = { weather, todays, profile };
+  const upcoming = comingUp(events, today);
+  const autoOccasion = occasionForDay(todays);
+
+  const askForOutfit = async (c: DayContext, opts: { occasion: string | null; event?: SimpleEvent; avoid?: string[] }): Promise<Outfit | null> => {
+    const prompt = buildOutfitPrompt({
+      weather: weatherLine(c.weather), events: opts.event ? [] : c.todays, occasion: opts.occasion,
+      eventTitle: opts.event?.title,
+      when: opts.event ? `${whenLabel(opts.event.date, today)}${opts.event.time ? ` at ${formatTime(opts.event.time)}` : ""}` : undefined,
+      profile: c.profile, currencyCode: currency, avoid: opts.avoid || [],
     });
-  }, [user?.uid]);
-
-  const persist = async (updates: Record<string,unknown>) => {
-    if (!user?.uid) return;
-    await saveData(user.uid, "style", updates);
+    const res = await ai(OUTFIT_SYSTEM, prompt, "style_stylist", [], { schema: OUTFIT_SCHEMA });
+    return res.error ? null : parseOutfit(res.text);
   };
 
-  const hasProfile = !!(bodyShape || vibe || dressCode);
-
-  // ── Generate outfit per blueprint spec ────────────────────────────
-  const generateOutfit = async () => {
-    if (!occasion || !mood) return;
-    setLoading(true);
-
-    const profile_str = hasProfile
-      ? `Body shape: ${bodyShape||"not specified"}. Height: ${height||"not specified"}. Size: ${size||"not specified"}. Style vibe: ${vibe||"classic elegant"}. Dress code: ${dressCode||"smart casual"}. Budget: ${budget||"mid-range"}. Color season: ${colorSeason||"not specified"}.`
-      : "Style profile not set — give versatile recommendations.";
-
-    const bodyTip = BODY_SHAPE_TIPS[bodyShape] || "";
-
-    const sys = `You are Cleo, a personal stylist with 15 years of experience inside HerNest.
-
-HER STYLE PROFILE:
-${profile_str}
-${bodyTip ? `Body tip to reference: ${bodyTip}` : ""}
-
-STYLING RULES:
-1. Dress for her body shape — suggest silhouettes that flatter ${bodyShape||"her figure"}
-2. Match her vibe: ${vibe||"classic elegant"} aesthetic throughout
-3. Respect budget: ${budget||"mid-range"}
-4. Every item needs a "whyItWorks" tied to her body/occasion
-5. Include ONE statement accessory, not many
-6. End with a confidence boost — she should feel amazing
-7. Suggest alternatives for key items
-8. Use null for outfit pieces she doesn't need (bag, outerwear, dress, bottom) and for weatherAdaptation if weather isn't relevant
-9. estimatedCost.total is the whole outfit in ${getCurrency()}`;
-
-    const stressNote = householdSnapshot?.householdStressLevel === "high" ? " The user is having a high-stress week — prioritize comfort and ease." : "";
-    const prompt = `Occasion: ${occasion}. Mood: ${mood}. ${context?`Context: ${context}.`:""} ${weather?`Weather: ${weather}.`:""} ${include?`Must include: ${include}.`:""}${stressNote}`;
-    const item = s.object({ name: s.string(), color: s.string(), material: s.string(), fit: s.string(), whyItWorks: s.string() });
-    const schema = s.object({
-      outfit: s.object({
-        top: item, bottom: s.nullable(item), dress: s.nullable(item), outerwear: s.nullable(item),
-        shoes: item, accessories: s.array(item), bag: s.nullable(item),
-      }),
-      styling: s.object({ colorPalette: s.array(s.string()), silhouette: s.string(), proportionTip: s.string() }),
-      rationale: s.string("2-3 sentences why this works for her occasion and body"),
-      bodyShapeTip: s.string("specific tip for her body shape"),
-      weatherAdaptation: s.nullable(s.string("how to adapt for the weather")),
-      confidenceBoost: s.string("one powerful line she can carry with her"),
-      alternatives: s.array(s.object({ item: s.string(), alternative: s.string("what to use instead"), reason: s.string() })),
-      estimatedCost: s.object({ total: s.number(), currency: s.string() }),
-    });
-    const result = await ai(sys, prompt, "style_stylist", [], { schema });
-
-    if (!result.error) {
-      try {
-        const parsed = JSON.parse(result.text);
-        const outfitRec: OutfitRec = {
-          occasion, mood, createdAt: Date.now(),
-          outfit: parsed.outfit,
-          styling: parsed.styling,
-          rationale: parsed.rationale,
-          bodyShapeTip: parsed.bodyShapeTip,
-          weatherAdaptation: parsed.weatherAdaptation,
-          confidenceBoost: parsed.confidenceBoost,
-          alternatives: parsed.alternatives,
-          estimatedCost: parsed.estimatedCost,
-        };
-        setRec(outfitRec);
-        await bus.publish("style.outfit.generated", { occasion, mood }, { userId: user!.uid, source: "style" });
-      } catch(e) { console.error("[Style]", e); setAiError("Cleo got confused with the outfit. Try again."); }
-    } else {
-      setAiError("Cleo couldn't generate an outfit. Check your connection and try again.");
-    }
+  const showToday = async (c: DayContext, occasion: string | null, another = false) => {
+    if (!uid || loading) return;
+    setLoading(true); setError(""); setAskOther(false);
+    if (!another) tried.current = [];
+    const outfit = await askForOutfit(c, { occasion, avoid: tried.current.slice(-3) });
     setLoading(false);
+    if (!outfit) { setError("Cleo couldn't put a look together just now. Try again in a moment."); return; }
+    tried.current.push(outfit.headline);
+    setShown({ outfit, occasion });
+    saveData(uid, "style", { todayOutfit: { date: today, occasion, outfit } }).catch(() => {});
+    bus.publish("style.outfit.generated", { occasion: occasion || "today" }, { userId: uid, source: "style" }).catch(() => {});
+    trackEvent("outfit_generated", { occasion: occasion || "auto", another });
   };
 
-  // ── Save outfit ───────────────────────────────────────────────────
-  const saveOutfit = async () => {
-    if (!rec) return;
-    const item: SavedOutfit = { id: crypto.randomUUID(), occasion, mood, rec, savedAt: Date.now() };
-    const updated = [item, ...saved];
+  // ── Load: style doc, weather, calendar; then open straight on today's
+  // outfit (no typing, no picking) unless one was already made today ────
+  useEffect(() => {
+    if (!uid) return;
+    let alive = true;
+    const docP = loadData(uid, "style").catch(() => null);
+    docP.then(d => {
+      if (!alive) return;
+      const p = readStyleProfile(d);
+      setProfile(p); setDraft(p);
+      setSaved(Array.isArray(d?.saved) ? (d!.saved as SavedLook[]) : []);
+      setWishlist(Array.isArray(d?.wishlist) ? (d!.wishlist as WishItem[]) : []);
+      const t = d?.todayOutfit as { date?: string; occasion?: string | null; outfit?: Outfit } | undefined;
+      if (t?.date === today && t.outfit) { setShown({ outfit: t.outfit, occasion: t.occasion ?? null }); tried.current = [t.outfit.headline]; }
+      setDocLoaded(true);
+    });
+    Promise.all([
+      docP,
+      weatherForOutfit(city).catch(() => null),
+      import("../../core/upcomingEvents").then(m => m.loadUpcomingEvents(uid, 8)).catch(() => [] as SimpleEvent[]),
+    ]).then(([d, w, evs]) => {
+      if (!alive) return;
+      setWeather(w); setEvents(evs); setCtxLoaded(true);
+      const cached = (d?.todayOutfit as { date?: string } | undefined)?.date === today;
+      const dayEvents = evs.filter(e => e.date === today);
+      if (!cached) showToday({ weather: w, todays: dayEvents, profile: readStyleProfile(d) }, occasionForDay(dayEvents));
+    });
+    return () => { alive = false; };
+    // showToday only reads stable refs/setters; reload when the day or city changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, today, city]);
+
+  const planFor = async (e: SimpleEvent & { occasion: string }) => {
+    if (plan?.eventId === e.id && plan.outfit) { setPlan(null); return; }
+    setPlan({ eventId: e.id, outfit: null, loading: true });
+    const outfit = await askForOutfit(ctx, { occasion: e.occasion, event: e });
+    setPlan({ eventId: e.id, outfit, loading: false });
+    if (!outfit) toast.error("Couldn't get an idea for that one. Try again.");
+    trackEvent("outfit_planned_ahead", { occasion: e.occasion });
+  };
+
+  // ── Saved looks + want to buy ────────────────────────────────────
+  const saveLook = async (outfit: Outfit, occasion: string | null, title?: string) => {
+    if (!uid) return;
+    if (saved.some(l => l.outfit?.headline === outfit.headline)) { toast("Already saved"); return; }
+    const look: SavedLook = { id: crypto.randomUUID(), occasion: occasion || "today", ...(title ? { title } : {}), outfit, savedAt: Date.now() };
+    const updated = [look, ...saved];
     setSaved(updated);
-    await persist({ saved:updated, wishlist, bodyShape, size, height, vibe, dressCode, budget, colorSeason });
-    await bus.publish("style.outfit.saved", { occasion }, { userId: user!.uid, source: "style" });
-    toast.success("Outfit saved ♥");
+    await saveData(uid, "style", { saved: updated });
+    bus.publish("style.outfit.saved", { occasion: look.occasion }, { userId: uid, source: "style" }).catch(() => {});
+    trackEvent("outfit_saved", { occasion: look.occasion });
+    toast.success("Saved ♥");
   };
-
-  // ── Save style profile ────────────────────────────────────────────
-  const saveStyleProfile = async () => {
-    setSavingProfile(true);
-    await persist({ bodyShape, size, height, vibe, dressCode, budget, colorSeason, saved, wishlist });
-    await bus.publish("style.preference.updated", { vibe, dressCode, bodyShape }, { userId: user!.uid, source: "style" });
-    setSavingProfile(false);
-    toast.success("Style profile saved ✓ Cleo knows your style");
+  const removeLook = async (id: string) => {
+    if (!uid) return;
+    const updated = saved.filter(l => l.id !== id);
+    setSaved(updated);
+    await saveData(uid, "style", { saved: updated });
   };
-
-  // ── Wishlist ──────────────────────────────────────────────────────
-  const addToWishlist = async () => {
-    if (!wishItem.trim()) return;
-    const item: WishlistItem = { id: crypto.randomUUID(), name: wishItem.trim(), category: wishCat, addedAt: Date.now() };
-    const updated = [item, ...wishlist];
+  const addWish = async () => {
+    if (!uid || !wishText.trim()) return;
+    const updated = [{ id: crypto.randomUUID(), name: wishText.trim(), category: "Clothing", addedAt: Date.now() }, ...wishlist];
+    setWishlist(updated); setWishText("");
+    await saveData(uid, "style", { wishlist: updated });
+  };
+  const removeWish = async (id: string) => {
+    if (!uid) return;
+    const updated = wishlist.filter(w => w.id !== id);
     setWishlist(updated);
-    await persist({ wishlist:updated, saved, bodyShape, size, height, vibe, dressCode, budget, colorSeason });
-    setWishItem("");
-    toast.success("Added to wishlist ✓");
+    await saveData(uid, "style", { wishlist: updated });
   };
+
+  // ── Profile (set once) ───────────────────────────────────────────
+  const saveProfile = async () => {
+    if (!uid) return;
+    setProfile(draft); setEditingProfile(false);
+    await saveData(uid, "style", {
+      size: draft.size, styleWords: draft.words, budgetAmount: draft.budget, bodyShape: draft.bodyShape, height: draft.height,
+    });
+    bus.publish("style.preference.updated", { words: draft.words, bodyShape: draft.bodyShape }, { userId: uid, source: "style" }).catch(() => {});
+    trackEvent("style_profile_saved", { hasSize: !!draft.size, words: draft.words.length, hasBudget: !!draft.budget });
+    toast.success("Got it. Cleo will dress you for this.");
+  };
+  const toggleWord = (w: string) => setDraft(d => ({
+    ...d, words: d.words.includes(w) ? d.words.filter(x => x !== w) : d.words.length >= MAX_WORDS ? d.words : [...d.words, w],
+  }));
+
+  // ── UI ───────────────────────────────────────────────────────────
+  const context = [weather && `${weather.icon} ${weatherLine(weather)}`, todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
+  const profileOpen = editingProfile || (docLoaded && !hasProfile(profile));
 
   return (
-    <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="PERSONAL STYLIST" title="Style"/>
+    <div style={{ animation: "fadeUp .45s ease both" }}>
+      <PageTitle eyebrow="JUST FOR YOU" title="Style" />
 
-      {/* Cleo knows badge */}
-      {hasProfile && (
-        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:`linear-gradient(135deg,${T.gold}10,${T.esp}06)`, border:`1px solid ${T.gold}30`, borderRadius:14, marginBottom:12 }}>
-          <span style={{ fontSize:18 }}>✦</span>
-          <div>
-            <p style={{ fontFamily:F.sans, fontSize:12, fontWeight:700, color:T.gold, margin:0 }}>Cleo knows your style</p>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{bodyShape||"Your shape"} · {vibe||"Classic"} · {dressCode||"Smart casual"} · {budget||"Mid-range"}</p>
+      {/* 1. Today's outfit */}
+      <Card>
+        <p style={label}>{shown?.occasion ? `TODAY'S OUTFIT · ${occasionLabel(shown.occasion).toUpperCase()}` : "TODAY'S OUTFIT"}</p>
+        {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{context}</p>}
+
+        {loading || (!shown && !error) ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 0" }}>
+            <Spinner size={18} />
+            <span style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe }}>{ctxLoaded ? "Putting a look together..." : "Checking the weather and your day..."}</span>
           </div>
-        </div>
+        ) : error && !shown ? (
+          <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>{error}</p>
+        ) : shown ? (
+          <OutfitView outfit={shown.outfit} />
+        ) : null}
+        {error && shown && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.red, margin: "8px 0 0" }}>{error}</p>}
+
+        {!loading && (shown || error) && (
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button onClick={() => showToday(ctx, shown?.occasion ?? autoOccasion, !!shown)} style={actionBtn(true)}>{shown ? "Another idea" : "Try again"}</button>
+            {shown && <button onClick={() => saveLook(shown.outfit, shown.occasion)} style={actionBtn(false)}>Save ♥</button>}
+            <button onClick={() => setAskOther(o => !o)} aria-expanded={askOther} style={actionBtn(false)}>Something else</button>
+          </div>
+        )}
+        {askOther && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {OCCASIONS.map(o => <button key={o.id} onClick={() => showToday(ctx, o.id)} style={chip(false)}>{o.emoji} {o.label}</button>)}
+          </div>
+        )}
+      </Card>
+
+      {/* 2. Coming up */}
+      {upcoming.length > 0 && (
+        <Card>
+          <p style={label}>COMING UP</p>
+          {upcoming.map((e, i) => {
+            const open = plan?.eventId === e.id;
+            return (
+              <div key={e.id} style={{ borderTop: i ? `1px solid ${T.linen}` : "none", padding: "8px 0" }}>
+                <button onClick={() => planFor(e)} aria-expanded={open}
+                  style={{ display: "flex", width: "100%", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", minHeight: 44 }}>
+                  <span style={{ fontSize: 18 }}>{OCCASIONS.find(o => o.id === e.occasion)?.emoji}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp }}>{e.title}</span>
+                    <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{whenLabel(e.date, today)}{e.time ? ` · ${formatTime(e.time)}` : ""}</span>
+                  </span>
+                  <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText }}>{open && plan?.outfit ? "Hide" : "Get an idea"}</span>
+                </button>
+                {open && (
+                  <div style={{ padding: "10px 0 4px" }}>
+                    {plan!.loading ? <Spinner size={16} /> : plan!.outfit ? (
+                      <>
+                        <OutfitView outfit={plan!.outfit} />
+                        <button onClick={() => saveLook(plan!.outfit!, e.occasion, e.title)} style={{ ...linkBtn, marginTop: 6 }}>Save this look ♥</button>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </Card>
       )}
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
-        {["stylist","profile","saved","wishlist"].map(t=>(
-          <Pill key={t} label={t==="stylist"?"✦ Style Me":t==="profile"?"My Profile":t==="saved"?`Saved (${saved.length})`:`Wishlist (${wishlist.length})`} active={tab===t} onClick={()=>setTab(t)}/>
-        ))}
-      </div>
-
-      {/* ── STYLE ME ──────────────────────────────────────────────── */}
-      {tab==="stylist" && <>
-        <Card>
-          <p style={{ fontFamily:F.serif, fontSize:22, fontStyle:"italic", fontWeight:500, color:T.esp, margin:"0 0 14px" }}>What's the occasion?</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            {(OCCASIONS as any[]).map(o=>(
-              <button key={o.id} onClick={()=>setOccasion(o.id)}
-                style={{
-                  padding:"18px 14px", borderRadius:20,
-                  border:`2px solid ${occasion===o.id ? o.color : "transparent"}`,
-                  background: occasion===o.id ? o.color : o.bg,
-                  cursor:"pointer", touchAction:"manipulation", textAlign:"left",
-                  transition:"all 0.2s", minHeight:90,
-                }}>
-                <p style={{ fontFamily:F.sans, fontSize:22, margin:"0 0 6px", color: occasion===o.id?"#fff":o.color }}>{o.icon}</p>
-                <p style={{ fontFamily:F.sans, fontSize:14, fontWeight:800, color:occasion===o.id?"#fff":T.esp, margin:"0 0 2px", letterSpacing:"-0.02em" }}>{o.label}</p>
-                <p style={{ fontFamily:F.sans, fontSize:10, color:occasion===o.id?"rgba(255,255,255,0.7)":T.taupe, margin:0 }}>{o.desc}</p>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontFamily:F.serif, fontSize:22, fontStyle:"italic", fontWeight:500, color:T.esp, margin:"0 0 14px" }}>How do you want to feel?</p>
-          <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
-            {(MOODS as any[]).map(m=>(
-              <button key={m.id} onClick={()=>setMood(m.id)}
-                style={{
-                  flexShrink:0, padding:"10px 18px", borderRadius:30,
-                  border:"none",
-                  background: mood===m.id ? m.color : `${m.color}15`,
-                  color: mood===m.id ? "#fff" : m.color,
-                  fontFamily:F.sans, fontSize:12, fontWeight:700,
-                  cursor:"pointer", touchAction:"manipulation", minHeight:40,
-                  transition:"all 0.2s", letterSpacing:"0.02em",
-                }}>
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>EXTRA CONTEXT (optional)</p>
-          <input value={context} onChange={e=>setContext(e.target.value)} placeholder="e.g. Standing all day, need flat shoes, outdoor event..." style={{ width:"100%", background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", boxSizing:"border-box", minHeight:44, marginBottom:8 }}/>
-          <input value={weather} onChange={e=>setWeather(e.target.value)} placeholder="Weather? (e.g. Cold, rainy, 22°C sunny)" style={{ width:"100%", background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", boxSizing:"border-box", minHeight:44, marginBottom:8 }}/>
-          <input value={include} onChange={e=>setInclude(e.target.value)} placeholder="Must include? (e.g. my red blazer, white trainers)" style={{ width:"100%", background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"11px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", boxSizing:"border-box", minHeight:44 }}/>
-        </Card>
-
-        <button onClick={generateOutfit} disabled={!occasion||!mood||loading} style={{ width:"100%", padding:"16px", background:occasion&&mood?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, color:occasion&&mood?"#fff":T.taupe, border:"none", borderRadius:16, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:occasion&&mood?"pointer":"not-allowed", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:52, touchAction:"manipulation" }}>
-          {loading?<><Spinner size={18} color="#fff"/>Creating your look...</>:"✦ Style Me"}
-        </button>
-
-        {/* Outfit Result per blueprint structured format */}
-        {rec && (
+      {/* 3. Saved looks + want to buy */}
+      <Card>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button onClick={() => setSavedTab("looks")} style={chip(savedTab === "looks")}>Saved looks ({saved.length})</button>
+          <button onClick={() => setSavedTab("buy")} style={chip(savedTab === "buy")}>Want to buy ({wishlist.length})</button>
+        </div>
+        {savedTab === "looks" ? (
+          saved.length === 0
+            ? <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Tap Save on a look you like and it lives here for the next busy morning.</p>
+            : saved.map((l, i) => {
+              const v = lookView(l);
+              return (
+                <div key={l.id} style={{ display: "flex", gap: 8, padding: "10px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 2px" }}>
+                      {v.title}{l.savedAt ? ` · ${new Date(l.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                    </p>
+                    <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: 0 }}>{v.headline || "Saved look"}</p>
+                    {v.note && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: "4px 0 0", lineHeight: 1.5 }}>{v.note}</p>}
+                  </div>
+                  <button onClick={() => removeLook(l.id)} aria-label="Remove saved look" style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 18, minWidth: 44, minHeight: 44 }}>×</button>
+                </div>
+              );
+            })
+        ) : (
           <>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <AIBadge label="Styled by Cleo"/>
-              <button onClick={saveOutfit} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, color:T.gold, cursor:"pointer", minHeight:36 }}>Save ♥</button>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <Input value={wishText} onChange={setWishText} placeholder="e.g. Black ankle boots" style={{ flex: 1 }} />
+              <button onClick={addWish} disabled={!wishText.trim()} style={{ ...actionBtn(true), flex: "0 0 auto", padding: "0 16px", opacity: wishText.trim() ? 1 : 0.5 }}>Add</button>
             </div>
-
-            {/* Occasion + mood header */}
-            <Card>
-              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 10px", textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                {(OCCASIONS as any[]).find(o=>o.id===rec.occasion)?.icon} {(OCCASIONS as any[]).find(o=>o.id===rec.occasion)?.label} ·  {MOODS.find(m=>m.id===rec.mood)?.label}
-              </p>
-
-              {/* Color palette */}
-              {rec.styling?.colorPalette?.length > 0 && (
-                <div style={{ display:"flex", gap:6, marginBottom:12, alignItems:"center" }}>
-                  <span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>Palette:</span>
-                  {rec.styling.colorPalette.map((c,i)=>(
-                    <span key={i} style={{ fontFamily:F.sans, fontSize:11, background:T.sand, padding:"2px 8px", borderRadius:20, color:T.esp }}>{c}</span>
-                  ))}
-                </div>
-              )}
-
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, lineHeight:1.7, margin:"0 0 10px" }}>{rec.rationale}</p>
-
-              {/* Silhouette + proportion tip */}
-              {rec.styling?.proportionTip && (
-                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, lineHeight:1.6, margin:0, fontStyle:"italic" }}>📐 {rec.styling.proportionTip}</p>
-              )}
-            </Card>
-
-            {/* Individual outfit items per blueprint */}
-            <Card>
-              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>THE OUTFIT</p>
-              {[
-                { key:"top",       label:"Top",       item:rec.outfit.top,       emoji:"👚" },
-                { key:"bottom",    label:"Bottom",    item:rec.outfit.bottom,    emoji:"👖" },
-                { key:"dress",     label:"Dress",     item:rec.outfit.dress,     emoji:"👗" },
-                { key:"outerwear", label:"Outerwear", item:rec.outfit.outerwear, emoji:"🧥" },
-                { key:"shoes",     label:"Shoes",     item:rec.outfit.shoes,     emoji:"👟" },
-                { key:"bag",       label:"Bag",       item:rec.outfit.bag,       emoji:"👜" },
-              ].filter(r=>r.item).map((row,i,arr)=>(
-                <div key={row.key} style={{ padding:"12px 0", borderBottom:i<arr.length-1?`1px solid ${T.linen}`:"none" }}>
-                  <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                    <span style={{ fontSize:20, flexShrink:0 }}>{row.emoji}</span>
-                    <div style={{ flex:1 }}>
-                      <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"0 0 2px" }}>{row.item!.name}</p>
-                      <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 4px" }}>{row.item!.color} · {row.item!.material} · {row.item!.fit}</p>
-                      <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, fontStyle:"italic", lineHeight:1.5 }}>"{row.item!.whyItWorks}"</p>
-                    </div>
-                  </div>
+            {wishlist.length === 0
+              ? <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Things you'd like to buy, so you remember when you're out.</p>
+              : wishlist.map((w, i) => (
+                <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
+                  <span style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: T.esp }}>{w.name}</span>
+                  <button onClick={() => removeWish(w.id)} aria-label={`Remove ${w.name}`} style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 18, minWidth: 44, minHeight: 44 }}>×</button>
                 </div>
               ))}
+          </>
+        )}
+      </Card>
 
-              {/* Accessories */}
-              {rec.outfit.accessories?.filter(a=>a?.name).map((acc,i)=>(
-                <div key={i} style={{ padding:"12px 0", borderTop:`1px solid ${T.linen}` }}>
-                  <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                    <span style={{ fontSize:20, flexShrink:0 }}>💍</span>
-                    <div style={{ flex:1 }}>
-                      <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"0 0 2px" }}>{acc.name}</p>
-                      <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0, fontStyle:"italic" }}>"{acc.whyItWorks}"</p>
-                    </div>
-                  </div>
-                </div>
+      {/* 4. Your style (set once) */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <p style={label}>YOUR STYLE</p>
+          {!profileOpen && <button onClick={() => { setDraft(profile); setEditingProfile(true); }} style={linkBtn}>Edit</button>}
+        </div>
+        {!profileOpen ? (
+          <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>{profileLine(profile, n => formatMoney(n))}</p>
+        ) : (
+          <>
+            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>Three quick things and Cleo's ideas fit you better.</p>
+            <p style={{ ...label, margin: "0 0 8px" }}>SIZE (US)</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {US_SIZES.map(sz => <button key={sz} onClick={() => setDraft(d => ({ ...d, size: d.size === sz ? "" : sz }))} style={chip(draft.size === sz)}>{sz}</button>)}
+            </div>
+            <p style={{ ...label, margin: "0 0 8px" }}>STYLE WORDS (UP TO {MAX_WORDS})</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {STYLE_WORDS.map(w => <button key={w} onClick={() => toggleWord(w)} style={chip(draft.words.includes(w))}>{w}</button>)}
+            </div>
+            <p style={{ ...label, margin: "0 0 8px" }}>TYPICAL BUDGET FOR AN OUTFIT</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {BUDGET_STEPS.map(b => (
+                <button key={b} onClick={() => setDraft(d => ({ ...d, budget: d.budget === b ? null : b }))} style={chip(draft.budget === b)}>
+                  {b === BUDGET_STEPS[BUDGET_STEPS.length - 1] ? `${formatMoney(b)}+` : `Up to ${formatMoney(b)}`}
+                </button>
               ))}
-            </Card>
-
-            {/* Body shape tip per blueprint */}
-            {rec.bodyShapeTip && (
-              <div style={{ background:`${T.lav}15`, border:`1px solid ${T.lav}30`, borderRadius:14, padding:"12px 16px", marginBottom:12 }}>
-                <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.lav, margin:"0 0 4px", textTransform:"uppercase", letterSpacing:"0.08em" }}>YOUR SHAPE TIP</p>
-                <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{rec.bodyShapeTip}</p>
-              </div>
+            </div>
+            <button onClick={() => setMoreProfile(m => !m)} style={linkBtn}>{moreProfile ? "Hide extras" : "More (optional): body shape, height"}</button>
+            {moreProfile && (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 10px" }}>
+                  {BODY_SHAPES.map(b => <button key={b} onClick={() => setDraft(d => ({ ...d, bodyShape: d.bodyShape === b ? "" : b }))} style={chip(draft.bodyShape === b)}>{b}</button>)}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {HEIGHTS.map(h => <button key={h} onClick={() => setDraft(d => ({ ...d, height: d.height === h ? "" : h }))} style={chip(draft.height === h)}>{h}</button>)}
+                </div>
+              </>
             )}
-
-            {/* Weather adaptation per blueprint */}
-            {rec.weatherAdaptation && (
-              <div style={{ background:`${T.sky}15`, border:`1px solid ${T.sky}30`, borderRadius:14, padding:"12px 16px", marginBottom:12 }}>
-                <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.sky, margin:"0 0 4px", textTransform:"uppercase", letterSpacing:"0.08em" }}>🌤 WEATHER ADAPT</p>
-                <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{rec.weatherAdaptation}</p>
-              </div>
-            )}
-
-            {/* Alternatives per blueprint */}
-            {(rec.alternatives?.filter(a=>a?.item).length ?? 0) > 0 && (
-              <Card>
-                <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>DON'T HAVE IT? TRY</p>
-                {rec.alternatives!.filter(a=>a?.item).map((alt,i)=>(
-                  <div key={i} style={{ display:"flex", gap:10, padding:"7px 0", borderBottom:i<rec.alternatives!.length-1?`1px solid ${T.linen}`:"none" }}>
-                    <span style={{ color:T.taupe, flexShrink:0, fontFamily:F.sans, fontSize:12 }}>Instead of <em>{alt.item}</em>:</span>
-                    <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:0 }}>{alt.alternative} — {alt.reason}</p>
-                  </div>
-                ))}
-              </Card>
-            )}
-
-            {/* Estimated cost per blueprint */}
-            {rec.estimatedCost && rec.estimatedCost.total > 0 && (
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:T.sand, borderRadius:14, marginBottom:12, border:`1px solid ${T.linen}` }}>
-                <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0 }}>Estimated cost</p>
-                <p style={{ fontFamily:F.serif, fontSize:20, fontWeight:700, color:T.esp, margin:0 }}>{currencySymbol(getCurrency())}{rec.estimatedCost.total}</p>
-              </div>
-            )}
-
-            {/* Confidence boost per blueprint */}
-            <div style={{ background:`linear-gradient(135deg,${T.gold}15,${T.esp}08)`, border:`1px solid ${T.gold}30`, borderRadius:16, padding:"18px 18px", marginBottom:12 }}>
-              <p style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:T.gold, margin:"0 0 6px", textTransform:"uppercase", letterSpacing:"0.1em" }}>✦ CONFIDENCE BOOST</p>
-              <p style={{ fontFamily:F.serif, fontSize:16, fontStyle:"italic", color:T.esp, margin:0, lineHeight:1.7 }}>{rec.confidenceBoost}</p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button onClick={saveProfile} disabled={!hasProfile(draft)} style={{ ...actionBtn(true), opacity: hasProfile(draft) ? 1 : 0.5 }}>Save</button>
+              {editingProfile && <button onClick={() => setEditingProfile(false)} style={actionBtn(false)}>Cancel</button>}
             </div>
           </>
         )}
-      </>}
-
-      {/* ── STYLE PROFILE per blueprint ───────────────────────────── */}
-      {tab==="profile" && <>
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>BODY SHAPE</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {BODY_SHAPES.map(s=>(
-              <button key={s} onClick={()=>setBodyShape(s)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${bodyShape===s?T.esp:T.linen}`, background:bodyShape===s?T.esp:"#fff", color:bodyShape===s?"#fff":T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{s}</button>
-            ))}
-          </div>
-          {bodyShape && <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"10px 0 0", fontStyle:"italic" }}>{BODY_SHAPE_TIPS[bodyShape]}</p>}
-        </Card>
-
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>HEIGHT</p>
-          <div style={{ display:"flex", gap:6 }}>
-            {HEIGHTS.map(h=>(
-              <button key={h} onClick={()=>setHeight(h)} style={{ flex:1, padding:"10px 6px", borderRadius:12, border:`1.5px solid ${height===h?T.esp:T.linen}`, background:height===h?T.esp:"#fff", color:height===h?"#fff":T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer", touchAction:"manipulation", textAlign:"center" }}>{h}</button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>YOUR VIBE</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {VIBES.map(v=>(
-              <button key={v} onClick={()=>setVibe(v)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${vibe===v?T.gold:T.linen}`, background:vibe===v?T.goldP:"#fff", color:vibe===v?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{v}</button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>DRESS CODE</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
-            {DRESS_CODES.map(d=>(
-              <button key={d} onClick={()=>setDressCode(d)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${dressCode===d?T.lav:T.linen}`, background:dressCode===d?`${T.lav}15`:"#fff", color:dressCode===d?T.lav:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{d}</button>
-            ))}
-          </div>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>BUDGET</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
-            {BUDGETS.map(b=>(
-              <button key={b} onClick={()=>setBudget(b)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${budget===b?T.sage:T.linen}`, background:budget===b?`${T.sage}15`:"#fff", color:budget===b?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{b}</button>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Input value={size} onChange={setSize} placeholder="Clothing size (e.g. 8 or M)" style={{ flex:1 }}/>
-            <Input value={colorSeason} onChange={setColorSeason} placeholder="Color season (optional)" style={{ flex:1 }}/>
-          </div>
-        </Card>
-
-        <Button onClick={saveStyleProfile} disabled={savingProfile} variant="gold">
-          {savingProfile?"Saving...":"Save Style Profile ✦"}
-        </Button>
-      </>}
-
-      {/* ── SAVED OUTFITS ─────────────────────────────────────────── */}
-      {tab==="saved" && <>
-        {saved.length===0
-          ? <EmptyState icon="♥" title="Your future favorites" body="When Cleo styles something you love, tap Save and it lives here — ready for the next busy morning." />
-          : saved.map(s=>(
-            <Card key={s.id}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <div>
-                  <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:0 }}>
-                    {(OCCASIONS as any[]).find(o=>o.id===s.occasion)?.icon} {(OCCASIONS as any[]).find(o=>o.id===s.occasion)?.label}
-                  </p>
-                  <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>
-                    {MOODS.find(m=>m.id===s.mood)?.label} · {new Date(s.savedAt||Date.now()).toLocaleDateString("en-US",{day:"numeric",month:"short"})}
-                  </p>
-                </div>
-                <button onClick={async()=>{ const u=saved.filter(i=>i.id!==s.id); setSaved(u); await persist({saved:u,wishlist,bodyShape,size,height,vibe,dressCode,budget,colorSeason}); }} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44, padding:"0 8px" }}>×</button>
-              </div>
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, lineHeight:1.6, margin:"0 0 8px" }}>{s.rec.rationale}</p>
-              {s.rec.confidenceBoost && <p style={{ fontFamily:F.serif, fontSize:13, fontStyle:"italic", color:T.gold, margin:0 }}>"{s.rec.confidenceBoost}"</p>}
-            </Card>
-          ))
-        }
-      </>}
-
-      {/* ── WISHLIST ──────────────────────────────────────────────── */}
-      {tab==="wishlist" && <>
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ADD TO WISHLIST</p>
-          <Input value={wishItem} onChange={setWishItem} placeholder="Item name (e.g. White linen blazer)" style={{ marginBottom:8 }}/>
-          <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
-            {["Clothing","Shoes","Bags","Accessories","Beauty","Jewellery"].map(c=>(
-              <button key={c} onClick={()=>setWishCat(c)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${wishCat===c?T.gold:T.linen}`, background:wishCat===c?T.goldP:"#fff", color:wishCat===c?T.gold:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer", touchAction:"manipulation" }}>{c}</button>
-            ))}
-          </div>
-          <Button onClick={addToWishlist} disabled={!wishItem.trim()} variant="secondary">Add to Wishlist</Button>
-        </Card>
-        {wishlist.length===0
-          ? <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0" }}>Your wishlist is empty.</p></Card>
-          : wishlist.map(item=>(
-            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:T.ivory, borderRadius:16, border:`1px solid ${T.linen}`, marginBottom:8 }}>
-              <div style={{ flex:1 }}>
-                <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{item.name}</p>
-                <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{item.category}</p>
-              </div>
-              <button onClick={async()=>{ const u=wishlist.filter(i=>i.id!==item.id); setWishlist(u); await persist({wishlist:u,saved,bodyShape,size,height,vibe,dressCode,budget,colorSeason}); }} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44, padding:"0 8px" }}>×</button>
-            </div>
-          ))
-        }
-      </>}
+      </Card>
     </div>
   );
 }
