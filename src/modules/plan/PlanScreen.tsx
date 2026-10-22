@@ -321,17 +321,18 @@ export function PlanScreen() {
   const generateMeals = async () => {
     setGeneratingMeals(true);
     const p = profile as any;
-    const diet = p?.diet || "no restrictions";
+    // Only what she told us: no made-up defaults, and only food preferences from memory.
+    const diet = p?.diet || "";
     const kidList = people.filter(m => m.role === "child");
     const kids = kidList.length
       ? kidList.map(k => k.name + (k.notes ? ` (${k.notes})` : "")).join(", ")
-      : String(p?.kids?.length || 0);
-    const energy = p?.energyPattern || "morning";
-    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => "") : "";
+      : (p?.kids?.length ? String(p.kids.length) : "");
+    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10, memoryTypes: ["preference"] }).catch(() => "") : "";
 
     const sys = `You are Cleo, a meal planner.
 7 days Mon-Sun. Keep meal names under 6 words. prepTime is minutes. Shopping list max 25 items, categorized, all unchecked.
-Consider: easier meals on busy weekdays, more elaborate on weekends.`;
+Consider: easier meals on busy weekdays, more elaborate on weekends.
+Never include an ingredient named as an allergy or dislike anywhere in the notes below.`;
     const schema = s.object({
       days: s.array(s.object({
         dayName: s.enum(DAYS_OF_WEEK),
@@ -345,7 +346,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       })),
     });
 
-    const prompt = `Diet: ${diet}. Kids: ${kids}. Energy: ${energy} person. Budget-conscious. ${memCtx?"Context: "+memCtx:""}`;
+    const prompt = [diet && `Diet: ${diet}.`, kids && `Kids: ${kids}.`, "Budget-conscious.", memCtx && `Food preferences: ${memCtx}`].filter(Boolean).join(" ");
     const result = await ai(sys, prompt, "meal_plan", [], { schema });
 
     if (!result.error) {
