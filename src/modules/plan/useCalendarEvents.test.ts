@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../../core/firebase", () => ({ loadData: vi.fn(), saveData: vi.fn(), db: {}, auth: {} }));
 vi.mock("../../core/events", () => ({ bus: { publish: vi.fn(() => Promise.resolve()) } }));
 vi.mock("../../core/deviceCalendar", () => ({
-  deviceCalendarSupported: () => false, deviceCalendarConnected: vi.fn(), fetchDeviceEvents: vi.fn(),
+  deviceCalendarSupported: () => false, deviceCalendarConnected: vi.fn(), readDeviceCalendar: vi.fn(),
 }));
 
 import { mergeEventsById, type CalEvent } from "./useCalendarEvents";

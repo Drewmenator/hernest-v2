@@ -60,15 +60,54 @@ export function mapGoogleEvent(e, cal = {}, tz) {
     ...(time ? { time } : {}),
     source: "google", color: cal.backgroundColor || "#4285F4",
     allDay, ...(cal.summary ? { calendar: cal.summary } : {}),
+    ...(cal.id ? { calendarId: cal.id } : {}),
   };
 }
 
-// Pulls every readable calendar's events from local midnight today (so events
+// Which Google calendars count as the person's own: their main calendar and
+// ones they created. Calendars shared with them (a colleague's, a school's)
+// are left out until they tick them in Choose calendars.
+export const isOwnGoogleCalendar = (c) => !!(c?.primary || c?.accessRole === "owner");
+
+// choice: { picked, seen } from Choose calendars, or null if they never
+// chose. A calendar they've seen in the picker is in only if ticked; one that
+// appeared since (or with no choice at all) follows the default: their own.
+// Free/busy-only calendars have no events to show.
+export function isPicked(c, choice) {
+  if (choice && Array.isArray(choice.seen) && choice.seen.includes(c.id)) return Array.isArray(choice.picked) && choice.picked.includes(c.id);
+  return isOwnGoogleCalendar(c);
+}
+export function chooseGoogleCalendars(list, choice) {
+  return (list || []).filter(c => c?.id && c.accessRole !== "freeBusyReader" && isPicked(c, choice));
+}
+
+// The person's Choose calendars answer for one source (users/{uid}/data/
+// calendar_choice → { google: { picked, seen } }), or null if they never chose.
+export async function pickedCalendars(db, uid, key) {
+  try {
+    const snap = await db.doc(`users/${uid}/data/calendar_choice`).get();
+    const c = snap.exists ? snap.data()?.[key] : null;
+    if (!c || !Array.isArray(c.seen)) return null;
+    const strings = (xs) => (Array.isArray(xs) ? xs.filter(x => typeof x === "string") : []);
+    return { picked: strings(c.picked), seen: strings(c.seen) };
+  } catch { return null; }
+}
+
+// Lists the person's Google calendars for the picker (null if Google failed).
+export async function listGoogleCalendars(accessToken, { fetchImpl = fetch } = {}) {
+  try {
+    const data = await (await fetchImpl("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250", { headers: { Authorization: `Bearer ${accessToken}` } })).json();
+    if (data?.error || !Array.isArray(data?.items)) return null;
+    return data.items.filter(c => c?.id && c.accessRole !== "freeBusyReader");
+  } catch { return null; }
+}
+
+// Pulls the chosen calendars' events from local midnight today (so events
 // that already started today are refreshed too) through `days` ahead.
 // `complete` is false if anything failed or was cut off; callers must then
 // merge only, never replace (a failed fetch must not wipe the calendar).
 // `from` / `to` are the local dates covered: from inclusive, to exclusive.
-export async function fetchGoogleEvents(accessToken, { tz, now = new Date(), days = 60, fetchImpl = fetch, maxPages = 4 } = {}) {
+export async function fetchGoogleEvents(accessToken, { tz, now = new Date(), days = 60, fetchImpl = fetch, maxPages = 4, choice } = {}) {
   const zone = isValidTimeZone(tz) ? tz : null;
   const from = localDate(now, zone);
   // No zone: start 14h before UTC midnight so nothing dated "today" anywhere is missed.
@@ -80,12 +119,12 @@ export async function fetchGoogleEvents(accessToken, { tz, now = new Date(), day
 
   let calendars = [];
   try {
-    const listData = await (await fetchImpl("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50", { headers })).json();
-    if (listData?.error || !Array.isArray(listData?.items)) complete = false;
-    calendars = (listData?.items || []).filter(c => c.accessRole !== "freeBusyReader");
+    const listData = await (await fetchImpl("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250", { headers })).json();
+    if (listData?.error || !Array.isArray(listData?.items) || !listData.items.length) complete = false; // never treat "no calendars" as "no events"
     if (listData?.nextPageToken) complete = false;
+    calendars = chooseGoogleCalendars(listData?.items, choice);
   } catch { complete = false; }
-  if (!calendars.length) complete = false; // never treat "no calendars" as "no events"
+  // Nothing ticked is a real answer (an empty calendar), as long as the list loaded.
 
   let events = [];
   for (const cal of calendars) {

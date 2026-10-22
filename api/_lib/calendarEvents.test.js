@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  localDate, zonedMidnight, wallClock, mapGoogleEvent, fetchGoogleEvents, mapOutlookEvent,
+  localDate, zonedMidnight, wallClock, mapGoogleEvent, fetchGoogleEvents, chooseGoogleCalendars, mapOutlookEvent,
   outlookHeaders, parseICSEvents, mergeSyncedEvents, combineFetches, zoneOr,
 } from "./calendarEvents.js";
 
@@ -51,6 +51,27 @@ describe("Google mapping", () => {
   });
 });
 
+describe("chooseGoogleCalendars", () => {
+  const list = [
+    { id: "me@x.com", primary: true, accessRole: "owner" },
+    { id: "family", accessRole: "owner" },
+    { id: "colleague@work.com", accessRole: "reader" },
+    { id: "busy", accessRole: "freeBusyReader" },
+  ];
+  it("defaults to the person's own calendars", () => {
+    expect(chooseGoogleCalendars(list, null).map(c => c.id)).toEqual(["me@x.com", "family"]);
+  });
+  it("uses what was ticked, never free/busy-only", () => {
+    const seen = list.map(c => c.id);
+    expect(chooseGoogleCalendars(list, { picked: ["colleague@work.com", "busy"], seen }).map(c => c.id)).toEqual(["colleague@work.com"]);
+    expect(chooseGoogleCalendars(list, { picked: [], seen })).toEqual([]);
+  });
+  it("a calendar added after choosing follows the default", () => {
+    const choice = { picked: ["me@x.com"], seen: ["me@x.com", "colleague@work.com"] };
+    expect(chooseGoogleCalendars(list, choice).map(c => c.id)).toEqual(["me@x.com", "family"]);
+  });
+});
+
 describe("fetchGoogleEvents", () => {
   const fake = (routes) => {
     const calls = [];
@@ -67,7 +88,7 @@ describe("fetchGoogleEvents", () => {
 
   it("starts at local midnight, maps events, and reports a complete fetch", async () => {
     const { fetchImpl, calls } = fake([
-      [/calendarList/, { items: [{ id: "cal1", summary: "Home" }, { id: "busy", accessRole: "freeBusyReader" }] }],
+      [/calendarList/, { items: [{ id: "cal1", summary: "Home", accessRole: "owner" }, { id: "busy", accessRole: "freeBusyReader" }] }],
       [/calendars\/cal1\/events/, { items: [{ id: "x", summary: "School run", start: { dateTime: "2026-10-22T13:00:00Z" } }] }],
     ]);
     const r = await fetchGoogleEvents("tok", { tz: CHI, now: NOW, fetchImpl });
@@ -81,7 +102,7 @@ describe("fetchGoogleEvents", () => {
 
   it("follows pages", async () => {
     const { fetchImpl } = fake([
-      [/calendarList/, { items: [{ id: "c" }] }],
+      [/calendarList/, { items: [{ id: "c", primary: true }] }],
       [/pageToken=p2/, { items: [{ id: "2", start: { date: "2026-10-25" } }] }],
       [/calendars\/c\/events/, { items: [{ id: "1", start: { date: "2026-10-24" } }], nextPageToken: "p2" }],
     ]);
@@ -92,7 +113,7 @@ describe("fetchGoogleEvents", () => {
 
   it("is incomplete when a calendar errors, the list fails, or there are no calendars", async () => {
     const errored = fake([
-      [/calendarList/, { items: [{ id: "ok" }, { id: "bad" }] }],
+      [/calendarList/, { items: [{ id: "ok", accessRole: "owner" }, { id: "bad", accessRole: "owner" }] }],
       [/calendars\/ok\/events/, { items: [] }],
       [/calendars\/bad\/events/, { error: { code: 403 } }],
     ]);
@@ -105,7 +126,7 @@ describe("fetchGoogleEvents", () => {
 
   it("without a zone, starts early enough and reads Google's own offset", async () => {
     const { fetchImpl, calls } = fake([
-      [/calendarList/, { items: [{ id: "c" }] }],
+      [/calendarList/, { items: [{ id: "c", primary: true }] }],
       [/events/, { items: [{ id: "e", start: { dateTime: "2026-10-22T20:00:00-05:00" } }] }],
     ]);
     const r = await fetchGoogleEvents("t", { now: NOW, fetchImpl });
@@ -196,5 +217,30 @@ describe("combineFetches", () => {
     expect(combineFetches([a, { ...b, complete: false }]).complete).toBe(false);
     expect(combineFetches([a], false).complete).toBe(false);
     expect(combineFetches([]).complete).toBe(false);
+  });
+});
+
+describe("fetchGoogleEvents with a calendar choice", () => {
+  const NOW = new Date("2026-10-22T18:00:00Z");
+  const routes = (url) => {
+    if (/calendarList/.test(url)) return { items: [{ id: "me", primary: true }, { id: "colleague", accessRole: "reader" }] };
+    if (/calendars\/me\/events/.test(url)) return { items: [{ id: "a", summary: "Dentist", start: { date: "2026-10-23" } }] };
+    return { items: [] };
+  };
+  const make = () => { const calls = []; return { calls, fetchImpl: async (url) => { calls.push(url); return { json: async () => routes(url) }; } }; };
+
+  it("skips calendars shared by others and tags each event with its calendar", async () => {
+    const { fetchImpl, calls } = make();
+    const r = await fetchGoogleEvents("t", { tz: "America/Chicago", now: NOW, fetchImpl });
+    expect(calls.some(u => /calendars\/colleague/.test(u))).toBe(false);
+    expect(r.events[0]).toMatchObject({ title: "Dentist", calendarId: "me" });
+    expect(r.complete).toBe(true);
+  });
+
+  it("nothing ticked is a complete, empty answer (so old events clear)", async () => {
+    const { fetchImpl } = make();
+    const r = await fetchGoogleEvents("t", { tz: "America/Chicago", now: NOW, fetchImpl, choice: { picked: [], seen: ["me", "colleague"] } });
+    expect(r.events).toEqual([]);
+    expect(r.complete).toBe(true);
   });
 });
