@@ -161,3 +161,20 @@ describe("alreadyHandled", () => {
     expect(alreadyHandled([{ id: "a", title: "x", state: "accepted", ...base }])).toEqual([]);
   });
 });
+
+describe("buildNeedsYou and autopay", () => {
+  const car = (extra: Partial<Bill> = {}): Bill => ({ id: "car", name: "Car", cadence: "monthly", dueDay: 15, autopay: true, amount: 300, addedOn: "2026-10-01", ...extra });
+  it("asks to check an autopay whose date passed, instead of calling it paid or overdue", () => {
+    const items = buildNeedsYou({ bills: [car()] }, { tripsOn: false, now: NOW });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ label: "Check Car autopay", tab: "budget", urgent: false });
+    expect(items[0].billId).toBeUndefined();
+  });
+  it("lists a failed autopay as an overdue bill with Mark paid", () => {
+    const items = buildNeedsYou({ bills: [car({ autopayFailed: "2026-10-15" })] }, { tripsOn: false, now: NOW });
+    expect(items[0]).toMatchObject({ label: "Car is overdue", billId: "car", urgent: true });
+  });
+  it("leaves out an autopay that hasn't come due yet", () => {
+    expect(buildNeedsYou({ bills: [car({ dueDay: 25 })] }, { tripsOn: false, now: NOW })).toEqual([]);
+  });
+});

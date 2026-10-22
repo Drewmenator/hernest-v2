@@ -132,7 +132,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
           {bill.payments.slice(0, 6).map(p => (
             <div key={`${p.due}_${p.paidOn}`} style={{ display: "flex", justifyContent: "space-between", padding: "9px 4px", borderBottom: `1px solid ${T.linen}`, fontFamily: F.sans, fontSize: 13.5, color: T.bark }}>
               <span>{new Date(`${p.due}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-              <span style={{ color: T.taupe }}>{p.amount ? formatMoney(p.amount) : "paid"}{p.auto ? " · autopay" : ""}</span>
+              <span style={{ color: T.taupe }}>{p.amount ? formatMoney(p.amount) : "paid"}{p.auto ? (p.confirmedBy ? " · autopay, confirmed" : " · autopay, not confirmed") : ""}</span>
             </div>
           ))}
         </>

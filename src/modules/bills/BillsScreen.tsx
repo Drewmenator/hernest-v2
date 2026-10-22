@@ -14,11 +14,11 @@ import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/compone
 import { formatMoney } from "../../shared/utils/money";
 import {
   type Bill, type BillGroup, groupOf, dueLabel, displayAmount,
-  monthlyEstimate, paidThisMonth, settleAutopay, daysUntilDue, nextDueDate, iso,
+  monthlyEstimate, paidThisMonth, daysUntilDue, nextDueDate, iso, autopayStatus, autopayDueDates,
 } from "../../core/bills";
 import { takeBillFocus, onBillFocus } from "../../core/billReminders";
 import { syncBillReminders } from "../../core/localNotifications";
-import { payBill, undoBillPayment } from "./billActions";
+import { payBill, undoBillPayment, confirmAutopayPayment, markAutopayFailed } from "./billActions";
 import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
 import { BillImport } from "./BillImport";
@@ -27,6 +27,7 @@ import { inputStyle } from "./billsStyle";
 const SETUP_DONE_KEY = "hn_bills_setup_seen";
 
 const GROUPS: { id: BillGroup; label: string }[] = [
+  { id: "check",   label: "Did autopay go through?" },
   { id: "overdue", label: "Overdue" },
   { id: "week",    label: "This week" },
   { id: "month",   label: "Later this month" },
@@ -41,13 +42,10 @@ type View =
   | { kind: "edit"; bill: Bill | null };
 
 // Bring a stored bill up to date: give older bills an addedOn (so their past
-// repeats never count as missed) and let autopay bills tick themselves off.
-// Returns null when nothing needs to change.
+// repeats never count as missed). Autopay is never ticked off here: it waits
+// for someone to confirm it went through. Returns null when nothing changes.
 function refreshBill(b: Bill, now: Date): Bill | null {
-  let next = b;
-  if (!next.addedOn) next = { ...next, addedOn: iso(now) };
-  next = settleAutopay(next, now);
-  return next === b ? null : next;
+  return b.addedOn ? null : { ...b, addedOn: iso(now) };
 }
 
 function seenSetup(): boolean {
@@ -101,7 +99,7 @@ export function BillsScreen() {
 
   const now = new Date();
   const grouped = useMemo(() => {
-    const g: Record<BillGroup, Bill[]> = { overdue: [], week: [], month: [], later: [], nodate: [], done: [] };
+    const g: Record<BillGroup, Bill[]> = { check: [], overdue: [], week: [], month: [], later: [], nodate: [], done: [] };
     for (const b of bills) g[groupOf(b, now)].push(b);
     for (const k of Object.keys(g) as BillGroup[]) g[k].sort((a, b) => (daysUntilDue(a, now) ?? 9999) - (daysUntilDue(b, now) ?? 9999));
     return g;
@@ -127,6 +125,22 @@ export function BillsScreen() {
       showUndoToast(`${b.name} marked as paid`, () => {
         undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
       });
+    } catch { toast.error("Couldn't save. Try again."); }
+  };
+
+  // ── Autopay checks ─────────────────────────────────────────────
+  const confirmAuto = async (b: Bill) => {
+    if (!uid) return;
+    try {
+      const r = await confirmAutopayPayment(uid, b);
+      toast.success(r ? `${b.name} confirmed as paid` : `${b.name} was already confirmed`);
+    } catch { toast.error("Couldn't save. Try again."); }
+  };
+  const autoFailed = async (b: Bill) => {
+    if (!uid) return;
+    try {
+      const r = await markAutopayFailed(uid, b);
+      if (r) toast(`${b.name} is now overdue. Mark it paid once it's sorted.`);
     } catch { toast.error("Couldn't save. Try again."); }
   };
 
@@ -234,7 +248,7 @@ export function BillsScreen() {
             onAction={() => setView({ kind: "setup" })} />
         </Card>
       ) : (
-        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} />
+        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length} />
       )}
 
       {/* Ways to add */}
@@ -262,6 +276,8 @@ export function BillsScreen() {
                 onPay={() => startPay(b)}
                 onConfirm={withAmount => confirmPay(b, withAmount)}
                 onCancelPay={() => setPayingId(null)}
+                onConfirmAuto={() => confirmAuto(b)}
+                onAutoFailed={() => autoFailed(b)}
               />
             ))}
           </Card>
@@ -278,13 +294,13 @@ export function BillsScreen() {
                 return (
                   <ListRow key={`${bill.id}_${payment.due}`} divider={i > 0}
                     title={bill.name}
-                    detail={payment.auto ? `Autopay ran ${when}` : `Paid ${when}`}
+                    detail={payment.auto ? (payment.confirmedBy ? `Autopay, confirmed for ${when}` : `Autopay ran ${when} (not confirmed)`) : `Paid ${when}`}
                     trailing={
                       <div style={{ textAlign: "right" }}>
                         {payment.amount ? <div style={amountStyle}>{formatMoney(payment.amount)}</div> : null}
                         <div style={{ marginTop: 4 }}>
-                          {/* Autopay is not shown as confirmed: only a payment someone marked is "Paid". */}
-                          {payment.auto ? <StatusChip status="autopay">Autopay</StatusChip> : <StatusChip status="paid">Paid</StatusChip>}
+                          {/* Only a payment someone marked or confirmed is "Paid". */}
+                          {payment.auto && !payment.confirmedBy ? <StatusChip status="autopay">Autopay</StatusChip> : <StatusChip status="paid">Paid</StatusChip>}
                         </div>
                       </div>
                     } />
@@ -314,13 +330,14 @@ const amountStyle: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.ca
 
 // Sage when things are on track; a soft red tint with the word "Overdue"
 // when a bill is late. Calm, never an alarm.
-function SummaryCard({ overdue, count, total, autopay }: { overdue: number; count: number; total: number; autopay: number }) {
+function SummaryCard({ overdue, count, total, autopay, toCheck }: { overdue: number; count: number; total: number; autopay: number; toCheck: number }) {
   const late = overdue > 0;
   const bg = late ? T.dangerBg : T.householdBg;
   const ink = late ? T.danger : T.householdInk;
+  const check = toCheck ? ` · ${toCheck} autopay to confirm` : "";
   const detail = count === 0
-    ? "You're all caught up."
-    : `${count} bill${count === 1 ? "" : "s"} coming up${autopay ? ` · ${autopay} on autopay` : ""}`;
+    ? (toCheck ? `${toCheck} autopay to confirm` : "You're all caught up.")
+    : `${count} bill${count === 1 ? "" : "s"} coming up${autopay ? ` · ${autopay} on autopay` : ""}${check}`;
   return (
     <section aria-label="This week" style={{ background: bg, borderRadius: 22, padding: S.xl, marginBottom: S.md }}>
       <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: ink, margin: 0 }}>
@@ -336,18 +353,25 @@ function SummaryCard({ overdue, count, total, autopay }: { overdue: number; coun
   );
 }
 
-function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount, onOpen, onPay, onConfirm, onCancelPay }: {
+function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount, onOpen, onPay, onConfirm, onCancelPay, onConfirmAuto, onAutoFailed }: {
   bill: Bill; now: Date; first: boolean; paying: boolean; highlight?: boolean; payAmount: string; setPayAmount: (v: string) => void;
   onOpen: () => void; onPay: () => void; onConfirm: (withAmount: boolean) => void; onCancelPay: () => void;
+  onConfirmAuto: () => void; onAutoFailed: () => void;
 }) {
   const group = groupOf(bill, now);
   const { amount, estimate } = displayAmount(bill);
   const label = dueLabel(bill, now);
   const soon = group === "overdue" || group === "week";
-  const canPay = group !== "nodate" && group !== "done";
+  const canPay = group !== "nodate" && group !== "done" && group !== "check";
+  const ap = autopayStatus(bill, now);
+  // Autopay is paid by the bank; a failed one is paid by hand like any bill.
+  const payByHand = !bill.autopay || ap === "failed";
+  const checkDates = group === "check" ? autopayDueDates(bill, now) : [];
+  const shortDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-  // Status in words. Autopay is "scheduled", never "paid", until it runs.
-  const chip = group === "overdue" ? <StatusChip status="overdue">Overdue</StatusChip>
+  // Status in words. Autopay is "scheduled", never "paid", until confirmed.
+  const chip = group === "check" ? <StatusChip status="dueSoon">Not confirmed</StatusChip>
+    : group === "overdue" ? <StatusChip status="overdue">Overdue</StatusChip>
     : group === "nodate" ? <StatusChip status="neutral">No date</StatusChip>
     : bill.autopay ? <StatusChip status="autopay">{soon ? "Autopay scheduled" : "Autopay"}</StatusChip>
     : soon ? <StatusChip status="unpaid">Unpaid</StatusChip>
@@ -359,14 +383,22 @@ function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount,
         onClick={paying ? undefined : onOpen}
         ariaLabel={`Edit ${bill.name}`}
         title={bill.name}
-        detail={label}
+        detail={group === "check"
+          ? (checkDates.length > 1 ? `Autopay was due ${shortDate(checkDates[0])} and ${checkDates.length - 1} more time${checkDates.length > 2 ? "s" : ""}` : `Autopay was due ${shortDate(checkDates[0])}`)
+          : ap === "failed" ? `${label} · autopay didn't go through` : label}
         trailing={
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             {amount ? <div style={amountStyle}>{estimate ? "about " : ""}{formatMoney(amount)}</div> : null}
             {chip && <div style={{ marginTop: 4 }}>{chip}</div>}
           </div>
         } />
-      {canPay && !bill.autopay && !paying && (
+      {group === "check" && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: S.sm, margin: "-4px 0 12px", flexWrap: "wrap" }}>
+          <Button size="sm" variant="secondary" onClick={onAutoFailed} style={{ width: "auto" }} ariaLabel={`${bill.name} autopay didn't go through`}>It didn't go through</Button>
+          <Button size="sm" onClick={onConfirmAuto} style={{ width: "auto" }} ariaLabel={`Confirm ${bill.name} autopay was paid`}>Confirm paid</Button>
+        </div>
+      )}
+      {canPay && payByHand && !paying && (
         <div style={{ display: "flex", justifyContent: "flex-end", margin: "-4px 0 12px" }}>
           <Button size="sm" variant={soon ? "primary" : "secondary"} onClick={onPay} style={{ width: "auto" }} ariaLabel={`Mark ${bill.name} as paid`}>Mark as paid</Button>
         </div>

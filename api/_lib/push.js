@@ -4,7 +4,7 @@
 import { getMessaging } from "firebase-admin/messaging";
 import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
-import { daysUntilDue, billIsFor } from "./bills.js";
+import { daysUntilDue, nextDueDate, billIsFor } from "./bills.js";
 import { readHouseholdItems } from "./householdItems.js";
 import { taskIsFor, awaitsAnswerFrom } from "./tasks.js";
 
@@ -115,16 +115,24 @@ export async function buildBriefingLine(uid, now = new Date()) {
     const due = bills
       // "Who pays": a bill set to one person only shows in that person's digest.
       .filter(b => billIsFor(b, uid))
-      .map(b => ({ name: b.name, amount: b.amount, days: daysUntilDue(b, now), autopay: b.autopay }))
-      // An autopay bill past its date has paid itself (the app records it).
-      .filter(b => b.days != null && b.days <= 5 && !(b.autopay && b.days < 0))
+      .map(b => {
+        const days = daysUntilDue(b, now);
+        // Autopay isn't paid until someone confirms it. Once its date has
+        // passed it asks for a check; if they said it didn't go through
+        // (autopayFailed on this repeat) it is simply overdue.
+        const failed = !!b.autopay && b.autopayFailed === nextDueDate(b, now);
+        const autopay = !!b.autopay && !failed;
+        return { name: b.name, amount: b.amount, days, autopay, check: autopay && days != null && days < 0 };
+      })
+      .filter(b => b.days != null && b.days <= 5)
       .sort((a, b) => a.days - b.days);
     if (due.length) {
       // Overdue first (most negative days). Amount is optional on a bill.
       const b = due[0];
-      const when = b.days < 0 ? "is overdue" : b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
+      const when = b.check ? "autopay: check it went through"
+        : b.days < 0 ? "is overdue" : b.days === 0 ? "due today" : b.days === 1 ? "due tomorrow" : `due in ${b.days}d`;
       const amt = b.amount > 0 ? ` ($${Math.round(b.amount).toLocaleString()})` : "";
-      bits.push(`${b.name}${amt} ${when}${b.autopay ? " (autopay)" : ""}`);
+      bits.push(`${b.name}${amt} ${when}${b.autopay && !b.check ? " (autopay)" : ""}`);
     }
   } catch { /* skip */ }
   try {

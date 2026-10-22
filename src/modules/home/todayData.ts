@@ -1,7 +1,7 @@
 // ─── Today screen data (pure, testable) ────────────────────────────
 // Turns the raw saved docs into the two short lists on Today:
 // "Needs you" (most urgent first, max 5) and "This week".
-import { daysUntilDue, displayAmount, billIsFor, type Bill } from "../../core/bills";
+import { daysUntilDue, displayAmount, billIsFor, autopayStatus, type Bill } from "../../core/bills";
 import { taskIsFor, awaitsAnswerFrom, ownershipView, type OwnedTask } from "../../core/taskOwnership";
 import { daysUntilBirthday, todayLocal } from "../../core/dateAwareness";
 import { formatMoney } from "../../shared/utils/money";
@@ -73,8 +73,17 @@ export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: D
   // 1. Bills overdue or due today that she pays herself.
   const viewer = opts.viewerUid;
   for (const b of docs.bills || []) {
-    if (!b?.name || b.autopay) continue;
+    if (!b?.name) continue;
     if (viewer && !billIsFor(b, viewer)) continue;
+    // Autopay isn't paid until someone confirms it went through. A failed
+    // autopay falls through and is listed like any unpaid bill.
+    const ap = autopayStatus(b, now);
+    if (ap === "scheduled") continue;
+    if (ap === "check") {
+      out.push({ id: `autopay_${b.id}`, kind: "bill", tab: "budget", urgent: false,
+        label: `Check ${b.name} autopay`, detail: "Did it go through? Confirm in Bills" });
+      continue;
+    }
     const d = daysUntilDue(b, now);
     if (d == null || d > 0) continue;
     const { amount } = displayAmount(b);

@@ -4,7 +4,7 @@
 
 import { taskIsFor } from "./taskOwnership";
 import { loadData } from "./firebase";
-import { daysUntilDue, displayAmount, type Bill } from "./bills";
+import { daysUntilDue, displayAmount, autopayCovers, type Bill } from "./bills";
 import { currencySymbol } from "../shared/utils/money";
 import { daysUntilBirthday, todayLocal } from "./dateAwareness";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
@@ -498,7 +498,8 @@ export function summariseBills(bills: Bill[], now: Date = new Date()): AppContex
   const amount = (b: Bill) => displayAmount(b).amount;
   return {
     total: bills.length,
-    overdue: rows.filter(r => r.days != null && r.days < 0 && !r.b.autopay)
+    // A failed autopay is overdue; one waiting to be confirmed isn't.
+    overdue: rows.filter(r => r.days != null && r.days < 0 && !autopayCovers(r.b, now))
       .sort((a, z) => a.days! - z.days!).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days! })),
     dueSoon: rows.filter(r => r.days != null && r.days >= 0 && r.days <= 6)
       .sort((a, z) => a.days! - z.days!).slice(0, 8).map(r => ({ name: r.b.name, amount: amount(r.b), days: r.days!, autopay: !!r.b.autopay })),
