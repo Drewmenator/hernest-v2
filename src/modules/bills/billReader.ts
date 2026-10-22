@@ -127,7 +127,7 @@ export async function billsFromScreenshots(images: AIImage[], existing: Bill[]):
 }
 
 export async function billsFromText(note: string, existing: Bill[]): Promise<{ suggestions: BillSuggestion[]; error?: string }> {
-  const res = await ai(parseSystem(iso(new Date())), note.slice(0, 1000), "bill_parse");
+  const res = await ai(parseSystem(iso(new Date())), note.slice(0, 1000), "bill_parse", [], { userText: note });
   if (res.error) return { suggestions: [], error: res.code };
   return { suggestions: sanitizeSuggestions(extractJSON(res.text), existing) };
 }

@@ -110,6 +110,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── AI usage + cost records ─────────────────────────────────
+    // Per-household daily AI call counts, tokens and cost (ai_usage) and the
+    // per-user per-minute counter (ai_burst). Written only by /api/claude via
+    // the admin SDK; a client write could reset its own limits.
+    match /ai_usage/{document=**} {
+      allow read, write: if false;
+    }
+    match /ai_burst/{uid} {
+      allow read, write: if false;
+    }
+
     // Everything else is denied by Firestore's default (no matching allow).
   }
 }

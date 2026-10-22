@@ -43,7 +43,7 @@ const INTENT_PATTERNS = {
   ],
 };
 
-import { detectCrisis, crisisResponse } from "../../core/crisis";
+import { crisisReply } from "../../core/crisis";
 
 function classifyIntent(msg: string): string {
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
@@ -222,12 +222,13 @@ export function CleoScreen() {
     setLoading(true);
 
     try {
-      // ── Crisis detection (unchanged) ─────────────────────────────
-      if (detectCrisis(msg)) {
+      // ── Crisis check: helplines instead of the AI (core/crisis.ts) ──
+      const crisisText = crisisReply(msg);
+      if (crisisText) {
         const crisisResp: Msg = {
           role: "assistant",
           type: "crisis",
-          content: crisisResponse(),
+          content: crisisText,
         };
         setMsgs(p => [...p, crisisResp]);
         trackEvent("cleo_crisis_detected");

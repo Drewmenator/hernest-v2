@@ -15,6 +15,7 @@
 import { auth, loadData, saveData } from "./firebase";
 import { bus } from "./events";
 import { AI } from "../config";
+import { limitReached } from "./ai";
 
 const MAX_ITERS = 5;
 
@@ -183,13 +184,12 @@ export async function runCleoAgent(params: {
       }),
     });
 
-    if (res.status === 429) {
-      window.dispatchEvent(new CustomEvent("hn_limit_reached"));
-      throw new Error("daily_limit_reached");
-    }
+    if (res.status === 429) throw new Error(await limitReached(res));
     if (!res.ok) throw new Error(`agent_http_${res.status}`);
 
     const data = await res.json();
+    // Server crisis backstop: the model wasn't called (see api/_lib/crisis.js).
+    if (data?.crisis) throw new Error("crisis_detected");
     const content: any[] = Array.isArray(data.content) ? data.content : [];
     // Record the assistant turn verbatim (text + any tool_use blocks).
     convo.push({ role: "assistant", content });
@@ -240,7 +240,12 @@ async function streamClaude(params: {
       messages: params.messages, tools: TOOLS, max_tokens: 2000, stream: true,
     }),
   });
-  if (res.status === 429) { window.dispatchEvent(new CustomEvent("hn_limit_reached")); throw new Error("daily_limit_reached"); }
+  if (res.status === 429) throw new Error(await limitReached(res));
+  // Server crisis backstop answers with JSON instead of a stream.
+  if (res.ok && res.headers?.get("content-type")?.includes("application/json")) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.crisis ? "crisis_detected" : "agent_stream_bad_response");
+  }
   if (!res.ok || !res.body) throw new Error(`agent_stream_http_${res.status}`);
 
   const blocks: any[] = [];
