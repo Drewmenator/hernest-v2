@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData } from "../../core/firebase";
+import { crisisReply } from "../../core/crisis";
 
 interface Msg { role: "cleo" | "user"; text: string; }
 
@@ -21,7 +22,7 @@ type SetupStep = "intro" | "name" | "kids" | "kidDates" | "challenge" | "done";
 const NORA_QUESTIONS: Record<SetupStep, (data: SetupData) => string> = {
   intro:     () => "",
   name:      () => "First things first — what's your name?",
-  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalise your experience. If not, just say 'no kids'.`,
+  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalize your experience. If not, just say 'no kids'.`,
   kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate 🎂 — totally optional, tap Continue to skip.",
   challenge: () => "Almost done.\n\nWhat's the biggest thing weighing on you right now — the thing that takes up most of your mental energy?",
   done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you keep on top of your bills, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,
@@ -93,6 +94,14 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
     // Add user message
     setMsgs(prev => [...prev, { role: "user", text: userMsg }]);
+
+    // Distress language gets helplines, not the next setup question. The
+    // answer isn't saved; setup carries on whenever she's ready.
+    const crisisText = crisisReply(userMsg);
+    if (crisisText) {
+      setMsgs(prev => [...prev, { role: "cleo", text: crisisText.replace(/\*\*/g, "") }]);
+      return;
+    }
 
     // Process answer
     const newData = { ...data };
@@ -170,8 +179,8 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
       {/* Header */}
       <div style={{ padding: "calc(52px + env(safe-area-inset-top, 0px)) 24px 16px", borderBottom: `1px solid ${T.linen}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
         </div>
         {!done && (
           <button onClick={skip} style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer", padding: "4px 0", textDecoration: "underline", flexShrink: 0 }}>

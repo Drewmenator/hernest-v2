@@ -3,27 +3,20 @@ import React, { useState } from "react";
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Button } from "../../shared/components";
+import { Card, PageTitle } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
 import { auth } from "../../core/firebase";
-import { bus } from "../../core/events";
 import toast from "react-hot-toast";
-import { onEnterSpace } from "../../shared/utils/a11y";
 
-const SECTIONS = ["partner","privacy","legal","account"] as const;
+const SECTIONS = ["privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];
 
-export function SettingsScreen() {
+// Opened from the You menu: "Notifications & account" starts on Account,
+// "Account & privacy" on Privacy.
+export function SettingsScreen({ initialSection = "account" }: { initialSection?: Section }) {
   const { user, profile, reset, setProfile } = useStore();
-  const [section, setSection] = useState<Section>("partner");
-
-  // Partner sharing
-  const [partnerEmail, setPartnerEmail] = useState("");
-  const [shareCategories, setShareCategories] = useState<string[]>(["tasks","calendar","budget"]);
-  const [inviteSent, setInviteSent] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
-  const [sendingInvite, setSendingInvite] = useState(false);
+  const [section, setSection] = useState<Section>(initialSection);
 
   // Delete account
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -33,52 +26,14 @@ export function SettingsScreen() {
   const [memoryV2List, setMemoryV2List] = useState<any[]>([]);
   const [showMemoryV2, setShowMemoryV2] = useState(false);
 
-  const SHARE_OPTIONS = [
-    { id:"tasks",    label:"Tasks & Plan",       icon:"✓" },
-    { id:"calendar", label:"Family Calendar",     icon:"◈" },
-    { id:"budget",   label:"Budget Overview",     icon:"◎" },
-    { id:"trips",    label:"Trip Plans",          icon:"✈️" },
-    { id:"school",   label:"School Events",       icon:"🏫" },
-    { id:"circle",   label:"Circle Check-ins",    icon:"◉" },
-  ];
-
   const loadMemories = async () => {
     if (!user?.uid) return;
     try {
+      // Only what Cleo actually uses; suggestions wait in What Cleo knows.
       const mems = await loadMemoriesV2(user.uid);
-      setMemoryV2List(mems);
+      setMemoryV2List(mems.filter(m => m.status === "active"));
       setShowMemoryV2(true);
     } catch { setMemoryV2List([]); setShowMemoryV2(true); }
-  };
-
-  const toggleShare = (id: string) => {
-    setShareCategories(p => p.includes(id) ? p.filter(s=>s!==id) : [...p, id]);
-  };
-
-  const sendPartnerInvite = async () => {
-    if (!partnerEmail.trim() || !user?.uid) return;
-    setSendingInvite(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/invite/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          fromName: (profile as any)?.name || "Your partner",
-          toEmail: partnerEmail.trim(),
-          shareCategories,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send");
-      await bus.publish("partner.invite.sent", { email: partnerEmail }, { userId: user.uid, source: "settings" });
-      if (data.acceptUrl) setInviteLink(data.acceptUrl);
-      setInviteSent(true);
-      toast.success(data.emailSent ? `Invite sent to ${partnerEmail} ✓` : "Invite ready — share the link below");
-    } catch (e: any) {
-      toast.error(e.message || "Couldn't create invite — try again");
-    }
-    setSendingInvite(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -117,12 +72,11 @@ export function SettingsScreen() {
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="ACCOUNT" title="Settings"/>
+      <PageTitle eyebrow="Account" title="Settings"/>
 
       {/* Section tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
         {[
-          { id:"partner", label:"Partner" },
           { id:"privacy", label:"Privacy" },
           { id:"legal",   label:"Legal" },
           { id:"account", label:"Account" },
@@ -132,60 +86,6 @@ export function SettingsScreen() {
           </button>
         ))}
       </div>
-
-      {/* ── PARTNER SHARING ─────────────────────────────────────── */}
-      {section==="partner" && <>
-        <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div>
-            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Cleo</p>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
-          </div>
-          <button onClick={() => setShowCleoSetup(true)}
-            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
-            Start ✦
-          </button>
-        </div>
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>SHARE WITH PARTNER</p>
-          <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
-            Invite your partner to see selected parts of HerNest. They'll get a view-only link — no editing, no surprises.
-          </p>
-          {!inviteSent ? <>
-            <input value={partnerEmail} onChange={e=>setPartnerEmail(e.target.value)} placeholder="Partner's email address" type="email" style={{ width:"100%", background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", marginBottom:16, boxSizing:"border-box", minHeight:48 }}/>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>WHAT TO SHARE</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
-              {SHARE_OPTIONS.map(opt=>(
-                <div key={opt.id} onClick={()=>toggleShare(opt.id)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle sharing: ${opt.label}`} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:shareCategories.includes(opt.id)?T.goldP:T.sand, border:`1.5px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, borderRadius:12, cursor:"pointer", touchAction:"manipulation" }}>
-                  <span style={{ fontSize:18 }}>{opt.icon}</span>
-                  <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, flex:1 }}>{opt.label}</p>
-                  <div style={{ width:22, height:22, borderRadius:7, border:`2px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, background:shareCategories.includes(opt.id)?T.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13 }}>
-                    {shareCategories.includes(opt.id)?"✓":""}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button onClick={sendPartnerInvite} disabled={!partnerEmail.trim()||sendingInvite} variant="gold">
-              {sendingInvite?"Sending...":"Send Partner Invite ✦"}
-            </Button>
-          </> : (
-            <div style={{ textAlign:"center", padding:"16px 0" }}>
-              <div style={{ fontSize:48, marginBottom:12 }}>✦</div>
-              <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Invite ready!</p>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px" }}>Share this link with {partnerEmail}. When they open it and sign in, they'll see: {shareCategories.join(", ")}.</p>
-              {inviteLink && <>
-                <div style={{ background:T.sand, border:`1px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", marginBottom:12, wordBreak:"break-all", fontFamily:F.sans, fontSize:11, color:T.bark, textAlign:"left" }}>{inviteLink}</div>
-                <button onClick={async()=>{
-                  try {
-                    if ((navigator as any).share) { await (navigator as any).share({ title:"Join my HerNest household", url: inviteLink }); }
-                    else { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); }
-                  } catch { try { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); } catch { toast("Long-press the link above to copy", { icon:"🔗" }); } }
-                }} style={{ width:"100%", background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"13px", fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", minHeight:48, marginBottom:8, touchAction:"manipulation" }}>Copy / share link</button>
-              </>}
-              <button onClick={()=>{ setInviteSent(false); setInviteLink(""); }} style={{ background:"none", border:`1px solid ${T.linen}`, borderRadius:12, padding:"8px 20px", fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:40 }}>Send another</button>
-            </div>
-          )}
-        </Card>
-      </>}
 
       {/* ── PRIVACY ─────────────────────────────────────────────── */}
       {section==="privacy" && <>
@@ -215,7 +115,7 @@ export function SettingsScreen() {
               </div>
             </div>
           ))}
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"16px 0 0", textAlign:"center" }}>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"16px 0 0", textAlign:"center" }}>
             Questions? Email us at privacy@hernest.app
           </p>
         </Card>
@@ -225,7 +125,7 @@ export function SettingsScreen() {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <div>
               <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>What Cleo Knows</p>
-              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Facts, preferences and patterns Cleo has learned about your household</p>
+              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>Facts, preferences and patterns Cleo has learned about your household</p>
             </div>
             <button onClick={loadMemories}
               style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
@@ -244,14 +144,14 @@ export function SettingsScreen() {
                   </span>
                   <div style={{ flex:1 }}>
                     <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:"0 0 2px", lineHeight:1.5 }}>{mem.content}</p>
-                    <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:0, textTransform:"capitalize" }}>{mem.type} · {mem.sourceModule} · {mem.confidence} confidence</p>
+                    <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0, textTransform:"capitalize" }}>{mem.type} · {mem.sourceModule} · {mem.confidence} confidence</p>
                   </div>
                   <button onClick={async () => { await deleteMemory(user!.uid, mem.id); setMemoryV2List(p => p.filter((m: any) => m.id !== mem.id)); }}
                     style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:14, padding:0, flexShrink:0 }}>×</button>
                 </div>
               ))}
               {memoryV2List.length > 20 && (
-                <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, textAlign:"center", padding:"8px 0" }}>+{memoryV2List.length - 20} more memories</p>
+                <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, textAlign:"center", padding:"8px 0" }}>+{memoryV2List.length - 20} more memories</p>
               )}
             </div>
           )}
@@ -260,12 +160,14 @@ export function SettingsScreen() {
         {/* Data export */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 8px" }}>Export your data</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px", lineHeight:1.6 }}>You have the right to receive a copy of all data we hold about you (GDPR Article 20).</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px", lineHeight:1.6 }}>You can download a copy of all the data HerNest holds about you.</p>
           <button onClick={async()=>{
             if (!user?.uid) return;
-            const collections = ["profile","budget","tasks","thrive","trips","circle","cleo_memory","style"];
+            const collections = ["profile","bills","tasks","calendar","calendar_synced","school","meals","family","thrive","trips","circle","style","cleo_memory","cleo_memory_v2","cleo_feedback","budget","budget_v2"];
             const allData: Record<string,unknown> = {};
             await Promise.all(collections.map(async c => { allData[c] = await loadData(user.uid!, c); }));
+            // Chores are one record each now (tasks and bills come back through loadData).
+            allData.chores = await (await import("../../core/householdItems")).listItems(user.uid!, "chores").catch(() => null);
             const blob = new Blob([JSON.stringify(allData, null, 2)], { type:"application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -282,7 +184,7 @@ export function SettingsScreen() {
       {section==="legal" && <>
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:"0 0 4px" }}>Terms of Service</p>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 16px" }}>Last updated: May 2026</p>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 16px" }}>Last updated: May 2026</p>
           {[
             { title:"1. Acceptance", body:"By using HerNest, you agree to these Terms. If you don't agree, please don't use the service." },
             { title:"2. The Service", body:"HerNest is an AI-powered personal assistant for mothers and caregivers. We provide tools for planning, budgeting, wellness tracking, and more. The service is provided 'as is' and we may update or modify features at any time." },
@@ -304,11 +206,11 @@ export function SettingsScreen() {
 
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:"0 0 4px" }}>Privacy Policy</p>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 16px" }}>Last updated: May 2026</p>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 16px" }}>Last updated: May 2026</p>
           {[
             { title:"Data Controller", body:"HerNest Ltd is the data controller for personal data collected through this app. Contact: privacy@hernest.app" },
-            { title:"Data We Collect", body:"Account data (email, name), app usage data (tasks, budget, wellness logs), AI conversation summaries, and device information." },
-            { title:"How We Use It", body:"To provide and improve the service, personalise your Cleo experience, send important account notifications, and ensure security." },
+            { title:"Data We Collect", body:"Account data (email, name), app usage data (tasks, bills, wellness logs), AI conversation summaries, and device information." },
+            { title:"How We Use It", body:"To provide and improve the service, personalize your Cleo experience, send important account notifications, and ensure security." },
             { title:"Legal Basis (GDPR)", body:"We process your data under: contract performance (providing the service), legitimate interests (improving the service), and consent (marketing communications)." },
             { title:"Data Retention", body:"We retain your data for as long as your account is active. Upon deletion, data is removed within 30 days. Anonymised analytics may be retained longer." },
             { title:"Your Rights (GDPR)", body:"You have the right to: access your data, correct inaccuracies, request deletion, restrict processing, data portability, and object to processing. Contact privacy@hernest.app to exercise these rights." },
@@ -335,20 +237,31 @@ export function SettingsScreen() {
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <div>
                   <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"0 0 2px" }}>{c.name}</p>
-                  <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>{c.purpose} · {c.duration}</p>
+                  <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>{c.purpose} · {c.duration}</p>
                 </div>
-                <span style={{ background:`${T.sage}20`, color:T.sage, fontFamily:F.sans, fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10 }}>{c.type}</span>
+                <span style={{ background:`${T.sage}20`, color:T.sage, fontFamily:F.sans, fontSize: 12, fontWeight:700, padding:"3px 8px", borderRadius:10 }}>{c.type}</span>
               </div>
             </div>
           ))}
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"12px 0 0", lineHeight:1.6 }}>We do not use advertising, tracking, or analytics cookies. No third-party cookies are set without your consent.</p>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"12px 0 0", lineHeight:1.6 }}>We do not use advertising, tracking, or analytics cookies. No third-party cookies are set without your consent.</p>
         </Card>
       </>}
 
       {/* ── ACCOUNT ─────────────────────────────────────────────── */}
       {section==="account" && <>
+        {/* Was in the old Partner tab; the partner invite moved to Your family. */}
+        <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Cleo</p>
+            <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
+          </div>
+          <button onClick={() => setShowCleoSetup(true)}
+            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+            Start ✦
+          </button>
+        </div>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>CURRENCY</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Currency</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {SUPPORTED_CURRENCIES.map(c => {
               const active = ((profile as any)?.currency || "USD") === c.code;
@@ -357,18 +270,18 @@ export function SettingsScreen() {
                   setProfile({ ...(profile as any), currency: c.code });
                   if (user?.uid) { try { await saveData(user.uid, "profile", { currency: c.code }); } catch { /* non-fatal */ } }
                   toast.success(`Currency set to ${c.code}`);
-                }} style={{ padding:"7px 12px", borderRadius:16, border:`1.5px solid ${active?T.gold:T.linen}`, background:active?`${T.gold}20`:"#fff", color:active?"#8B6914":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:active?700:400, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>
+                }} style={{ padding:"7px 12px", borderRadius:16, border:`1.5px solid ${active?T.gold:T.linen}`, background:active?`${T.gold}20`:"#fff", color:active?"#5E4A8C":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:active?700:400, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>
                   {c.label}
                 </button>
               );
             })}
           </div>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"10px 0 0" }}>Cleo and every screen will show money in this currency.</p>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"10px 0 0" }}>Cleo and every screen will show money in this currency.</p>
         </Card>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ACCOUNT INFO</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Account info</p>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
-            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>
+            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>
               {(profile as any)?.avatar || "👩"}
             </div>
             <div>
@@ -403,28 +316,25 @@ export function SettingsScreen() {
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>NOTIFICATIONS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 8px" }}>Notifications</p>
+          {/* What HerNest actually sends. (Replaced five switches that looked
+              real but did nothing; per-type on/off can come back once the
+              server reads a preference.) */}
           {[
-            { label:"Birthday reminders", desc:"7 days before", default:true },
-            { label:"Check-in nudges",    desc:"When overdue by 14+ days", default:true },
-            { label:"Budget alerts",      desc:"When nearing category limit", default:true },
-            { label:"School events",      desc:"3 days before", default:true },
-            { label:"Weekly score ready", desc:"Every Sunday", default:false },
+            { label:"Morning briefing", desc:"Around 7am your time" },
+            { label:"Bill reminders",   desc:"Before each bill is due. Change them on each bill in the Bills tab" },
+            { label:"Birthdays",        desc:"On the day" },
           ].map(n=>(
-            <div key={n.label} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
-              <div style={{ flex:1 }}>
-                <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{n.label}</p>
-                <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{n.desc}</p>
-              </div>
-              <div style={{ width:44, height:26, borderRadius:13, background:n.default?T.sage:T.linen, position:"relative", cursor:"pointer" }}>
-                <div style={{ width:20, height:20, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:n.default?21:3, transition:"left .2s", boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}/>
-              </div>
+            <div key={n.label} style={{ padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
+              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{n.label}</p>
+              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"2px 0 0" }}>{n.desc}</p>
             </div>
           ))}
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"10px 0 0", lineHeight:1.5 }}>To turn notifications off, go to iPhone Settings, then Notifications, then HerNest.</p>
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 4px" }}>SUPPORT</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 4px" }}>Support</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px" }}>We're here to help.</p>
           <a
             href={`mailto:support@hernest.app?subject=${encodeURIComponent("HerNest feedback")}&body=${encodeURIComponent(`What happened:\n\nWhat I expected:\n\n—\nBuild: 2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}\nScreen: ${window.innerWidth}×${window.innerHeight}\nDevice: ${navigator.userAgent}`)}`}

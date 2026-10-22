@@ -2,7 +2,8 @@
 // Wellness nudges (sedentary / high-stress evening) depend on live wearable
 // data the server can't see, so they're delivered as LOCAL notifications from
 // the device. Bill reminders are local too, so they land at a local morning
-// hour (see billReminders.ts). Wellness does two things:
+// hour (see billReminders.ts), and so are task reminders (taskReminders.ts).
+// Wellness does two things:
 //   1. maybeScheduleWellnessNudge — evaluates pickNudge on app open and fires a
 //      nudge (at most once per type per day) so it lands even after backgrounding.
 //   2. ensureDailyCheckinReminder — a standing evening reminder to check in.
@@ -11,6 +12,7 @@ import { pickNudge } from "./thriveCheckin";
 import { readWearable } from "./wellnessAutoTrack";
 import type { Bill } from "./bills";
 import { planBillReminders, setBillFocus, FIRST_ID, MAX_REMINDERS } from "./billReminders";
+import { planTaskReminders, FIRST_TASK_ID, MAX_TASK_REMINDERS, type RemindableTask } from "./taskReminders";
 
 function isNative(): boolean {
   return !!(window as any).Capacitor?.isNativePlatform?.();
@@ -131,6 +133,74 @@ export async function syncBillRemindersFromCloud(uid: string): Promise<void> {
     if (!d) return;
     await syncBillReminders(((d.bills as Bill[]) || []).filter(b => b && b.name), uid);
   } catch { /* non-fatal */ }
+}
+
+// ── Task reminders ────────────────────────────────────────────────
+// Same idea as bills: replace this phone's task alerts with a fresh plan
+// (taskReminders.ts) whenever the tasks change. Syncs run one at a time so a
+// quick tick-then-untick can't leave a stale alert behind.
+let taskSync: Promise<void> = Promise.resolve();
+
+export function syncTaskReminders(tasks: RemindableTask[], uid: string): Promise<void> {
+  if (!isNative()) return Promise.resolve();
+  taskSync = taskSync.then(async () => {
+    try {
+      const { LocalNotifications } = await import("@capacitor/local-notifications");
+      if (!(await hasPermission(LocalNotifications))) return;
+      await LocalNotifications.cancel({
+        notifications: Array.from({ length: MAX_TASK_REMINDERS }, (_, i) => ({ id: FIRST_TASK_ID + i })),
+      });
+      const plan = planTaskReminders(tasks, new Date(), uid);
+      if (!plan.length) return;
+      await LocalNotifications.schedule({
+        notifications: plan.map(r => ({
+          id: r.id,
+          title: r.title,
+          body: r.body,
+          schedule: { at: r.at, allowWhileIdle: true },
+          sound: "default",
+          extra: { screen: "plan", taskId: r.taskId },
+        })),
+      });
+    } catch (e) {
+      console.warn("[LocalNotif] task reminders failed (non-fatal):", e);
+    }
+  });
+  return taskSync;
+}
+
+// Keep task alerts in step with the live task list (this phone, Cleo, or a
+// partner's phone) for as long as the app is open. Started once per sign-in,
+// after notification permission is granted.
+let taskWatch: { uid: string; stop: () => void } | null = null;
+
+export async function watchTaskReminders(uid: string): Promise<void> {
+  if (!isNative() || taskWatch?.uid === uid) return;
+  taskWatch?.stop();
+  try {
+    const { subscribeItems } = await import("./householdItems");
+    const stop = subscribeItems<RemindableTask>(uid, "tasks", items => { void syncTaskReminders(items, uid); });
+    taskWatch = { uid, stop };
+  } catch { /* non-fatal */ }
+}
+
+// Asked the moment she first sets a reminder (never on app open). iOS shares
+// one permission between push and local alerts, so this goes through
+// enablePush, which also starts the reminder sync. Returns whether alerts are
+// on (null off the phone, where there are no alerts to ask about).
+export async function ensureReminderPermission(uid: string): Promise<boolean | null> {
+  if (!isNative()) return null;
+  try {
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    if (await hasPermission(LocalNotifications)) {
+      void watchTaskReminders(uid);
+      return true;
+    }
+    const { enablePush } = await import("./pushNotifications");
+    return await enablePush(uid);
+  } catch {
+    return false;
+  }
 }
 
 // Route a local-notification tap to the right tab (mirrors push handling).

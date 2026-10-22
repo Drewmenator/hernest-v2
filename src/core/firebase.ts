@@ -55,7 +55,7 @@ export const googleProvider = new GoogleAuthProvider();
 // Household-scoped collections resolve to the shared household namespace
 // (the owner's uid); everything else stays personal to the signed-in user.
 // For solo users getHouseholdId() === uid, so this is a no-op for them.
-function ownerFor(uid: string, collection: string): string {
+export function ownerFor(uid: string, collection: string): string {
   if (!FLAGS.HOUSEHOLD_IDENTITY) return uid;
   if (!isHouseholdCollection(collection)) return uid;
   return getHouseholdId() || uid;
@@ -114,6 +114,12 @@ export async function loadData(
   uid: string,
   col: string
 ): Promise<LoadResult> {
+  // Tasks and bills are one doc per item now (householdItems.ts). Callers that
+  // still read the old { tasks: [...] } / { bills: [...] } shape get it here.
+  if (col === "tasks" || col === "bills") {
+    try { return await (await import("./householdItems")).loadItemsAsDoc(uid, col); }
+    catch (e) { console.error(`[Firebase] loadData failed: ${col}`, e); return null; }
+  }
   const key = cacheKey(uid, col);
   const hit = _docCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.data;

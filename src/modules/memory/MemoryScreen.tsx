@@ -7,7 +7,7 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { PageTitle } from "../../shared/components";
 import {
-  loadMemoriesV2, deleteMemory, confirmMemory, rejectMemory,
+  loadMemoriesV2, deleteMemory, confirmMemory, rejectMemory, rememberFromUser,
   type HouseholdMemory,
 } from "../../core/memoryServiceV2";
 import { getHouseholdTimeline } from "../../core/eventLog";
@@ -64,7 +64,7 @@ function relativeTime(ts: number): string {
 }
 
 const chip = (bg: string, color: string): React.CSSProperties => ({
-  fontFamily: F.sans, fontSize: 10, fontWeight: 700, color,
+  fontFamily: F.sans, fontSize: 12, fontWeight: 700, color,
   padding: "2px 8px", borderRadius: 10, background: bg, textTransform: "capitalize" as const,
 });
 
@@ -75,6 +75,8 @@ export function MemoryScreen() {
   const [events, setEvents] = useState<LoggedEvent[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [tellText, setTellText] = useState("");
+  const [telling, setTelling] = useState(false);
 
   const load = useCallback(async () => {
     if (!user?.uid) return;
@@ -95,17 +97,19 @@ export function MemoryScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Active + to-confirm memories, newest first, filtered by the search box.
-  const visibleMemories = useMemo(() => {
+  // Active memories, newest first, filtered by the search box.
+  const known = useMemo(() => {
     const q = query.trim().toLowerCase();
     return memories
-      .filter(m => m.status === "active" || m.status === "needs_confirmation")
+      .filter(m => m.status === "active")
       .filter(m => !q || `${str(m.title)} ${str(m.content)}`.toLowerCase().includes(q))
       .sort((a, b) => str(b.updatedAt).localeCompare(str(a.updatedAt)));
   }, [memories, query]);
 
-  const toConfirm = visibleMemories.filter(m => m.status === "needs_confirmation");
-  const known = visibleMemories.filter(m => m.status === "active");
+  // Suggestions waiting for a yes are always shown, whatever the search says.
+  const toConfirm = memories
+    .filter(m => m.status === "needs_confirmation")
+    .sort((a, b) => str(a.createdAt).localeCompare(str(b.createdAt)));
 
   const onForget = async (m: HouseholdMemory) => {
     if (!user?.uid) return;
@@ -115,8 +119,22 @@ export function MemoryScreen() {
   };
   const onConfirm = async (m: HouseholdMemory) => {
     if (!user?.uid) return;
-    try { await confirmMemory(user.uid, m.id); toast.success("Saved"); load(); }
+    try { await confirmMemory(user.uid, m.id); toast.success("Cleo will remember that"); load(); }
     catch { toast.error("Couldn't save"); }
+  };
+  // "Tell Cleo something": her own words, remembered straight away.
+  const onTell = async () => {
+    const text = tellText.trim();
+    if (!user?.uid || !text || telling) return;
+    setTelling(true);
+    try {
+      const res = await rememberFromUser(user.uid, text);
+      if (res.action === "rejected") { toast.error("That's a bit short. Try a few more words."); return; }
+      setTellText("");
+      toast.success("Cleo will remember that");
+      load();
+    } catch { toast.error("Couldn't save that"); }
+    finally { setTelling(false); }
   };
   const onReject = async (m: HouseholdMemory) => {
     if (!user?.uid) return;
@@ -131,20 +149,20 @@ export function MemoryScreen() {
     const conf = str(m.confidence);
     return (
     <div key={m.id} style={{ background: "#fff", border: `1.5px solid ${pending ? `${T.gold}55` : T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 10 }}>
-      {title && <p style={{ fontFamily: F.serif, fontSize: 16, color: T.esp, margin: "0 0 4px", fontStyle: "italic" }}>{title}</p>}
+      {title && <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: "0 0 4px", }}>{title}</p>}
       <p style={{ fontFamily: F.sans, fontSize: 13, color: T.bark, margin: "0 0 10px", lineHeight: 1.5 }}>{content}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span style={chip(`${T.lav}14`, T.lav)}>{str(m.type).replace(/_/g, " ")}</span>
-        <span style={chip(`${T.sky}14`, T.sky)}>{str(m.sourceModule)}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 10, color: T.taupe }}>
+        <span style={chip(`${T.sky}14`, T.sky)}>{m.origin === "user_typed" ? "you told Cleo" : `from ${str(m.sourceModule)}`}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, color: T.taupe }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: CONF_COLOR[conf] || T.taupe, display: "inline-block" }} />
           {conf}
         </span>
         <div style={{ flex: 1 }} />
         {pending ? (
           <>
-            <button onClick={() => onReject(m)} style={btn(T.taupe, "transparent")}>No</button>
-            <button onClick={() => onConfirm(m)} style={btn("#fff", T.sage)}>Remember</button>
+            <button onClick={() => onReject(m)} aria-label={`No, don't remember: ${content}`} style={btn(T.taupe, "transparent")}>No</button>
+            <button onClick={() => onConfirm(m)} aria-label={`Yes, remember: ${content}`} style={btn("#fff", T.sage)}>Yes</button>
           </>
         ) : (
           <button onClick={() => onForget(m)} style={btn(T.taupe, "transparent")}>Forget</button>
@@ -156,7 +174,7 @@ export function MemoryScreen() {
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <PageTitle eyebrow="WHAT CLEO KNOWS" title="Memory" />
+      <PageTitle eyebrow="What Cleo knows" title="Memory" />
 
       {/* Toggle */}
       <div style={{ display: "flex", gap: 6, background: T.sand, borderRadius: 14, padding: 4, margin: "8px 0 18px" }}>
@@ -178,20 +196,36 @@ export function MemoryScreen() {
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search what Cleo remembers…"
             style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16 }} />
 
-          {visibleMemories.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 24px" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Nothing remembered yet</p>
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6 }}>As you use HerNest and talk to Cleo, she'll remember the things that matter — preferences, routines, and the details you shouldn't have to repeat.</p>
+          {/* Tell Cleo something */}
+          <div style={{ background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 18 }}>
+            <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>Tell Cleo something</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 8px", lineHeight: 1.5 }}>Anything you'd like her to keep in mind, like "Soccer is every Tuesday at 5."</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={tellText} onChange={e => setTellText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") onTell(); }}
+                placeholder="Type it here" aria-label="Tell Cleo something to remember" maxLength={300}
+                style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
+              <button onClick={onTell} disabled={!tellText.trim() || telling} style={{ ...btn("#fff", T.esp), opacity: tellText.trim() && !telling ? 1 : 0.5 }}>Save</button>
             </div>
+          </div>
+
+          {toConfirm.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, margin: "0 0 4px" }}>Waiting for your OK</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", lineHeight: 1.5 }}>Cleo picked these up. She won't use them unless you say yes.</p>
+              {toConfirm.map(m => MemoryCard(m, true))}
+            </div>
+          )}
+
+          {known.length === 0 ? (
+            toConfirm.length === 0 && (
+            <div style={{ textAlign: "center", padding: "48px 24px" }}>
+              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: "0 0 8px" }}>Nothing remembered yet</p>
+              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6 }}>When Cleo notices something worth keeping, like a routine or a preference, she'll ask you first. You can also tell her things yourself.</p>
+            </div>
+            )
           ) : (
             <>
-              {toConfirm.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.gold, margin: "0 0 10px" }}>Cleo wants to confirm</p>
-                  {toConfirm.map(m => MemoryCard(m, true))}
-                </div>
-              )}
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
               {known.map(m => MemoryCard(m, false))}
             </>
           )}
@@ -200,7 +234,7 @@ export function MemoryScreen() {
         <>
           {events.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 24px" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>No activity yet</p>
+              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: "0 0 8px" }}>No activity yet</p>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6 }}>As things happen across your household — tasks, events, plans — they'll show up here as a timeline.</p>
             </div>
           ) : (
@@ -210,7 +244,7 @@ export function MemoryScreen() {
                 <div key={e.id} style={{ position: "relative", marginBottom: 16 }}>
                   <div style={{ position: "absolute", left: -18, top: 4, width: 10, height: 10, borderRadius: "50%", background: T.sage, border: `2px solid ${T.ivory}` }} />
                   <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 2px", lineHeight: 1.4 }}>{humanizeEvent(e)}</p>
-                  <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>{relativeTime(Number(e.occurredAt) || Date.now())} · {str(e.source)}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>{relativeTime(Number(e.occurredAt) || Date.now())} · {str(e.source)}</p>
                 </div>
               ))}
             </div>

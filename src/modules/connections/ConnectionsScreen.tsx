@@ -11,6 +11,7 @@ import { PageTitle } from "../../shared/components";
 import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
 import { appleHealthSupported, connectAppleHealth, isAppleHealthConnected } from "../../core/appleHealth";
+import { PLAN_TAB_KEY } from "../plan/planHelpers";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
 
@@ -31,8 +32,8 @@ const CONNECTORS: Connector[] = [
   { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
   { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
-  { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
-  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "connected" },
+  { id: "gmail", name: "Gmail", category: "Email", blurb: "School, kids' activities, appointments, flights and due dates → calendar and tasks", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
+  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Find your bills automatically. Coming soon.", icon: "◎", kind: "soon", statusDoc: "plaid", statusField: "connected" },
   { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
   { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];
@@ -40,9 +41,8 @@ const CONNECTORS: Connector[] = [
 // Manual data sources already built into other screens — surfaced here so this
 // screen is the complete inventory of what feeds Cleo.
 const MANUAL_SOURCES = [
-  { id: "csv", name: "Bank CSV import", blurb: "Upload statements into the budget", icon: "◎", tab: "budget" },
-  { id: "receipts", name: "Receipt scanner", blurb: "Snap receipts, Cleo logs the expense", icon: "◉", tab: "budget" },
-  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "calendar" },
+  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: "◎", tab: "budget", planTab: "" },
+  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "plan", planTab: "school" },
 ];
 
 const CATEGORIES: Connector["category"][] = ["Calendar", "Email", "School", "Finance", "Wellness"];
@@ -146,15 +146,17 @@ export function ConnectionsScreen() {
     if (!user?.uid || scanningGmail) return;
     setScanningGmail(true);
     try {
-      const { scanGmail } = await import("../../core/gmailIntelligence");
-      const r = await scanGmail(user.uid);
-      if (r.error === "reauth_required") toast.error("Gmail needs reconnecting");
-      else if (r.error) toast.error("Scan failed — try again");
-      else if (r.eventsAdded || r.receiptsFound) toast.success(`Found ${r.eventsAdded} event${r.eventsAdded === 1 ? "" : "s"} · ${r.receiptsFound} receipt${r.receiptsFound === 1 ? "" : "s"} ✓`);
-      else toast(`Scanned ${r.scanned} emails — nothing new`, { icon: "✉" });
+      const { scanMailNow } = await import("../../core/mailInbox");
+      const r = await scanMailNow();
+      const found = r.eventsAdded + r.tasksFound;
+      if (r.error === "reauth_required") toast.error("Gmail needs reconnecting. Tap Connect to sign in again.");
+      else if (r.error === "limit_reached") toast("Cleo has done a lot today. She'll scan again tonight.", { icon: "✉" });
+      else if (r.error) toast.error("Scan didn't finish. Try again in a moment.");
+      else if (found) toast.success(`Found ${r.eventsAdded} date${r.eventsAdded === 1 ? "" : "s"} for your calendar and ${r.tasksFound} to-do${r.tasksFound === 1 ? "" : "s"} (see Today)`);
+      else toast(r.scanned ? `Read ${r.scanned} new email${r.scanned === 1 ? "" : "s"}. Nothing to add.` : "No new family email since the last scan.", { icon: "✉" });
       await loadHealth(user.uid);
     } catch {
-      toast.error("Scan failed — try again");
+      toast.error("Scan didn't finish. Try again in a moment.");
     }
     setScanningGmail(false);
   };
@@ -163,7 +165,7 @@ export function ConnectionsScreen() {
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <PageTitle eyebrow="YOUR INTEGRATIONS" title="Connections" />
+      <PageTitle eyebrow="Your integrations" title="Connections" />
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "4px 0 18px" }}>
         <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6, flex: 1 }}>
           Connect the services that feed your household. Each becomes a source Cleo can see and reason about.
@@ -171,7 +173,7 @@ export function ConnectionsScreen() {
         </p>
         {liveCount > 0 && (
           <button onClick={onSyncNow} disabled={syncing}
-            style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
+            style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
             {syncing ? "Syncing..." : "↺ Sync now"}
           </button>
         )}
@@ -182,7 +184,7 @@ export function ConnectionsScreen() {
         if (!items.length) return null;
         return (
           <div key={cat} style={{ marginBottom: 20 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
             {items.map(c => {
               const h = health[c.id];
               const isConnected = !loading && !!h?.connected;
@@ -194,7 +196,7 @@ export function ConnectionsScreen() {
                     <div style={{ width: 40, height: 40, borderRadius: 12, background: isConnected ? `${T.sage}14` : `${T.taupe}10`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: isConnected ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
-                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
                         {hasError
                           ? <span style={{ color: T.blush }}>Needs reconnecting — token expired</span>
                           : isConnected && h?.lastSyncedAt
@@ -209,7 +211,7 @@ export function ConnectionsScreen() {
                     ) : isConnected && !hasError ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
                     ) : c.kind === "soon" ? (
-                      <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
                     ) : (
                       <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {hasError ? "Reconnect" : "Connect"}
@@ -224,20 +226,20 @@ export function ConnectionsScreen() {
                   )}
                   {c.id === "apple_health" && healthSetup && (
                     <div style={{ marginTop: 10, padding: "12px 14px", background: T.sand, borderRadius: 12, border: `1px solid ${T.linen}` }}>
-                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.esp, margin: "0 0 8px", lineHeight: 1.5, fontWeight: 700 }}>iOS Shortcut setup</p>
-                      <ol style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "0 0 10px", paddingLeft: 16, lineHeight: 1.7 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: "0 0 8px", lineHeight: 1.5, fontWeight: 700 }}>iOS Shortcut setup</p>
+                      <ol style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", paddingLeft: 16, lineHeight: 1.7 }}>
                         <li>Open the <strong>Shortcuts</strong> app → new Automation → <strong>Time of Day</strong> (e.g. 8am daily)</li>
                         <li>Add <strong>Find Health Samples</strong> → Sleep → today; repeat for Steps</li>
                         <li>Add <strong>Get Contents of URL</strong> — method POST, JSON body below</li>
                       </ol>
                       <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
+                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
                       </div>
                       <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
-                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
+                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
                       </div>
                       <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied ✓"); }}
-                        style={{ marginTop: 8, fontFamily: F.sans, fontSize: 11.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
+                        style={{ marginTop: 8, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
                     </div>
                   )}
                 </div>
@@ -249,20 +251,20 @@ export function ConnectionsScreen() {
 
       {/* Manual sources — already built, part of the same picture */}
       <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
         {MANUAL_SOURCES.map(s => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{s.name}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
             </div>
-            <button onClick={() => setActiveTab(s.tab)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
+            <button onClick={() => { if (s.planTab) { try { sessionStorage.setItem(PLAN_TAB_KEY, s.planTab); } catch { /* private mode */ } } setActiveTab(s.tab); }} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
           </div>
         ))}
       </div>
 
-      <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "8px 0 0", lineHeight: 1.6, fontStyle: "italic", textAlign: "center" }}>
+      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "8px 0 0", lineHeight: 1.6, fontStyle: "italic", textAlign: "center" }}>
         Connected sources refresh automatically when you open HerNest. Bank feeds and school connectors arrive in the next wave.
       </p>
     </div>

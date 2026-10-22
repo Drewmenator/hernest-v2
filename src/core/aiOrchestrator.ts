@@ -15,16 +15,14 @@
 import { ai, aiJSON, type Feature } from "./ai";
 import type { JsonSchema } from "./aiSchema";
 import { runCleoAgent, runCleoAgentStreaming } from "./cleoAgent";
-import { AI } from "../config";
+import { AI, FLAGS } from "../config";
 import { extractFactsFromConversation } from "./memory";
 import { bus }                       from "./events";
 import { computeHouseholdState, buildStatePromptAddendum } from "./household/householdStateEngine";
 import { validateResponse } from "./household/responseValidator";
 import { retrieve } from "./contextRetrieval";
-import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo, formatCleoContextPackForPrompt } from "./graph/GraphService";
-import { getHouseholdId }            from "./identity";
-import { FLAGS }                     from "../config";
 import { todayLocal } from "./dateAwareness";
+import { crisisReply, crisisResponse } from "./crisis";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -271,7 +269,8 @@ Every CFO response must address:
 6. Suggested next step
 
 Never shame spending. Never guarantee outcomes. Never provide investment, tax, or legal advice.
-When data is missing, state the assumption clearly — do not invent numbers.`;
+When data is missing, state the assumption clearly — do not invent numbers.
+HerNest tracks the household's regular bills only (see BILLS). It has no spending, income, savings or debt figures: if a question needs them, ask the user for the numbers instead of guessing.`;
 
 const WELLNESS_SYSTEM = `${NORA_BASE}
 
@@ -314,14 +313,20 @@ async function triggerMemoryWriteback(
   messages: { role: string; content: string }[]
 ): Promise<void> {
   try {
-    const facts = await extractFactsFromConversation(messages, userId);
+    // Health and passing feelings are never kept as lasting memories.
+    const facts = (await extractFactsFromConversation(messages, userId))
+      .filter(f => f.type !== "health" && f.type !== "temporary");
     if (facts.length > 0) {
       // Route writeback through V2 governance (validate/dedup/decay) — Step 4.
+      // Everything inferred here is saved as a suggestion that waits for
+      // the user's yes; Cleo's chat asks about it after the reply.
       const { proposeMemory, v1FactToCandidate } = await import("./memoryServiceV2");
+      let suggested = 0;
       for (const f of facts) {
-        await proposeMemory(userId, v1FactToCandidate(f)).catch(() => {});
+        const res = await proposeMemory(userId, v1FactToCandidate(f)).catch(() => null);
+        if (res?.action === "needs_confirmation") suggested++;
       }
-      bus.publish("cleo.memory.updated", { factsAdded: facts.length }, {
+      bus.publish("cleo.memory.updated", { factsAdded: facts.length, suggested }, {
         userId,
         source: "orchestrator",
       });
@@ -374,6 +379,12 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     onToken,
   } = options;
 
+  // ── Step 0: Crisis check. Distress language never reaches the AI. ──
+  const crisis = crisisReply(userMessage);
+  if (crisis) {
+    return { success: true, feature: "cleo_chat", intent: "emotional_support", modelUsed: "cleo_chat", text: crisis, contextModules: [], assumptions: [], fallbackUsed: false };
+  }
+
   // ── Step 1: Classify intent ──────────────────────────────────────
   let classification = classifyIntentLocally(userMessage, sourceModule);
 
@@ -397,28 +408,18 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   let stateAddendum = "";
 
   try {
-    if (FLAGS.CANONICAL_CONTEXT === "graph") {
-      // Canonical path (migration Step 3d): context comes SOLELY from the
-      // household graph pack — one source of truth, no snapshot/memory-V1/V2 blend.
-      const hid = getHouseholdId() ?? userId;
-      let graph = await loadGraphFromFirestore(hid);
-      if (!graph) graph = await createContextGraph(hid);
-      context = formatCleoContextPackForPrompt(generateContextPackForCleo(graph, userId));
-      modules = ["graph"];
-      assumptions = [];
-    } else {
-      // Default path: intent-targeted retrieval (snapshot + memory). Unchanged.
-      const retrieved = await retrieve({
-        userId,
-        userMessage,
-        intent: classification.intent,
-        feature: classification.feature,
-        profile,
-      });
-      context = retrieved.contextString;
-      modules = retrieved.modulesLoaded;
-      assumptions = retrieved.assumptions;
-    }
+    // Intent-targeted retrieval (snapshot + memory). The switched-off
+    // "context graph" path was removed in simplify phase 3.
+    const retrieved = await retrieve({
+      userId,
+      userMessage,
+      intent: classification.intent,
+      feature: classification.feature,
+      profile,
+    });
+    context = retrieved.contextString;
+    modules = retrieved.modulesLoaded;
+    assumptions = retrieved.assumptions;
 
     // Build state addendum for tone adaptation (uses cached data)
     try {
@@ -426,14 +427,6 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const appCtx = await getCtx(userId, profile);
       const hState = computeHouseholdState(appCtx);
       stateAddendum = buildStatePromptAddendum(hState);
-      // Phase 4: fold the household intelligence scores + Risk Radar into context
-      // so Cleo can reference resilience/productivity and the ranked priorities.
-      try {
-        const { computeHouseholdScores } = await import("./intelligence/householdScores");
-        const s = computeHouseholdScores(appCtx);
-        const topAttention = s.attention.slice(0, 3).map(a => `${a.title} (${a.severity})`).join("; ");
-        stateAddendum += `\n\nHOUSEHOLD SCORES: Resilience ${s.resilience.score}/100 (${s.resilience.band}) — ${s.resilience.headline} · Productivity ${s.productivity.score}/100 (${s.productivity.band}).${topAttention ? `\nNEEDS ATTENTION (ranked): ${topAttention}` : ""}`;
-      } catch { /* non-fatal */ }
     } catch (e) { /* non-fatal */ }
 
   } catch (e) {
@@ -460,7 +453,11 @@ ${stateAddendum}`;
   // Single-shot chat call, used directly and as the agent's fallback.
   const singleShotChat = async () => {
     const result = await ai(systemPrompt, userMessage, feature, conversationHistory);
-    if (result.error) {
+    if (result.error && result.code === "crisis_detected") {
+      // Server backstop matched: show helplines, skip validation + memory.
+      fallbackUsed = true;
+      text = crisisResponse();
+    } else if (result.error) {
       fallbackUsed = true;
       text = FALLBACKS[classification.intent];
     } else {
@@ -479,10 +476,11 @@ ${stateAddendum}`;
     } else if (FLAGS.CLEO_AGENT && classification.feature === "cleo_chat") {
       // ── Cleo v2 agent (Phase 2): tool loop so she can ACT, not just answer ──
       const todayStr = todayLocal();
+      const nowStr = new Date().toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" });
       const agentSystem = `${systemPrompt}
 
 === ACTIONS YOU CAN TAKE ===
-Today is ${todayStr}. You can act in the app using tools: add_task, complete_task, add_calendar_event. When the user asks you to add/note/remind, schedule/book, or mark something done, CALL THE TOOL — don't just say you will. Resolve relative dates like "tomorrow" to YYYY-MM-DD using today's date. After acting, confirm briefly and warmly. For anything that isn't an action request, just answer normally.`;
+Today is ${todayStr} (${nowStr} now). You can act in the app using tools: add_task, complete_task, add_calendar_event. When the user asks you to add/note/remind, schedule/book, or mark something done, CALL THE TOOL — don't just say you will. Resolve relative dates like "tomorrow" to YYYY-MM-DD using today's date. When the user asks to be reminded at a time ("remind me at 3pm", "tomorrow morning"), pass remindAt to add_task and then say exactly when you'll remind them. After acting, confirm briefly and warmly. For anything that isn't an action request, just answer normally.`;
       const agentHistory = conversationHistory
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
@@ -604,40 +602,6 @@ export async function askCleoStreaming(
     userMessage: message,
     conversationHistory: history,
     options: { allowMemoryWriteback: true, contextDepth: "full", onToken },
-  });
-  return result.text;
-}
-
-// For CFO / finances screen
-export async function askCFO(
-  userId: string,
-  profile: Record<string, unknown>,
-  message: string,
-  history: { role: "user" | "assistant"; content: string }[] = []
-): Promise<string> {
-  const result = await orchestrate({
-    userId,
-    profile,
-    sourceModule: "finances",
-    userMessage: message,
-    conversationHistory: history,
-    options: { allowMemoryWriteback: true, contextDepth: "full" },
-  });
-  return result.text;
-}
-
-// For wellness / thrive screen
-export async function askWellness(
-  userId: string,
-  profile: Record<string, unknown>,
-  message: string
-): Promise<string> {
-  const result = await orchestrate({
-    userId,
-    profile,
-    sourceModule: "wellness",
-    userMessage: message,
-    options: { allowMemoryWriteback: false, contextDepth: "light" },
   });
   return result.text;
 }

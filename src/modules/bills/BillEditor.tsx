@@ -59,7 +59,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
 
   return (
     <div style={{ animation: "fadeUp .3s ease both" }}>
-      <PageTitle eyebrow="BILLS" title={bill ? "Edit bill" : "Add a bill"} />
+      <PageTitle eyebrow="Bills" title={bill ? "Edit bill" : "Add a bill"} />
 
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Name, e.g. Electric or Netflix" aria-label="Bill name" style={inputStyle} />
       <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (optional)" aria-label="Amount" type="number" inputMode="decimal" style={inputStyle} />
@@ -132,7 +132,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
           {bill.payments.slice(0, 6).map(p => (
             <div key={`${p.due}_${p.paidOn}`} style={{ display: "flex", justifyContent: "space-between", padding: "9px 4px", borderBottom: `1px solid ${T.linen}`, fontFamily: F.sans, fontSize: 13.5, color: T.bark }}>
               <span>{new Date(`${p.due}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-              <span style={{ color: T.taupe }}>{p.amount ? formatMoney(p.amount) : "paid"}{p.auto ? " · autopay" : ""}</span>
+              <span style={{ color: T.taupe }}>{p.amount ? formatMoney(p.amount) : "paid"}{p.auto ? (p.confirmedBy ? " · autopay, confirmed" : " · autopay, not confirmed") : ""}</span>
             </div>
           ))}
         </>

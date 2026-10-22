@@ -9,7 +9,7 @@ export interface SchoolInfo {
   district?: string;
   schoolName?: string;
   termDates?: Array<{ term: string; start: string; end: string }>;
-  calendarEvents?: Array<{ id: string; title: string; date: string; endDate?: string; type: "holiday" | "inset" | "exam" | "event" | "other" }>;
+  calendarEvents?: Array<{ id: string; title: string; date: string; endDate?: string; type: "holiday" | "no_school" | "inset" | "exam" | "event" | "other" }>;
 }
 
 export interface FamilyMember {
@@ -46,59 +46,20 @@ export interface UserProfile {
   energyPattern: "morning" | "evening" | "variable";
   diet: string;
   style?: { bodyShape: string; size: string; height: string; vibe: string; dressCode: string; budget: string };
+  // Optional parts of the app, switched on in You → Extras. Missing means
+  // "not chosen yet" (Trips then defaults to on only if trips are saved).
+  extras?: { trips?: boolean };
 }
 
-export type HouseholdModule = "budget" | "calendar" | "family" | "trips" | "thrive" | "style" | "cleo" | "home" | "plan" | "circle";
-export type InsightCategory = "spending" | "savings" | "debt" | "cashflow" | "stress" | "scheduling" | "family" | "health" | "decision" | "opportunity";
-
-export interface HouseholdInsight {
-  id: string;
-  observation: string;
-  whyItMatters: string;
-  options: string[];
-  recommendation: string;
-  confidenceLevel: number;
-  category: InsightCategory;
-  sourceModules: HouseholdModule[];
-  createdAt: string;
-  dismissed?: boolean;
-}
-
-export interface ScenarioResult {
-  id: string;
-  question: string;
-  financialImpact: string;
-  tradeoffs: string[];
-  riskLevel: "low" | "medium" | "high";
-  recommendedAction: string;
-  confidenceLevel: number;
-  affectedModules: HouseholdModule[];
-  createdAt: string;
-}
-
-export interface FinancialSnapshot {
-  monthlyIncome: number;
-  totalBudget: number;
-  totalSpent: number;
-  cashRemaining: number;
-  savingsRate: number;
-  totalDebt: number;
-  debtToIncomeRatio: number;
-  projectedMonthEnd: number;
-  topOverspendCategories: string[];
-  financialHealthScore: number;
-  financialHealthGrade: "A" | "B" | "C" | "D" | "F" | "—";
-}
-
+// How full the household's week is (built by core/household/householdSnapshot.ts).
+// The money, insight and scenario types went with the old Budget engines in
+// simplify phase 3.
 export interface HouseholdSnapshot {
-  financial: FinancialSnapshot & {
-    upcomingTripObligation?: { name: string; amount: number; daysUntil: number };
-  };
   calendarLoad: "light" | "normal" | "heavy" | "critical";
   busyWeeksAhead: number;
-  activeGoals: Array<{ name: string; riskStatus: "on_track" | "at_risk" | "off_track" }>;
   householdStressLevel: "low" | "moderate" | "high";
-  wellness?: { avgMood: number; avgSleep: number; weeklyScore: number };
+  upcomingTrip?: { name: string; daysUntil: number };
+  wellness?: { avgMood: number; avgSleep: number };
   lastRefreshed: string;
 }
 
@@ -121,15 +82,13 @@ interface AppStore {
   showMore: boolean;
   showSettings: boolean;
   showUpgrade: boolean;
+  // A question to start the Cleo tab with (set by "Ask Cleo" buttons).
   isPro: boolean;
   setIsPro: (v: boolean) => void;
   isOnline: boolean;
   dailyUsage: number;
   usageLimit: number;
   householdSnapshot: HouseholdSnapshot | null;
-  householdInsights: HouseholdInsight[];
-  activeScenario: ScenarioResult | null;
-  householdRefreshing: boolean;
   currentHouseholdId: string | null;
   householdRole: HouseholdRole | null;
   householdMembers: HouseholdMember[];
@@ -147,27 +106,15 @@ interface AppStore {
   incrementUsage: () => void;
   reset: () => void;
   setHouseholdSnapshot: (snap: HouseholdSnapshot) => void;
-  setHouseholdInsights: (insights: HouseholdInsight[]) => void;
-  addHouseholdInsight: (insight: HouseholdInsight) => void;
-  dismissInsight: (id: string) => void;
-  setActiveScenario: (scenario: ScenarioResult | null) => void;
-  setHouseholdRefreshing: (refreshing: boolean) => void;
   setHousehold: (h: { householdId: string; role: HouseholdRole; members?: HouseholdMember[] }) => void;
-  updateFinancialSnapshot: (snap: Partial<FinancialSnapshot>) => void;
 }
-
-const defaultFinancialSnapshot: FinancialSnapshot = {
-  monthlyIncome: 0, totalBudget: 0, totalSpent: 0, cashRemaining: 0,
-  savingsRate: 0, totalDebt: 0, debtToIncomeRatio: 0, projectedMonthEnd: 0,
-  topOverspendCategories: [], financialHealthScore: 0, financialHealthGrade: "—",
-};
 
 export const useStore = create<AppStore>()(
   immer((set) => ({
     user: null, authChecked: false, profile: null, activeTab: "home",
     screen: "loading", showMore: false, showSettings: false, showUpgrade: false, isPro: false,
     isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 500,
-    householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
+    householdSnapshot: null,
     currentHouseholdId: null, householdRole: null, householdMembers: [],
     setUser: (user) => set((s) => { s.user = user; }),
     setAuthChecked: (checked) => set((s) => { s.authChecked = checked; }),
@@ -185,40 +132,17 @@ export const useStore = create<AppStore>()(
     reset: () => set((s) => {
       s.user = null; s.profile = null; s.screen = "login";
       s.activeTab = "home"; s.dailyUsage = 0;
-      s.householdSnapshot = null; s.householdInsights = []; s.activeScenario = null;
+      s.householdSnapshot = null;
       s.currentHouseholdId = null; s.householdRole = null; s.householdMembers = [];
       // Residue from these leaked across accounts on shared devices
       s.isPro = false; s.familyMembers = [];
       s.showMore = false; s.showSettings = false; s.showUpgrade = false;
     }),
     setHouseholdSnapshot: (snap) => set((s) => { s.householdSnapshot = snap; }),
-    setHouseholdInsights: (insights) => set((s) => { s.householdInsights = insights; }),
-    addHouseholdInsight: (insight) => set((s) => {
-      const exists = s.householdInsights.some(i => i.observation === insight.observation);
-      if (!exists) s.householdInsights = [insight, ...s.householdInsights].slice(0, 20);
-    }),
-    dismissInsight: (id) => set((s) => {
-      const idx = s.householdInsights.findIndex(i => i.id === id);
-      if (idx !== -1) s.householdInsights[idx].dismissed = true;
-    }),
-    setActiveScenario: (scenario) => set((s) => { s.activeScenario = scenario; }),
-    setHouseholdRefreshing: (refreshing) => set((s) => { s.householdRefreshing = refreshing; }),
     setHousehold: ({ householdId, role, members }) => set((s) => {
       s.currentHouseholdId = householdId;
       s.householdRole = role;
       if (members) s.householdMembers = members;
-    }),
-    updateFinancialSnapshot: (snap) => set((s) => {
-      if (!s.householdSnapshot) {
-        s.householdSnapshot = {
-          financial: { ...defaultFinancialSnapshot, ...snap },
-          calendarLoad: "normal", busyWeeksAhead: 0, activeGoals: [],
-          householdStressLevel: "low", lastRefreshed: new Date().toISOString(),
-        };
-      } else {
-        Object.assign(s.householdSnapshot.financial, snap);
-        s.householdSnapshot.lastRefreshed = new Date().toISOString();
-      }
     }),
   }))
 );

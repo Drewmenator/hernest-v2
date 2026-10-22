@@ -32,13 +32,32 @@ describe("theme contrast (WCAG AA)", () => {
     expect(ratio(T.esp, bg)).toBeGreaterThanOrEqual(AA);
   });
 
-  it("raw gold must NOT be used as small text on light backgrounds", () => {
-    // Documents the constraint: gold is an accent/icon color. If this ever
-    // "passes", the brand gold changed dramatically — review all usages.
-    expect(ratio(T.gold, T.ivory)).toBeLessThan(AA);
+  // Wisteria brief: the four verified pairs.
+  it("Wisteria pairs from the brief pass (indigo on ivory, white on violet, indigo on lavender and sage)", () => {
+    expect(ratio(T.text, T.bg)).toBeGreaterThanOrEqual(9.5);
+    expect(ratio("#FFFFFF", T.action)).toBeGreaterThanOrEqual(7);
+    expect(ratio(T.text, T.cleoBg)).toBeGreaterThanOrEqual(7);
+    expect(ratio(T.text, T.householdBg)).toBeGreaterThanOrEqual(7);
   });
 
-  it("white text passes on espresso (dark cards)", () => {
+  it("light lavender (wisteria) is a background only, never small text on ivory", () => {
+    expect(ratio(T.wisteria, T.bg)).toBeLessThan(AA);
+  });
+
+  it.each([
+    ["Cleo ink on lavender", T.action, T.cleoBg],
+    ["household ink on sage", T.householdInk, T.householdBg],
+    ["personal ink on blush", T.personalInk, T.personalBg],
+    ["plan ink on pale blue", T.planInk, T.planBg],
+    ["danger on danger tint", T.danger, T.dangerBg],
+    ["warning on warning tint", T.warn, T.warnBg],
+    ["secondary text on ivory", T.text2, T.bg],
+    ["secondary text on lavender", T.text2, T.cleoBg],
+  ])("%s passes AA", (_n, fg, bg) => {
+    expect(ratio(fg, bg)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("white text passes on indigo (dark surfaces)", () => {
     expect(ratio("#FFFFFF", T.esp)).toBeGreaterThanOrEqual(AA);
   });
 });

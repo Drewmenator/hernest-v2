@@ -5,7 +5,7 @@ import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
-import { analyzeScenario, buildHouseholdSnapshot } from "../../core/household";
+import { buildHouseholdSnapshot } from "../../core/household/householdSnapshot";
 import toast from "react-hot-toast";
 import {
   safeDate, daysUntil, computeTripState, computeReadiness,
@@ -26,12 +26,10 @@ export function TripsScreen() {
   const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
-  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask" | "edit">("overview");
+  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "edit">("overview");
   const [showAdd, setShowAdd] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [packingLoading, setPackingLoading] = useState(false);
-  const [cfoLoading, setCfoLoading] = useState(false);
-  const [cfoResult, setCfoResult] = useState<any>(null);
 
   // ── Add trip form state ──────────────────────────────────────────
   const [dest, setDest] = useState("");
@@ -170,7 +168,7 @@ Generate exactly ${days} days. Keep each field under 12 words. Make it feel achi
     const prompt = `${days} nights in ${trip.destination}.
 Party: ${adults.map(a => a.name).join(", ")} (adults)${kids.length ? `, ${kids.map(k => `${k.name} age ${k.age}`).join(", ")} (kids)` : ""}.
 Budget: ${trip.budget.currency}${trip.budget.total}.
-Make it family-friendly but include a mum moment each day.`;
+Make it family-friendly but include a mom moment each day.`;
 
     const schema = s.object({
       days: s.array(s.object({
@@ -179,7 +177,7 @@ Make it family-friendly but include a mum moment each day.`;
         tip: s.string("local tip"), mumMoment: s.string("something special just for her — rest, beauty, joy"),
       })),
     });
-    const result = await ai(sys, prompt, "trip_planner", [], { schema });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema, userText: trip.destination });
     if (!result.error) {
       try {
         const parsed = JSON.parse(result.text);
@@ -198,7 +196,7 @@ Make it family-friendly but include a mum moment each day.`;
     const kids = trip.travellers.filter(t => t.type === "child");
     const hasKids = kids.length > 0;
 
-    const sys = `You are Cleo. Generate a smart family packing list in these sections, in order: Mum, ${hasKids ? "Kids" : "Partner"}, Everyone, Documents, Tech.
+    const sys = `You are Cleo. Generate a smart family packing list in these sections, in order: Mom, ${hasKids ? "Kids" : "Partner"}, Everyone, Documents, Tech.
 Each item: name, quantity, essential, weatherDependent. Max 12 items per section.`;
 
     const prompt = `Trip to ${trip.destination}, ${trip.nights} nights.
@@ -207,11 +205,11 @@ Weather: pack for typical ${trip.destination} conditions.`;
 
     const schema = s.object({
       sections: s.array(s.object({
-        name: s.enum(["Mum", hasKids ? "Kids" : "Partner", "Everyone", "Documents", "Tech"]),
+        name: s.enum(["Mom", hasKids ? "Kids" : "Partner", "Everyone", "Documents", "Tech"]),
         items: s.array(s.object({ name: s.string(), quantity: s.integer(), essential: s.boolean(), weatherDependent: s.boolean() })),
       })),
     });
-    const result = await ai(sys, prompt, "trip_planner", [], { schema });
+    const result = await ai(sys, prompt, "trip_planner", [], { schema, userText: trip.destination });
     if (!result.error) {
       try {
         const parsed = JSON.parse(result.text);
@@ -266,22 +264,6 @@ Weather: pack for typical ${trip.destination} conditions.`;
     setActiveTrip(normTrip(updated));
   };
 
-  // ── Ask CFO about trip ───────────────────────────────────────────
-  const askCFO = async (question: string) => {
-    if (!user?.uid) return;
-    setCfoLoading(true);
-    try {
-      let snap = householdSnapshot;
-      if (!snap) {
-        snap = await buildHouseholdSnapshot(user.uid);
-        setHouseholdSnapshot(snap);
-      }
-      const { result } = await analyzeScenario(question, snap, user.uid, (profile as any)?.name);
-      setCfoResult(result);
-    } catch { toast.error("CFO analysis failed"); }
-    setCfoLoading(false);
-  };
-
   // ═══════════════════════════════════════════════════════════════════
   // RENDER: TRIP LIST
   // ═══════════════════════════════════════════════════════════════════
@@ -319,19 +301,19 @@ Weather: pack for typical ${trip.destination} conditions.`;
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <button onClick={() => { setActiveTrip(null); setCfoResult(null); }}
+      <button onClick={() => setActiveTrip(null)}
         style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 13, color: T.taupe, cursor: "pointer", marginBottom: 12, padding: "8px 0", minHeight: 44, touchAction: "manipulation" }}>
         ← All trips
       </button>
 
       {/* ── HERO ─────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(135deg, ${T.esp}, #3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
+      <div style={{ background: T.action, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
+            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
               {cfg.emoji} {cfg.label}
             </span>
-            <p style={{ fontFamily: F.serif, fontSize: 28, fontStyle: "italic", color: "#fff", margin: "8px 0 4px", fontWeight: 500 }}>{trip.destination}</p>
+            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: "#fff", margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.6)", margin: 0 }}>
               {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
@@ -356,11 +338,10 @@ Weather: pack for typical ${trip.destination} conditions.`;
           { id: "packing",   label: `🧳 Pack${totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}` },
           { id: "checklist", label: `✓ Prep${completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}` },
           { id: "budget",    label: "💰 Budget" },
-          { id: "ask",       label: "✦ Ask CFO" },
           { id: "edit",      label: "✎ Edit" },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setDetailTab(t.id as any)}
-            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 11, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>
+            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>
             {t.label}
           </button>
         ))}
@@ -371,10 +352,8 @@ Weather: pack for typical ${trip.destination} conditions.`;
         persist={persist} setActiveTrip={setActiveTrip}
         readiness={readiness} completedTasks={completedTasks}
         planning={planning} packingLoading={packingLoading}
-        cfoLoading={cfoLoading} cfoResult={cfoResult} setCfoResult={setCfoResult}
         generateItinerary={generateItinerary} generatePackingList={generatePackingList}
         togglePacking={togglePacking} toggleTask={toggleTask} toggleDoc={toggleDoc}
-        askCFO={askCFO}
       />
     </div>
   );

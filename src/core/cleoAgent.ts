@@ -14,7 +14,10 @@
 
 import { auth, loadData, saveData } from "./firebase";
 import { bus } from "./events";
+import { createItem, listItems } from "./householdItems";
 import { AI } from "../config";
+import { limitReached } from "./ai";
+import { reminderFromToolInput, formatRemindAt } from "./taskReminders";
 
 const MAX_ITERS = 5;
 
@@ -42,6 +45,8 @@ const TOOLS = [
         dueDate: { type: "string", description: "Due date as YYYY-MM-DD if a date is given or implied (resolve relative dates like 'tomorrow' using today's date from the system prompt)" },
         priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "Priority; default medium" },
         category: { type: "string", enum: ["family", "work", "home", "travel", "personal", "School"], description: "Category; default personal" },
+        remindAt: { type: "string", description: "Only when the user asks to be reminded at a time: the local date and time as YYYY-MM-DDTHH:mm (24-hour). Resolve relative times from the current date and time in the system prompt. 'Morning' = 09:00, 'afternoon' = 14:00, 'evening' = 18:00, 'tonight' = 20:00. If they give a day but no time, use 09:00." },
+        askPerson: { type: "string", description: "First name of another adult in the household to ASK to take this task (e.g. 'Sam'). Only when the user explicitly says to give it to, ask, or assign it to that person. This only sends them a request; they accept or decline themselves. Omit for the user's own tasks and for kids." },
       },
       required: ["title"],
     },
@@ -81,28 +86,54 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
     case "add_task": {
       const title = String(input.title || "").trim();
       if (!title) return "I couldn't add that — no task description was given.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
+      const reminder = reminderFromToolInput(input);
       const task = {
         id: crypto.randomUUID(),
         title,
+        createdBy: uid,
         category: (input.category as string) || "personal",
         priority: (input.priority as string) || "medium",
         status: "pending",
         source: "cleo",
         // AI-created tasks await user confirmation — Plan surfaces these with
         // a "Confirm" affordance (same flow as school-extracted tasks).
-        userConfirmed: false,
+        // Exception: "remind me at 3" is her explicit ask, so it is saved
+        // confirmed; otherwise the alert would wait behind Confirm.
+        userConfirmed: !!reminder.remindAt,
         ...(input.dueDate ? { dueDate: String(input.dueDate) } : {}),
+        ...(reminder.remindAt ? { remindAt: reminder.remindAt } : {}),
+        createdAt: Date.now(),
       };
-      await saveData(uid, "tasks", { tasks: [...existing, task] });
+      // Cleo can ask another adult to take it, but never accept on their
+      // behalf: the task starts as "asked" and they say yes or no themselves.
+      const askName = String(input.askPerson || "").trim();
+      if (askName) {
+        const { findAdult, proposeNewTask } = await import("./taskActions");
+        const adult = findAdult(askName);
+        if (adult && adult.uid !== uid) {
+          // The user asked for this hand-off in words, so it doesn't wait for their own Confirm.
+          await proposeNewTask({ ...task, userConfirmed: true }, adult);
+          return `Asked ${adult.name} to take "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""}. It shows as "Waiting for ${adult.name}" in Plan until ${adult.name} accepts or declines.${reminder.remindAt ? ` If they accept, their phone reminds them ${formatRemindAt(reminder.remindAt)}.` : ""}`;
+        }
+        await createItem(uid, "tasks", task);
+        await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
+        return `I added "${title}" to your own list. I couldn't ask ${askName}, because they aren't in your HerNest household yet (invite them from Your family).`;
+      }
+      await createItem(uid, "tasks", task);
       await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
-      return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""} — it's waiting for your confirmation in Plan.`;
+      if (reminder.remindAt) {
+        // Ask for notification permission now, the first time she sets one.
+        const on = await import("./localNotifications").then(m => m.ensureReminderPermission(uid)).catch(() => null);
+        return `Added task "${title}" and set a reminder for ${formatRemindAt(reminder.remindAt)}. Tell the user exactly when you'll remind them.${on !== false ? "" : " (Phone notifications are off on this device, so mention they can turn them on in Settings to get the alert.)"}`;
+      }
+      const note = reminder.problem ? ` No reminder was set: ${reminder.problem}. Ask the user for the time.` : "";
+      return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""} — it's waiting for your confirmation in Plan.${note}`;
     }
 
     case "complete_task": {
       const q = String(input.title || "").trim().toLowerCase();
       if (!q) return "I couldn't tell which task to complete.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
+      const existing = await listItems<any>(uid, "tasks");
       // Fuzzy matching completed the WRONG task when several titles overlapped.
       // Only act on an unambiguous match; otherwise ask instead of guessing.
       const matches = existing.filter(
@@ -111,9 +142,8 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
       if (matches.length === 0) return `I couldn't find an open task matching "${input.title}".`;
       if (matches.length > 1) return `A few tasks match "${input.title}": ${matches.slice(0, 3).map((t: any) => `"${t.title}"`).join(", ")}. Which one did you mean?`;
       const match = matches[0];
-      const updated = existing.map((t: any) => (t.id === match.id ? { ...t, status: "completed" } : t));
-      await saveData(uid, "tasks", { tasks: updated });
-      await bus.publish("plan.task.completed", match, { userId: uid, source: "cleo" }).catch(() => {});
+      const { setTaskDone } = await import("./taskActions");
+      await setTaskDone(match, true);
       return `Marked "${match.title}" complete.`;
     }
 
@@ -183,13 +213,12 @@ export async function runCleoAgent(params: {
       }),
     });
 
-    if (res.status === 429) {
-      window.dispatchEvent(new CustomEvent("hn_limit_reached"));
-      throw new Error("daily_limit_reached");
-    }
+    if (res.status === 429) throw new Error(await limitReached(res));
     if (!res.ok) throw new Error(`agent_http_${res.status}`);
 
     const data = await res.json();
+    // Server crisis backstop: the model wasn't called (see api/_lib/crisis.js).
+    if (data?.crisis) throw new Error("crisis_detected");
     const content: any[] = Array.isArray(data.content) ? data.content : [];
     // Record the assistant turn verbatim (text + any tool_use blocks).
     convo.push({ role: "assistant", content });
@@ -240,7 +269,12 @@ async function streamClaude(params: {
       messages: params.messages, tools: TOOLS, max_tokens: 2000, stream: true,
     }),
   });
-  if (res.status === 429) { window.dispatchEvent(new CustomEvent("hn_limit_reached")); throw new Error("daily_limit_reached"); }
+  if (res.status === 429) throw new Error(await limitReached(res));
+  // Server crisis backstop answers with JSON instead of a stream.
+  if (res.ok && res.headers?.get("content-type")?.includes("application/json")) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.crisis ? "crisis_detected" : "agent_stream_bad_response");
+  }
   if (!res.ok || !res.body) throw new Error(`agent_stream_http_${res.status}`);
 
   const blocks: any[] = [];

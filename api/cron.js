@@ -12,6 +12,8 @@
 import { adminDb, encryptSecret, openToken } from "./_lib/secure.js";
 import { sendDailyPushesTo } from "./_lib/push.js";
 import { morningDue, localParts, wallClockNow, userTimeZones, hourlyTriggerAlive, claimMorning } from "./_lib/localTime.js";
+import { freshGoogleToken } from "./_lib/googleToken.js";
+import { scanFamilyMail } from "./_lib/familyMail.js";
 
 async function refreshGoogle(uid, data) {
   let accessToken = openToken(data.accessToken);
@@ -87,6 +89,41 @@ async function persist(uid, events) {
   const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
   const merged = [...byId.values()].filter(e => !e.date || e.date >= cutoff);
   await adminDb.doc(`users/${owner}/data/calendar_synced`).set({ events: merged }, { merge: true });
+}
+
+// ── Family email scan ──────────────────────────────────────────────
+// Every connected Gmail, once a night, before the morning push so its line
+// can say what came in. One AI call per mailbox at most, and none when no new
+// family mail arrived (each email is read once). Counts against the
+// household's pilot AI limit. An expired Google sign-in (weekly while the
+// Google app is in Testing) is flagged so the app shows "Reconnect Gmail".
+async function scanAllGmail(integrationDocs, zones, now = new Date()) {
+  let scanned = 0, needReconnect = 0;
+  for (const d of integrationDocs.filter(x => x.ref.id === "gmail")) {
+    const uid = d.ref.parent.parent?.id;
+    if (!uid) continue;
+    try {
+      const tok = await freshGoogleToken(uid, "gmail");
+      if (tok.error) {
+        if (tok.error !== "not_connected") {
+          needReconnect++;
+          await d.ref.set({ lastError: "reauth_required", lastSyncedAt: Date.now() }, { merge: true });
+        }
+        continue;
+      }
+      const tz = zones.get(uid);
+      const today = (tz && localParts(now, tz)?.date) || now.toISOString().slice(0, 10);
+      const r = await scanFamilyMail(adminDb, { uid, accessToken: tok.accessToken, today });
+      await d.ref.set({ lastSyncedAt: Date.now(), itemCount: r.scanned, lastError: r.error || null }, { merge: true });
+      scanned++;
+    } catch (e) {
+      if (e?.reauth) {
+        needReconnect++;
+        await d.ref.set({ lastError: "reauth_required", lastSyncedAt: Date.now() }, { merge: true }).catch(() => {});
+      } else console.error("[Cron] gmail scan failed:", e?.message);
+    }
+  }
+  return { scanned, needReconnect };
 }
 
 // ── Morning briefing push ──────────────────────────────────────────
@@ -200,6 +237,13 @@ export default async function handler(req, res) {
         console.error("[Cron] user sync failed:", e?.message);
       }
     }
+    // Family email → calendar + "From your email". Non-fatal.
+    let mail = { scanned: 0, needReconnect: 0 };
+    try {
+      mail = await scanAllGmail(snap.docs, await deviceZonesByUser());
+    } catch (e) {
+      console.error("[Cron] gmail pass failed:", e?.message);
+    }
     // Morning briefing push — after the refresh so counts are fresh. Non-fatal.
     let pushed = 0;
     try {
@@ -207,8 +251,8 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error("[Cron] morning push pass failed:", e?.message);
     }
-    console.log(`[Cron] refreshed ${refreshed}, failed ${failed}, pushed ${pushed}`);
-    res.json({ refreshed, failed, pushed });
+    console.log(`[Cron] refreshed ${refreshed}, failed ${failed}, gmail ${mail.scanned} (${mail.needReconnect} need reconnect), pushed ${pushed}`);
+    res.json({ refreshed, failed, pushed, gmail: mail });
   } catch (e) {
     console.error("[Cron] fatal:", e?.message);
     res.status(500).json({ error: "cron_failed", refreshed, failed });

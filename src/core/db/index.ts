@@ -107,12 +107,10 @@ class HerNestDB extends Dexie {
     });
   }
 
+  // One briefing per day (was one per morning/afternoon/evening, up to 3
+  // AI calls a day). It's written the first time she opens Today.
   getWindowKey(): string {
-    const hour = new Date().getHours();
-    const today = todayLocal();
-    if (hour >= 6 && hour < 12) return `morning_${today}`;
-    if (hour >= 12 && hour < 17) return `afternoon_${today}`;
-    return `evening_${today}`;
+    return `day_${todayLocal()}`;
   }
 
   async getTodayBriefing(): Promise<CachedBriefing | undefined> {

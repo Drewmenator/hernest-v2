@@ -5,17 +5,12 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("./ai", () => ({ ai: vi.fn(), aiJSON: vi.fn() }));
 vi.mock("./cleoAgent", () => ({ runCleoAgent: vi.fn(), runCleoAgentStreaming: vi.fn() }));
 vi.mock("./contextBuilder", () => ({ buildAppContext: vi.fn(), buildBriefingPrompt: vi.fn() }));
-vi.mock("./household/HouseholdIntelligence", () => ({ buildHouseholdSnapshot: vi.fn() }));
+vi.mock("./household/householdSnapshot", () => ({ buildHouseholdSnapshot: vi.fn() }));
 vi.mock("./memory", () => ({ extractFactsFromConversation: vi.fn() }));
 vi.mock("./events", () => ({ bus: { publish: vi.fn(), subscribe: vi.fn() } }));
 vi.mock("./household/householdStateEngine", () => ({ computeHouseholdState: vi.fn(), buildStatePromptAddendum: vi.fn() }));
 vi.mock("./household/responseValidator", () => ({ validateResponse: vi.fn() }));
 vi.mock("./contextRetrieval", () => ({ retrieve: vi.fn(), invalidateCache: vi.fn() }));
-vi.mock("./graph/GraphService", () => ({
-  createContextGraph: vi.fn(), loadGraphFromFirestore: vi.fn(),
-  generateContextPackForCleo: vi.fn(), generateContextPackForCFO: vi.fn(),
-  formatCleoContextPackForPrompt: vi.fn(), formatCFOContextPackForPrompt: vi.fn(),
-}));
 vi.mock("./store", () => ({ useStore: { getState: vi.fn(() => ({})) } }));
 vi.mock("./identity", () => ({ getHouseholdId: vi.fn(() => null) }));
 vi.mock("./firebase", () => ({ loadData: vi.fn(), saveData: vi.fn(), db: {}, auth: {} }));
@@ -101,5 +96,32 @@ describe("orchestrate — streamed responses are validated (previously skipped)"
     });
     expect(validateResponse).toHaveBeenCalled();
     expect(res.text).toBe("VALIDATED TEXT");
+  });
+});
+
+describe("orchestrate: crisis check (Cleo tab, every Ask Cleo prefill)", () => {
+  it("answers distress language with the helplines and never calls the AI", async () => {
+    const { runCleoAgent, runCleoAgentStreaming } = await import("./cleoAgent");
+    const { askCleo, askCleoStreaming } = await import("./aiOrchestrator");
+    const { crisisResponse } = await import("./crisis");
+    for (const m of [ai, runCleoAgent, runCleoAgentStreaming]) (m as Mock).mockClear();
+    const a = await askCleo("u1", {}, "I don't want to wake up tomorrow");
+    const b = await askCleoStreaming("u1", {}, "thinking about self-harm again", [], () => {});
+    for (const text of [a, b]) {
+      expect(text).toBe(crisisResponse());
+      expect(text).toContain("988");
+    }
+    expect(ai).not.toHaveBeenCalled();
+    expect(runCleoAgent).not.toHaveBeenCalled();
+    expect(runCleoAgentStreaming).not.toHaveBeenCalled();
+  });
+
+  it("server backstop on the single-shot path shows the helplines too", async () => {
+    const { crisisResponse } = await import("./crisis");
+    const { retrieve } = await import("./contextRetrieval");
+    (retrieve as Mock).mockResolvedValue({ contextString: "", modulesLoaded: [], assumptions: [] });
+    (ai as Mock).mockResolvedValue({ text: "", error: "x", code: "crisis_detected" });
+    const res = await orchestrate({ userId: "u1", profile: {}, sourceModule: "finances", userMessage: "what about the budget?", options: {} });
+    expect(res.text).toBe(crisisResponse());
   });
 });

@@ -27,7 +27,28 @@ export interface WearableDay {
   activeCalories: number | null;
   sedentaryMins: number | null;
   activityScore: number | null;
+  // Apple Health only: exercise ring / workout minutes and mindful minutes today
+  activeMins?: number | null;
+  mindfulMins?: number | null;
   history: WearableDayPoint[];
+}
+
+// Today's value against her own recent average (the days before today), so
+// Cleo can say "a bit below your usual" from real numbers. Needs at least 3
+// earlier days; never compares against a made-up norm.
+export function vsUsual(
+  today: number | null | undefined,
+  history: WearableDayPoint[] | undefined,
+  key: "hrv" | "restingHr" | "sleepHours" | "steps",
+  todayDate?: string,
+): { usual: number; diffPct: number; word: "above" | "below" | "about" } | null {
+  if (today == null) return null;
+  const prior = (history || []).filter(p => p && p.day !== todayDate).map(p => p[key]).filter((v): v is number => typeof v === "number");
+  if (prior.length < 3) return null;
+  const usual = prior.reduce((a, b) => a + b, 0) / prior.length;
+  if (!usual) return null;
+  const diffPct = Math.round(((today - usual) / usual) * 100);
+  return { usual: Math.round(usual * 10) / 10, diffPct, word: Math.abs(diffPct) < 8 ? "about" : diffPct > 0 ? "above" : "below" };
 }
 
 export interface WearableDayPoint {
@@ -39,6 +60,7 @@ export interface WearableDayPoint {
   restingHr: number | null;
   steps: number | null;
   stressDay: "restored" | "normal" | "stressful" | null;
+  activeMins?: number | null;  // exercise/workout minutes (Apple Health only)
 }
 
 const STEPS_GOAL = 7000; // auto-completes the "Move your body" habit
@@ -90,6 +112,8 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         readinessContributors: null,
         stressDay: null, stressHighMins: null, recoveryHighMins: null,
         activeCalories: null, sedentaryMins: null, activityScore: null,
+        activeMins: (native.exerciseMins as number) ?? null,
+        mindfulMins: (native.mindfulMins as number) ?? null,
         history: (native.history as WearableDayPoint[]) ?? [],
       };
     }
