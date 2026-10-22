@@ -246,6 +246,7 @@ No layout change yet; just removes the embarrassing parts.
 6. Remove the Go Pro button, Circle Companions and the floating mini-Cleo from view.
 
 ### Phase 2: Merge the duplicates (M to L, about a week)
+*Built 21 Oct on branch `claude/simplify-phase2-merge-300d7e` (not yet merged).* "Your family" is the one people list (Circle and Profile people copied in once, duplicates skipped by name, old data kept). Circle's AI Companions are gone and Circle opens Your family. Plan has Tasks (with chores and who does them), Week (calendar, school, tasks and chores in one list), School (the only school input) and Meals (Family's dinners folded in; the Sunday "wrong Monday" bug fixed). Family, Circle and Plan "Ask Cleo" buttons open the Cleo tab with a message ready. The Calendar screen now only holds the Apple Calendar connect step (Connections links to it) and a link to Plan → Week.
 1. **One people list:** merge Family members, Circle contacts and Profile family into "Your family" (a one-time copy, removing duplicates by name). Birthdays, gift ideas and check-in reminders move with them.
 2. **One meal planner:** move Family Dinners into Plan → Meals.
 3. **One calendar view:** fold Calendar into Plan → Week; one place to add school info.

@@ -38,10 +38,10 @@ const FACT_TYPES = [
   { id:"temporary",  label:"Temporary",  emoji:"⏳",    color:T.taupe },
 ];
 
-const SECTIONS = ["personal","family","health","goals","memory"] as const;
+const SECTIONS = ["personal","health","goals","memory"] as const;
 
 export function ProfileScreen() {
-  const { user, profile, updateProfile } = useStore();
+  const { user, updateProfile, setActiveTab } = useStore();
   const [section, setSection] = useState<string>("personal");
   const [saving, setSaving]   = useState(false);
 
@@ -55,7 +55,8 @@ export function ProfileScreen() {
   const [role, setRole]             = useState("");
   const [challenge, setChallenge]   = useState("");
 
-  // Family
+  // Family — edited in "Your family" now; kept here only so saving the
+  // profile doesn't wipe these older fields (other features still read them).
   const [children, setChildren]     = useState<Child[]>([]);
   const [parents, setParents]       = useState<Parent[]>([]);
   const [inlaws, setInlaws]         = useState<Parent[]>([]);
@@ -160,16 +161,6 @@ export function ProfileScreen() {
     if (user?.uid) await deleteMemoryFact(user.uid, id);
   };
 
-  // ── Family helpers ────────────────────────────────────────────────
-  const addChild = () => setChildren(p => [...p, { id:crypto.randomUUID(), name:"", birthDate:"" }]);
-  const updateChild = (i: number, field: keyof Child, val: any) =>
-    setChildren(p => p.map((c,ci) => ci===i ? { ...c, [field]:val } : c));
-
-  const addParent = (type: "parents"|"inlaws") => {
-    const setter = type==="parents" ? setParents : setInlaws;
-    setter(p => [...p, { id:crypto.randomUUID(), name:"", relationship:"parent" }]);
-  };
-
   // ── Priority management per blueprint ─────────────────────────────
   const togglePriority = (area: string) => {
     const existing = priorities.find(p=>p.area===area);
@@ -254,77 +245,19 @@ export function ProfileScreen() {
           </div>
         </Card>
 
+        {/* Family people live in one place now */}
+        <Card>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:22 }}>💛</span>
+            <div style={{ flex:1 }}>
+              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:0 }}>Your family</p>
+              <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>Partner, kids, grandparents and friends, with birthdays and school details</p>
+            </div>
+            <button onClick={()=>setActiveTab("family")} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"8px 12px", fontFamily:F.sans, fontSize:12, color:T.gold, cursor:"pointer", minHeight:36, flexShrink:0 }}>Open ›</button>
+          </div>
+        </Card>
+
         <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Personal"}</Button>
-      </>}
-
-      {/* ── FAMILY per blueprint full family tree ─────────────────── */}
-      {section==="family" && <>
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>PARTNER</p>
-          <div style={{ display:"flex", gap:8 }}>
-            <Input value={partnerName} onChange={setPartnerName} placeholder="Partner's name (optional)" style={{ flex:2 }}/>
-            <input type="date" value={partnerBirthday} onChange={e=>setPartnerBirthday(e.target.value)}
-              style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none" }}/>
-          </div>
-        </Card>
-
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>CHILDREN</p>
-            <button onClick={addChild} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"5px 12px", fontFamily:F.sans, fontSize:11, color:T.gold, cursor:"pointer", minHeight:30 }}>+ Add</button>
-          </div>
-          {children.map((k,i)=>(
-            <div key={k.id} style={{ padding:"12px 0", borderBottom:`1px solid ${T.linen}` }}>
-              <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                <span style={{ fontSize:22, flexShrink:0 }}>🧒</span>
-                <Input value={k.name} onChange={v=>updateChild(i,"name",v)} placeholder="Name" style={{ flex:2 }}/>
-                <input type="date" value={k.birthDate||""} onChange={e=>updateChild(i,"birthDate",e.target.value)} style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
-                <button onClick={()=>setChildren(p=>p.filter((_,ci)=>ci!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
-              </div>
-              <div style={{ display:"flex", gap:8, paddingLeft:30 }}>
-                <Input value={k.school||""} onChange={v=>updateChild(i,"school",v)} placeholder="School (optional)" style={{ flex:1 }}/>
-                <Input value={(k.allergies||[]).join(", ")} onChange={v=>updateChild(i,"allergies",v.split(",").map((a:string)=>a.trim()).filter(Boolean))} placeholder="Allergies" style={{ flex:1 }}/>
-              </div>
-            </div>
-          ))}
-          {children.length===0 && <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe }}>No children added yet</p>}
-        </Card>
-
-        {/* Parents per blueprint */}
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>YOUR PARENTS</p>
-            <button onClick={()=>addParent("parents")} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"5px 12px", fontFamily:F.sans, fontSize:11, color:T.gold, cursor:"pointer", minHeight:30 }}>+ Add</button>
-          </div>
-          {parents.map((p,i)=>(
-            <div key={p.id} style={{ display:"flex", gap:8, marginBottom:8 }}>
-              <span style={{ fontSize:22, flexShrink:0 }}>👩</span>
-              <Input value={p.name} onChange={v=>setParents(prev=>prev.map((pa,pi)=>pi===i?{...pa,name:v}:pa))} placeholder="Name" style={{ flex:2 }}/>
-              <input type="date" value={p.birthday||""} onChange={e=>setParents(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
-              <button onClick={()=>setParents(p=>p.filter((_,pi)=>pi!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
-            </div>
-          ))}
-          {parents.length===0 && <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe }}>No parents added yet</p>}
-        </Card>
-
-        {/* In-laws per blueprint */}
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>IN-LAWS</p>
-            <button onClick={()=>addParent("inlaws")} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"5px 12px", fontFamily:F.sans, fontSize:11, color:T.gold, cursor:"pointer", minHeight:30 }}>+ Add</button>
-          </div>
-          {inlaws.map((p,i)=>(
-            <div key={p.id} style={{ display:"flex", gap:8, marginBottom:8 }}>
-              <span style={{ fontSize:22, flexShrink:0 }}>👩</span>
-              <Input value={p.name} onChange={v=>setInlaws(prev=>prev.map((pa,pi)=>pi===i?{...pa,name:v}:pa))} placeholder="Name" style={{ flex:2 }}/>
-              <input type="date" value={p.birthday||""} onChange={e=>setInlaws(prev=>prev.map((pa,pi)=>pi===i?{...pa,birthday:e.target.value}:pa))} placeholder="Birthday" style={{ flex:1, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"10px 8px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", minHeight:44 }}/>
-              <button onClick={()=>setInlaws(p=>p.filter((_,pi)=>pi!==i))} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44 }}>×</button>
-            </div>
-          ))}
-          {inlaws.length===0 && <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe }}>No in-laws added yet</p>}
-        </Card>
-
-        <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Family"}</Button>
       </>}
 
       {/* ── HEALTH per blueprint ───────────────────────────────────── */}
