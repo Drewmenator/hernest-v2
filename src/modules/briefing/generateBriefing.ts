@@ -126,7 +126,7 @@ Answer in this shape (null for anything you have no data for):
   "bills": {"message":"one short, calm line about bills that are overdue or due in the next few days, using only the BILLS data"} or null if no bills are overdue or due soon,
   "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
   "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
-  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest signals you have — body readiness if present, else sleep + mood (e.g. readiness 62 + 5.8h sleep)","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
+  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest measured signals: body readiness if present, else sleep and heart rate variability vs her usual (e.g. readiness 62 + 5.8h sleep). Don't ask how she feels","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
   "affirmation": {"text":"warm personal affirmation","theme":"${appCtx?.toneConfig?.affirmationTheme || "self-compassion"}"},
   "travelBrief": ${appCtx?.trips?.isClose ? '{"urgentActions":[""],"packingTip":"","weatherHint":"","kidsTip":"","excitement":""}' : 'null'}
 }

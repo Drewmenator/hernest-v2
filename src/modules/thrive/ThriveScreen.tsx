@@ -1,6 +1,7 @@
 // ─── Wellness (Thrive, rethought) ──────────────────────────────────
-// One screen, usable in 30 seconds: Cleo's check-in with mood + energy (the
-// only mood logger in the app), "move this week" dots that fill themselves
+// One screen, usable in 30 seconds: Cleo's note for today, read from the
+// measured numbers (she no longer asks about mood or energy; the body data
+// says more), the body card, "move this week" dots that fill themselves
 // from Apple Health or Oura, at most one suggestion, up to 3 optional small
 // habits and a plain weekly summary. The weekly AI score and the Coach chat
 // are gone: "Ask Cleo about this" opens the Cleo tab instead.
@@ -16,12 +17,13 @@ import { bus } from "../../core/events";
 import { todayLocal } from "../../core/dateAwareness";
 import { openCleo } from "../../shared/utils/openCleo";
 import type { WearableDay } from "../../core/wellnessAutoTrack";
+import { dayTone } from "../../core/thriveCheckin";
 import {
-  MOOD_FACES, ENERGY_LEVELS, GOAL_PRESETS, HABIT_CHOICES, MAX_HABITS,
-  addDays, saveMoodEntry, moodFaceFor, weekDays, activityByDay, weekDots, goalProgress, moveStreak,
-  pickSuggestion, habitsFromPicks, toggleHabit, isHabitDoneToday, sleepForWeek, moodsForWeek,
+  GOAL_PRESETS, HABIT_CHOICES, MAX_HABITS,
+  addDays, weekDays, activityByDay, weekDots, goalProgress, moveStreak,
+  pickSuggestion, habitsFromPicks, toggleHabit, isHabitDoneToday, sleepForWeek,
   weekSummary, goalLabel, isValidGoal, cleoWellnessPrompt,
-  type MoodFace, type Energy, type MoveGoal, type HabitRow, type StoredRow,
+  type MoveGoal, type HabitRow, type StoredRow,
 } from "./wellnessLogic";
 
 // Refresh Apple Health / Oura, auto-log sleep, and hand back what changed.
@@ -51,7 +53,6 @@ export function ThriveScreen() {
   const hour = new Date().getHours();
 
   const [loaded, setLoaded] = useState(false);
-  const [moodLog, setMoodLog] = useState<StoredRow[]>([]);
   const [sleepLog, setSleepLog] = useState<StoredRow[]>([]);
   const [goal, setGoal] = useState<MoveGoal | null>(null);
   const [movedDays, setMovedDays] = useState<string[]>([]);
@@ -80,7 +81,6 @@ export function ThriveScreen() {
     let alive = true;
     loadData(uid, "thrive").then(d => {
       if (!alive) return;
-      setMoodLog((d?.moodLog as StoredRow[]) || []);
       setSleepLog((d?.sleepLog as StoredRow[]) || []);
       if (isValidGoal(d?.moveGoal)) setGoal(d!.moveGoal as MoveGoal);
       setMovedDays(Array.isArray(d?.movedDays) ? (d!.movedDays as string[]) : []);
@@ -114,9 +114,8 @@ export function ThriveScreen() {
   }, [uid, name, wearable]);
 
   // ── Derived ──────────────────────────────────────────────────────
-  const todayMood = moodLog.find(l => l?.date === today) || null;
-  const face = todayMood ? moodFaceFor(todayMood) : null;
-  const energy = (todayMood?.energy as Energy | undefined) || null;
+  // A lighter day comes from the body data, not a question.
+  const lighterDay = dayTone(wearable) === "lighter";
 
   const days = useMemo(() => weekDays(today), [today]);
   const activity = useMemo(() => activityByDay(wearable), [wearable]);
@@ -130,7 +129,7 @@ export function ThriveScreen() {
 
   const suggestion = suggestionHidden ? null : pickSuggestion({
     hour, sleepHours: wearable?.date === today ? wearable.sleepHours : null,
-    readiness: wearable?.readiness ?? null, mood: face, energy, eventsToday,
+    readiness: wearable?.readiness ?? null, mood: null, energy: lighterDay ? "low" : null, eventsToday,
     progress, movedToday, streak, sedentaryMins: wearable?.sedentaryMins,
   });
 
@@ -138,20 +137,10 @@ export function ThriveScreen() {
     sleepHours: sleepForWeek(days, wearable, sleepLog),
     movedDays: progress ? progress.done : null,
     daysSoFar,
-    moods: moodsForWeek(days, moodLog),
+    moods: [],
   });
 
   // ── Actions ──────────────────────────────────────────────────────
-  const logMood = async (change: { face?: MoodFace; energy?: Energy }) => {
-    if (!uid) return;
-    const updated = saveMoodEntry(moodLog, today, change);
-    setMoodLog(updated);
-    await saveData(uid, "thrive", { moodLog: updated });
-    const entry = updated.find(l => l.date === today)!;
-    bus.publish("thrive.mood.logged", { rating: entry.rating, label: entry.label, energy: entry.energy }, { userId: uid, source: "thrive" }).catch(() => {});
-    trackEvent(change.face ? "mood_logged" : "energy_logged", { mood: entry.label, energy: entry.energy });
-  };
-
   const chooseGoal = async (g: MoveGoal) => {
     if (!uid) return;
     setGoal(g); setEditingGoal(false);
@@ -213,11 +202,11 @@ export function ThriveScreen() {
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <PageTitle eyebrow="Just for you" title="Wellness" />
 
-      {/* 1. Check-in: Me's color is warm blush */}
-      <section aria-label="Check-in" style={{ background: T.personalBg, borderRadius: 22, padding: "18px 16px", marginBottom: 12 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.personalInk, margin: "0 0 6px" }}>Check-in</p>
+      {/* 1. Today's note: Me's color is warm blush */}
+      <section aria-label="Today's note" style={{ background: T.personalBg, borderRadius: 22, padding: "18px 16px", marginBottom: 12 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.personalInk, margin: "0 0 6px" }}>Today's note</p>
         <p style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 17, color: T.text, margin: "0 0 12px", lineHeight: 1.45 }}>
-          {checkinText || "How are you feeling today?"}
+          {checkinText || "Your note for today is on its way."}
         </p>
 
         {!wearable && loaded && (
@@ -231,35 +220,9 @@ export function ThriveScreen() {
           </button>
         )}
 
-        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>How are you feeling?</p>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {MOOD_FACES.map(m => {
-            const on = face === m.id;
-            return (
-              <button key={m.id} onClick={() => logMood({ face: m.id })} aria-label={`Feeling ${m.label}`} aria-pressed={on}
-                style={{ flex: 1, padding: "10px 6px", borderRadius: 16, border: "none", background: on ? T.surface : "rgba(255,255,255,0.5)", boxShadow: on ? `inset 0 0 0 2px ${T.personalInk}` : "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minHeight: 64, touchAction: "manipulation" }}>
-                <MoodFace id={m.id} color={on ? T.personalInk : T.text2} />
-                <span style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text }}>{m.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Energy</p>
-        <div style={{ display: "flex", gap: 8 }}>
-          {ENERGY_LEVELS.map(e => {
-            const on = energy === e.id;
-            return (
-              <button key={e.id} onClick={() => logMood({ energy: e.id })} aria-label={`Energy ${e.label}`} aria-pressed={on}
-                style={{ flex: 1, padding: "8px 6px", borderRadius: 12, border: "none", background: on ? T.surface : "rgba(255,255,255,0.5)", boxShadow: on ? `inset 0 0 0 2px ${T.personalInk}` : "none", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.text, cursor: "pointer", minHeight: 44, touchAction: "manipulation" }}>
-                {e.label}
-              </button>
-            );
-          })}
-        </div>
-        {(face || energy) && <p style={{ fontFamily: F.sans, fontSize: 14, color: T.personalInk, margin: "10px 0 0" }}>Saved for today. Tap to change.</p>}
       </section>
 
-      {wearable?.source === "oura" && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
+      {wearable && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
 
       {/* 2. Move this week */}
       <Card>
@@ -369,17 +332,5 @@ export function ThriveScreen() {
         </button>
       </Card>
     </div>
-  );
-}
-
-// Drawn faces instead of emoji, so they match the app's icon set.
-function MoodFace({ id, color }: { id: string; color: string }) {
-  const mouth = id === "struggling" ? "M10.5 21.5c3-2.6 8-2.6 11 0" : id === "okay" ? "M11 20h10" : "M10.5 18.5c3 3.4 8 3.4 11 0";
-  return (
-    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="16" cy="16" r="13" />
-      <path d={mouth} />
-      <path d="M11.5 13h.01M20.5 13h.01" strokeWidth="3" />
-    </svg>
   );
 }

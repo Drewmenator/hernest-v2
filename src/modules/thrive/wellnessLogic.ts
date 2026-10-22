@@ -103,7 +103,7 @@ export function activityByDay(w: WearableDay | null): Record<string, DayActivity
     };
   };
   for (const p of (w?.history || []) as WearableDayPoint[]) if (p?.day) put(p.day, p.steps, p.activeMins);
-  if (w?.date) put(w.date, w.steps, null);
+  if (w?.date) put(w.date, w.steps, w.activeMins ?? null);
   return out;
 }
 
