@@ -19,7 +19,7 @@ export function ReadinessRing({ score, size = 80 }: { score: number; size?: numb
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: size * 0.22, fontWeight: 700, color, lineHeight: 1 }}>{score}%</span>
-        <span style={{ fontFamily: F.sans, fontSize: size * 0.10, color: T.taupe, textTransform: "uppercase", letterSpacing: "0.06em" }}>Ready</span>
+        <span style={{ fontFamily: F.sans, fontSize: size * 0.10, color: T.taupe }}>Ready</span>
       </div>
     </div>
   );

@@ -90,7 +90,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
     const count = suggestions.filter(s => keep[s.key]).length;
     return (
       <div style={{ animation: "fadeUp .3s ease both" }}>
-        <PageTitle eyebrow="BILLS" title={suggestions.length ? `Found ${suggestions.length} bill${suggestions.length === 1 ? "" : "s"}` : "No bills found"} />
+        <PageTitle eyebrow="Bills" title={suggestions.length ? `Found ${suggestions.length} bill${suggestions.length === 1 ? "" : "s"}` : "No bills found"} />
         {suggestions.length === 0 ? (
           <p style={{ fontFamily: F.sans, fontSize: 14, color: T.bark, lineHeight: 1.6, margin: "0 4px 18px" }}>
             {mode === "screenshot"
@@ -132,7 +132,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
   // ── Input ──────────────────────────────────────────────────────
   return (
     <div style={{ animation: "fadeUp .3s ease both" }}>
-      <PageTitle eyebrow="BILLS" title={mode === "screenshot" ? "Add from a screenshot" : "Type or say your bills"} />
+      <PageTitle eyebrow="Bills" title={mode === "screenshot" ? "Add from a screenshot" : "Type or say your bills"} />
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {(["screenshot", "text"] as const).map(m => (

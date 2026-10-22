@@ -165,7 +165,7 @@ export function ConnectionsScreen() {
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <PageTitle eyebrow="YOUR INTEGRATIONS" title="Connections" />
+      <PageTitle eyebrow="Your integrations" title="Connections" />
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "4px 0 18px" }}>
         <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6, flex: 1 }}>
           Connect the services that feed your household. Each becomes a source Cleo can see and reason about.
@@ -184,7 +184,7 @@ export function ConnectionsScreen() {
         if (!items.length) return null;
         return (
           <div key={cat} style={{ marginBottom: 20 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
             {items.map(c => {
               const h = health[c.id];
               const isConnected = !loading && !!h?.connected;
@@ -251,7 +251,7 @@ export function ConnectionsScreen() {
 
       {/* Manual sources — already built, part of the same picture */}
       <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
         {MANUAL_SOURCES.map(s => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>

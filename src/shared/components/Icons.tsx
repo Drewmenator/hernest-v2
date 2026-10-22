@@ -237,3 +237,16 @@ export const UserPlusIcon = (p: IconProps) => <I {...p}>
   <line x1="20" y1="8" x2="20" y2="14"/>
   <line x1="17" y1="11" x2="23" y2="11"/>
 </I>;
+
+export const MicIcon = (p: IconProps) => <I {...p}>
+  <rect x="9" y="3" width="6" height="11.5" rx="3"/>
+  <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none"/>
+</I>;
+
+export const ArrowUpIcon = (p: IconProps) => <I {...p}>
+  <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none"/>
+</I>;
+
+export const StopIcon = (p: IconProps) => <I {...p}>
+  <rect x="6" y="6" width="12" height="12" rx="3"/>
+</I>;

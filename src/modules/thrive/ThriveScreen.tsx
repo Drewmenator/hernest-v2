@@ -36,8 +36,8 @@ async function fetchWearable(uid: string): Promise<{ wearable: WearableDay | nul
   }
 }
 
-const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
-const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
+const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 10px" };
+const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.action, cursor: "pointer", minHeight: 44 };
 const chip = (on: boolean): React.CSSProperties => ({
   padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
   color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 40,
@@ -211,60 +211,60 @@ export function ThriveScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="JUST FOR YOU" title="Wellness" />
+      <PageTitle eyebrow="Just for you" title="Wellness" />
 
-      {/* 1. Check-in */}
-      <div style={{ background: `linear-gradient(135deg,${T.esp},#2B4A6E)`, borderRadius: 24, padding: "20px 18px", marginBottom: 12 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>CHECK-IN</p>
-        <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: "rgba(255,255,255,0.92)", margin: "0 0 14px", lineHeight: 1.55 }}>
+      {/* 1. Check-in: Me's color is warm blush */}
+      <section aria-label="Check-in" style={{ background: T.personalBg, borderRadius: 22, padding: "18px 16px", marginBottom: 12 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.personalInk, margin: "0 0 6px" }}>Check-in</p>
+        <p style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 17, color: T.text, margin: "0 0 12px", lineHeight: 1.45 }}>
           {checkinText || "How are you feeling today?"}
         </p>
 
         {!wearable && loaded && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.gold, margin: "-6px 0 10px" }}>
-            {connecting ? "Connecting..." : onIphone ? "Connect Apple Health so this fills in by itself →" : "Connect Apple Health or Oura →"}
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+            {connecting ? "Connecting…" : onIphone ? "Connect Apple Health so this fills in by itself ›" : "Connect Apple Health or Oura ›"}
           </button>
         )}
         {wearable && healthUpgrade && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.gold, margin: "-6px 0 10px" }}>
-            {connecting ? "Asking..." : "Let HerNest count your workouts too →"}
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+            {connecting ? "Asking…" : "Let HerNest count your workouts too ›"}
           </button>
         )}
 
-        <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "0 0 8px" }}>How are you feeling?</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>How are you feeling?</p>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {MOOD_FACES.map(m => {
             const on = face === m.id;
             return (
               <button key={m.id} onClick={() => logMood({ face: m.id })} aria-label={`Feeling ${m.label}`} aria-pressed={on}
-                style={{ flex: 1, padding: "10px 6px", borderRadius: 14, border: `1.5px solid ${on ? T.gold : "rgba(255,255,255,0.22)"}`, background: on ? "rgba(201,169,97,0.22)" : "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minHeight: 56, touchAction: "manipulation" }}>
-                <span style={{ fontSize: 22 }}>{m.emoji}</span>
-                <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: "#fff" }}>{m.label}</span>
+                style={{ flex: 1, padding: "10px 6px", borderRadius: 16, border: "none", background: on ? T.surface : "rgba(255,255,255,0.5)", boxShadow: on ? `inset 0 0 0 2px ${T.personalInk}` : "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minHeight: 64, touchAction: "manipulation" }}>
+                <MoodFace id={m.id} color={on ? T.personalInk : T.text2} />
+                <span style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text }}>{m.label}</span>
               </button>
             );
           })}
         </div>
-        <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "0 0 8px" }}>Energy?</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Energy</p>
         <div style={{ display: "flex", gap: 8 }}>
           {ENERGY_LEVELS.map(e => {
             const on = energy === e.id;
             return (
               <button key={e.id} onClick={() => logMood({ energy: e.id })} aria-label={`Energy ${e.label}`} aria-pressed={on}
-                style={{ flex: 1, padding: "8px 6px", borderRadius: 12, border: `1.5px solid ${on ? T.gold : "rgba(255,255,255,0.22)"}`, background: on ? "rgba(201,169,97,0.22)" : "rgba(255,255,255,0.06)", fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", minHeight: 40, touchAction: "manipulation" }}>
+                style={{ flex: 1, padding: "8px 6px", borderRadius: 12, border: "none", background: on ? T.surface : "rgba(255,255,255,0.5)", boxShadow: on ? `inset 0 0 0 2px ${T.personalInk}` : "none", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.text, cursor: "pointer", minHeight: 44, touchAction: "manipulation" }}>
                 {e.label}
               </button>
             );
           })}
         </div>
-        {(face || energy) && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.gold, margin: "10px 0 0" }}>Saved for today ✦ tap to change</p>}
-      </div>
+        {(face || energy) && <p style={{ fontFamily: F.sans, fontSize: 14, color: T.personalInk, margin: "10px 0 0" }}>Saved for today. Tap to change.</p>}
+      </section>
 
       {wearable?.source === "oura" && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
 
       {/* 2. Move this week */}
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <p style={label}>MOVE THIS WEEK</p>
+          <p style={label}>Move this week</p>
           {goal && !editingGoal && <button onClick={() => setEditingGoal(true)} style={linkBtn}>Change goal</button>}
         </div>
 
@@ -323,7 +323,7 @@ export function ThriveScreen() {
       {(habits.length > 0 || editingHabits) ? (
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <p style={label}>SMALL HABITS</p>
+            <p style={label}>Small habits</p>
             {!editingHabits && <button onClick={() => setEditingHabits(true)} style={linkBtn}>Edit</button>}
           </div>
           {editingHabits ? (
@@ -360,14 +360,26 @@ export function ThriveScreen() {
 
       {/* 5. This week */}
       <Card>
-        <p style={label}>THIS WEEK</p>
+        <p style={label}>This week</p>
         <p style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, margin: "0 0 12px", lineHeight: 1.55 }}>
           {summary || "Check in for a few days and your week will show here."}
         </p>
-        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: `linear-gradient(135deg,${T.esp},#2B4A6E)`, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
-          ✦ Ask Cleo about this
+        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: T.action, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+          Ask Cleo about this
         </button>
       </Card>
     </div>
+  );
+}
+
+// Drawn faces instead of emoji, so they match the app's icon set.
+function MoodFace({ id, color }: { id: string; color: string }) {
+  const mouth = id === "struggling" ? "M10.5 21.5c3-2.6 8-2.6 11 0" : id === "okay" ? "M11 20h10" : "M10.5 18.5c3 3.4 8 3.4 11 0";
+  return (
+    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="16" cy="16" r="13" />
+      <path d={mouth} />
+      <path d="M11.5 13h.01M20.5 13h.01" strokeWidth="3" />
+    </svg>
   );
 }

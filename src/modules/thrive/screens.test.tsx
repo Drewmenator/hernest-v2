@@ -51,7 +51,7 @@ describe("Wellness screen", () => {
 
     fireEvent.click(screen.getByText("7,000 steps a day"));
     await screen.findByText("I moved today");
-    fireEvent.click(screen.getByText("✦ Ask Cleo about this"));
+    fireEvent.click(screen.getByText("Ask Cleo about this"));
     expect(setActiveTab).toHaveBeenCalledWith("cleo");
     expect(sessionStorage.getItem(CLEO_PREFILL_KEY)).toContain("7,000 steps a day");
   });

@@ -34,7 +34,7 @@ export function LoginScreen() {
     <div style={{ minHeight:"100svh", background:`linear-gradient(160deg,${T.esp} 0%,#16314A 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px" }}>
       <div style={{ textAlign:"center", marginBottom:48 }}>
         <h1 style={{ fontFamily:F.serif, fontSize:52, fontWeight: 700, color:T.gold, margin:"0 0 8px", letterSpacing:"-0.01em" }}>HerNest</h1>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.45)", letterSpacing:"0.18em", textTransform:"uppercase", margin:0 }}>Your AI Chief of Staff</p>
+        <p style={{ fontFamily:F.sans, fontSize: 14, color:"rgba(255,255,255,0.45)", margin:0 }}>Your AI Chief of Staff</p>
       </div>
 
       <div style={{ width:"100%", maxWidth:340 }}>

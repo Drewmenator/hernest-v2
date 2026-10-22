@@ -148,8 +148,8 @@ export function FamilyScreen() {
 
   const editor = (
     <Card>
-      <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>
-        {editingId === "new" ? "ADD SOMEONE" : `EDIT ${draft.name.toUpperCase()}`}
+      <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>
+        {editingId === "new" ? "Add someone" : `EDIT ${draft.name.toUpperCase()}`}
       </p>
       <input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="Name" style={inputStyle} />
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
@@ -239,7 +239,7 @@ export function FamilyScreen() {
 
       {upcoming.length > 0 && (
         <div style={{ background: `linear-gradient(135deg,${T.blush}15,${T.gold}10)`, border: `1px solid ${T.blush}30`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
           {upcoming.map(p => {
             const d = bdayOf(p);
             return (
@@ -254,7 +254,7 @@ export function FamilyScreen() {
 
       {checkInsDue.length > 0 && (
         <div style={{ marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
           {checkInsDue.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: T.ivory, borderRadius: 14, border: `1.5px solid ${T.sage}30`, marginBottom: 6 }}>
               <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>
@@ -281,7 +281,7 @@ export function FamilyScreen() {
         if (!list.length) return null;
         return (
           <div key={g.title} style={{ marginBottom: 14 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>{g.title}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>{g.title}</p>
             {list.map(row)}
           </div>
         );

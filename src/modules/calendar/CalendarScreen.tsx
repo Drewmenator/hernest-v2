@@ -70,7 +70,7 @@ export function CalendarScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="CALENDAR" title={onDevice ? "iPhone Calendars" : "Apple Calendar"} />
+      <PageTitle eyebrow="Calendar" title={onDevice ? "iPhone Calendars" : "Apple Calendar"} />
 
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

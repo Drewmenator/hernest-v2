@@ -174,7 +174,7 @@ export function MemoryScreen() {
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <PageTitle eyebrow="WHAT CLEO KNOWS" title="Memory" />
+      <PageTitle eyebrow="What Cleo knows" title="Memory" />
 
       {/* Toggle */}
       <div style={{ display: "flex", gap: 6, background: T.sand, borderRadius: 14, padding: 4, margin: "8px 0 18px" }}>
@@ -210,7 +210,7 @@ export function MemoryScreen() {
 
           {toConfirm.length > 0 && (
             <div style={{ marginBottom: 20 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.gold, margin: "0 0 4px" }}>Waiting for your OK</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, margin: "0 0 4px" }}>Waiting for your OK</p>
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", lineHeight: 1.5 }}>Cleo picked these up. She won't use them unless you say yes.</p>
               {toConfirm.map(m => MemoryCard(m, true))}
             </div>
@@ -225,7 +225,7 @@ export function MemoryScreen() {
             )
           ) : (
             <>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
               {known.map(m => MemoryCard(m, false))}
             </>
           )}

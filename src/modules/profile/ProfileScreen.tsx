@@ -132,7 +132,7 @@ export function ProfileScreen() {
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="YOUR ACCOUNT" title="Profile"/>
+      <PageTitle eyebrow="Your account" title="Profile"/>
 
       {/* Avatar + name */}
       <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:20 }}>
@@ -155,7 +155,7 @@ export function ProfileScreen() {
       {/* ── PERSONAL ──────────────────────────────────────────────── */}
       {section==="personal" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>PERSONAL DETAILS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Personal details</p>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             <Input value={name} onChange={setName} placeholder="Your first name"/>
             <Input value={role} onChange={setRole} placeholder="Your role / job title"/>
@@ -170,7 +170,7 @@ export function ProfileScreen() {
 
         {/* Focus word theme per blueprint */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>FOCUS WORD THEME</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Focus word theme</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalize your morning focus word</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {FOCUS_THEMES.map(t=>(
@@ -183,7 +183,7 @@ export function ProfileScreen() {
 
         {/* Priorities per blueprint with ranking */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 6px" }}>LIFE PRIORITIES (up to 5)</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px" }}>LIFE PRIORITIES (up to 5)</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to understand what matters most to you</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
             {PRIORITY_AREAS.map(area=>{
@@ -217,7 +217,7 @@ export function ProfileScreen() {
       {/* ── HEALTH per blueprint ───────────────────────────────────── */}
       {section==="health" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ENERGY PATTERN</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Energy pattern</p>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
             {ENERGY_PATTERNS.map(e=>(
               <button key={e.value} onClick={()=>setEnergyPattern(e.value)} style={{ padding:"10px", borderRadius:14, border:`2px solid ${energyPattern===e.value?T.sky:T.linen}`, background:energyPattern===e.value?T.skyP:"#fff", color:energyPattern===e.value?T.sky:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", minHeight:48 }}>
@@ -228,7 +228,7 @@ export function ProfileScreen() {
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>FITNESS LEVEL</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Fitness level</p>
           <div style={{ display:"flex", gap:6 }}>
             {FITNESS_LEVELS.map(f=>(
               <button key={f} onClick={()=>setFitnessLevel(f)} style={{ flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${fitnessLevel===f?T.sage:T.linen}`, background:fitnessLevel===f?`${T.sage}15`:"#fff", color:fitnessLevel===f?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{f}</button>
@@ -237,7 +237,7 @@ export function ProfileScreen() {
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>DAILY GOALS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Daily goals</p>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
             <div>
               <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 6px" }}>Sleep goal (hours)</p>
@@ -261,7 +261,7 @@ export function ProfileScreen() {
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>DIETARY PREFERENCES</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Dietary preferences</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {["Vegetarian","Vegan","Gluten-free","Dairy-free","Halal","Kosher","Pescatarian","No restrictions"].map(d=>(
               <button key={d} onClick={()=>setDiet(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${diet.includes(d)?T.sage:T.linen}`, background:diet.includes(d)?`${T.sage}15`:"#fff", color:diet.includes(d)?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{d}</button>
@@ -275,7 +275,7 @@ export function ProfileScreen() {
       {/* ── GOALS per blueprint ────────────────────────────────────── */}
       {section==="goals" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>YOUR GOALS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Your goals</p>
           <Input value={biggestChallenge} onChange={setBiggestChallenge} placeholder="Biggest challenge right now" style={{ marginBottom:8 }}/>
           <Input value={nextTrip} onChange={setNextTrip} placeholder="Next trip goal (e.g. Bali in December)" style={{ marginBottom:8 }}/>
           <Input value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal" style={{ marginBottom:8 }}/>
@@ -283,7 +283,7 @@ export function ProfileScreen() {
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ACTIVE GOALS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Active goals</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
             {["Get promoted","Run 5k",`Save ${currencySymbol(getCurrency())}5k`,"Travel more","Read 12 books","Learn to cook","Better sleep","More self-care","Make new friends","Work-life balance"].map(g=>(
               <button key={g} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${activeGoals.includes(g)?T.esp:T.linen}`, background:activeGoals.includes(g)?T.esp:"#fff", color:activeGoals.includes(g)?"#fff":T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{g}</button>

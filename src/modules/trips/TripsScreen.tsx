@@ -307,7 +307,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
       </button>
 
       {/* ── HERO ─────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(135deg, ${T.esp}, #2B4A6E)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
+      <div style={{ background: T.action, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>

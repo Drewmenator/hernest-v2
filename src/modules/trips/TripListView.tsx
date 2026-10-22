@@ -58,7 +58,7 @@ export function TripListView({
       {/* ── ADD TRIP FORM ────────────────────────────────────────── */}
       {showAdd && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 16px" }}>NEW TRIP</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 16px" }}>New trip</p>
 
           <input value={dest} onChange={e => setDest(e.target.value)}
             placeholder="Where to? (e.g. Lagos, Nigeria)"
@@ -66,12 +66,12 @@ export function TripListView({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Departure</p>
               <input type="date" value={depDate} onChange={e => setDepDate(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Return</p>
               <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
@@ -79,14 +79,14 @@ export function TripListView({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginBottom: 16 }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Currency</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Currency</p>
               <select value={currency} onChange={e => setCurrency(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }}>
                 {["USD","GBP","EUR","NGN","CAD","AUD","ZAR"].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total Budget</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 6px" }}>Total Budget</p>
               <input type="number" value={budget} onChange={e => setBudget(e.target.value)}
                 placeholder="e.g. 5000"
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
@@ -94,7 +94,7 @@ export function TripListView({
           </div>
 
           {/* Travellers — select from profile + add guests */}
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>WHO'S COMING</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>Who's coming</p>
           <div style={{ marginBottom: 12 }}>
             {travellers.map((t, i) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.linen}` }}>
@@ -150,7 +150,7 @@ export function TripListView({
       {/* ── UPCOMING TRIPS ───────────────────────────────────────── */}
       {upcoming.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>UPCOMING</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "20px 0 10px" }}>Upcoming</p>
           {upcoming.map(trip => {
             const du = daysUntil(trip.departureDate);
             const state = computeTripState(trip);
@@ -193,7 +193,7 @@ export function TripListView({
       {/* ── PAST TRIPS ───────────────────────────────────────────── */}
       {past.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>PAST</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "20px 0 10px" }}>Past</p>
           {past.map(trip => (
             <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
               role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}

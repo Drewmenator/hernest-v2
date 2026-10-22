@@ -550,3 +550,30 @@ export function EmptyState({
     </div>
   );
 }
+
+// ── Segmented ─────────────────────────────────────────────────────
+// Two to four views of the same screen (Tasks / Week / School / Meals).
+export function Segmented<V extends string>({ options, value, onChange, label }: {
+  options: { id: V; label: string; badge?: number }[];
+  value: V;
+  onChange: (v: V) => void;
+  label: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} style={{ display: "flex", gap: 4, padding: 4, background: T.sand, borderRadius: 14, marginBottom: S.lg }}>
+      {options.map(o => {
+        const on = o.id === value;
+        return (
+          <button key={o.id} role="tab" aria-selected={on} onClick={() => onChange(o.id)}
+            style={{ flex: 1, minWidth: 0, minHeight: 40, borderRadius: 11, border: "none", cursor: "pointer", touchAction: "manipulation",
+              background: on ? T.surface : "transparent", boxShadow: on ? "0 1px 3px rgba(28,61,90,.12)" : "none",
+              fontFamily: F.sans, fontSize: 14, fontWeight: on ? 700 : 500, color: on ? T.text : T.text2,
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 6px", whiteSpace: "nowrap" }}>
+            {o.label}
+            {!!o.badge && <span aria-label={`${o.badge} need attention`} style={{ minWidth: 18, height: 18, borderRadius: 9, background: T.action, color: "#fff", fontSize: 12, fontWeight: 700, display: "inline-grid", placeItems: "center", padding: "0 5px" }}>{o.badge}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

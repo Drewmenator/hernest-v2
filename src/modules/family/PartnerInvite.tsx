@@ -79,14 +79,14 @@ export function PartnerInvite() {
   return (
     <div style={{ marginTop: 12 }}>
       <Card>
-        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>INVITE YOUR PARTNER</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>Invite your partner</p>
         <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px", lineHeight: 1.6 }}>
           Your partner joins your household and sees the parts you choose. Bills are shared so either of you can mark one paid.
         </p>
         {!inviteSent ? <>
           <input value={partnerEmail} onChange={e => setPartnerEmail(e.target.value)} placeholder="Partner's email address" type="email"
             style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16, boxSizing: "border-box", minHeight: 48 }} />
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>WHAT TO SHARE</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>What to share</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {SHARE_OPTIONS.map(opt => {
               const on = shareCategories.includes(opt.id);

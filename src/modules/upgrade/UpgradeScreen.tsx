@@ -70,7 +70,7 @@ export function UpgradeScreen() {
   if (isPro) return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle title="HerNest Pro" />
-      <div style={{ background:`linear-gradient(135deg,${T.esp},#2B4A6E)`, borderRadius:24, padding:"36px 24px", textAlign:"center" }}>
+      <div style={{ background:T.action, borderRadius:24, padding:"36px 24px", textAlign:"center" }}>
         <div style={{ width:56, height:56, borderRadius:"50%", background:`${T.gold}25`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:24 }}>✦</div>
         <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:26, color:"#fff", margin:"0 0 8px" }}>You're Pro</p>
         <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
@@ -85,8 +85,8 @@ export function UpgradeScreen() {
       <PageTitle title="HerNest Pro" />
 
       {/* Hero */}
-      <div style={{ background:`linear-gradient(135deg,${T.esp},#2B4A6E)`, borderRadius:24, padding:"32px 24px", marginBottom:20, textAlign:"center" }}>
-        <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>HERNEST PRO</p>
+      <div style={{ background:T.action, borderRadius:24, padding:"32px 24px", marginBottom:20, textAlign:"center" }}>
+        <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>Hernest pro</p>
         <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontSize:30, color:"#fff", margin:"0 0 12px", fontWeight: 700 }}>Your household deserves a real chief of staff</p>
         <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
           Unlimited Cleo, her full memory, every connector, and shared briefings for your whole household.
@@ -95,7 +95,7 @@ export function UpgradeScreen() {
 
       {/* Features */}
       <div style={{ background:T.ivory, borderRadius:20, padding:"20px", marginBottom:20, border:`1px solid ${T.linen}` }}>
-        <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 16px" }}>WHAT'S INCLUDED</p>
+        <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 16px" }}>What's included</p>
         {PRO_FEATURES.map((f, i) => (
           <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom: i < PRO_FEATURES.length - 1 ? `1px solid ${T.linen}` : "none" }}>
             <span style={{ fontSize:18, width:28, textAlign:"center", flexShrink:0 }}>{f.icon}</span>

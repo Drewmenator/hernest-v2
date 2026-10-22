@@ -39,7 +39,7 @@ function Tile({ label, value, sub, color = T.esp }: { label: string; value: stri
   return (
     <div style={{ flex: 1, background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
       <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontFamily: F.sans, fontSize: 8.5, color: T.taupe, margin: "5px 0 0", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</p>
+      <p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, margin: "5px 0 0" }}>{label}</p>
       {sub && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" }}>{sub}</p>}
     </div>
   );
@@ -61,7 +61,7 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
           <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 26, fontWeight: 700, color: T.esp }}>{w.readiness ?? "—"}</span>
         </div>
         <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "0 0 3px" }}>Readiness today</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 3px" }}>Readiness today</p>
           <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 21, color: r.color, margin: "0 0 2px" }}>{r.word}</p>
           <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>Tap for what's driving it {expanded ? "▲" : "▾"}</p>
         </div>
@@ -95,7 +95,7 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
       {/* 7-day trends */}
       {hist.length >= 2 && (
         <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>Last 7 days</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>Last 7 days</p>
           <TrendRow label="Sleep" points={trend("sleepHours")} color={T.navy} last={w.sleepHours != null ? `${w.sleepHours}h` : "—"} />
           <TrendRow label="Readiness" points={trend("readiness")} color={T.sage} last={w.readiness != null ? String(w.readiness) : "—"} />
           <TrendRow label="HRV" points={trend("hrv")} color={T.goldText} last={w.avgHrv != null ? `${w.avgHrv}ms` : "—"} />

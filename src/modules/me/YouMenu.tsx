@@ -76,7 +76,7 @@ export function YouMenu({ onClose }: { onClose: () => void }) {
           </button>
         ))}
 
-        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "18px 0 2px" }}>Extras</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "18px 0 2px" }}>Extras</p>
         <div style={{ ...row, cursor: "default" }}>
           <span style={icon}>✈</span>
           <span style={{ flex: 1 }}>

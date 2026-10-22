@@ -59,7 +59,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
 
   return (
     <div style={{ animation: "fadeUp .3s ease both" }}>
-      <PageTitle eyebrow="BILLS" title={bill ? "Edit bill" : "Add a bill"} />
+      <PageTitle eyebrow="Bills" title={bill ? "Edit bill" : "Add a bill"} />
 
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Name, e.g. Electric or Netflix" aria-label="Bill name" style={inputStyle} />
       <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (optional)" aria-label="Amount" type="number" inputMode="decimal" style={inputStyle} />

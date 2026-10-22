@@ -122,7 +122,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
         const isPast = d < today;
         return (
           <div key={d} style={{ marginBottom: 10, opacity: isPast ? 0.6 : 1 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: isToday ? T.gold : T.taupe, margin: "0 0 6px" }}>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: isToday ? T.gold : T.taupe, margin: "0 0 6px" }}>
               {new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}{isToday ? " · Today" : ""}
             </p>
             {items.length === 0 ? (
@@ -147,7 +147,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
 
       {undated.length > 0 && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>🧺 Chores this week</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>🧺 Chores this week</p>
           {undated.map(i => (
             <p key={i.id} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px" }}>{i.title} <span style={{ color: T.gold, fontSize: 12 }}>→ {i.who}</span></p>
           ))}

@@ -72,7 +72,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="ACCOUNT" title="Settings"/>
+      <PageTitle eyebrow="Account" title="Settings"/>
 
       {/* Section tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
@@ -261,7 +261,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           </button>
         </div>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>CURRENCY</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Currency</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {SUPPORTED_CURRENCIES.map(c => {
               const active = ((profile as any)?.currency || "USD") === c.code;
@@ -279,7 +279,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"10px 0 0" }}>Cleo and every screen will show money in this currency.</p>
         </Card>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ACCOUNT INFO</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Account info</p>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
             <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>
               {(profile as any)?.avatar || "👩"}
@@ -316,7 +316,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>NOTIFICATIONS</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 8px" }}>Notifications</p>
           {/* What HerNest actually sends. (Replaced five switches that looked
               real but did nothing; per-type on/off can come back once the
               server reads a preference.) */}
@@ -334,7 +334,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
         </Card>
 
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 4px" }}>SUPPORT</p>
+          <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 4px" }}>Support</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px" }}>We're here to help.</p>
           <a
             href={`mailto:support@hernest.app?subject=${encodeURIComponent("HerNest feedback")}&body=${encodeURIComponent(`What happened:\n\nWhat I expected:\n\n—\nBuild: 2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}\nScreen: ${window.innerWidth}×${window.innerHeight}\nDevice: ${navigator.userAgent}`)}`}
