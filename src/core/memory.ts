@@ -34,7 +34,9 @@ export async function extractFactsFromConversation(
 
   const sys = `You are a fact extractor for an AI assistant. 
 Extract atomic facts about the user from their messages.
-Only extract clear, specific facts. Ignore vague statements.
+Only extract clear, specific facts that stay true for months (family, routines, preferences, goals).
+Never extract feelings, moods, stress, health, medical or body details, or anything about a hard day.
+Ignore vague statements.
 Maximum 5 facts per conversation. Return an empty facts list if nothing clear to extract.`;
 
   // Root must be an object, so the fact list is wrapped in { facts }.

@@ -10,6 +10,8 @@ import { saveData, loadData } from "../../core/firebase";
 import { buildHouseholdSnapshot } from "../../core/household/householdSnapshot";
 import toast from "react-hot-toast";
 import { CLEO_PREFILL_KEY } from "../../shared/utils/openCleo";
+import { MemorySuggestionCard } from "./MemorySuggestionCard";
+import type { HouseholdMemory } from "../../core/memoryServiceV2";
 
 interface Msg { role: "user"|"assistant"; content: string; type?: "text"|"task-suggestion"|"crisis"; tasks?: ExtractedTask[]; }
 interface ExtractedTask { id: string; title: string; category: string; dueDate?: string; confidence: number; }
@@ -69,6 +71,10 @@ export function CleoScreen() {
   const [pendingTasks, setPendingTasks] = useState<ExtractedTask[]>([]);
   const [feedback, setFeedback] = useState<Record<number, "up"|"down">>({});
   const [householdCtxStr, setHouseholdCtxStr] = useState<string>("");
+  // "Want me to remember that?" suggestions from this chat (one or two at a time).
+  const [memSuggestions, setMemSuggestions] = useState<HouseholdMemory[]>([]);
+  const memSuggestionsRef = useRef<HouseholdMemory[]>([]);
+  const chatStartedAt = useRef(new Date().toISOString());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -165,9 +171,43 @@ export function CleoScreen() {
     buildProactiveOpening();
   }, [user?.uid]);
 
+  // ── Memory suggestions ───────────────────────────────────────────
+  // After a reply, Cleo may have picked up something worth remembering. It is
+  // saved as a suggestion that waits for a yes; ask about new ones here. A
+  // card already showing is never topped up, so she doesn't nag.
+  useEffect(() => { memSuggestionsRef.current = memSuggestions; }, [memSuggestions]);
+  useEffect(() => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    return bus.subscribe("cleo.memory.updated", async () => {
+      if (memSuggestionsRef.current.length) return;
+      try {
+        const { takeChatSuggestions } = await import("../../core/memoryServiceV2");
+        const picked = await takeChatSuggestions(uid, chatStartedAt.current, 2);
+        if (picked.length) setMemSuggestions(picked);
+      } catch (e) { console.warn("[Cleo] memory suggestions failed:", e); }
+    });
+  }, [user?.uid]);
+
+  const answerMemory = async (m: HouseholdMemory, remember: boolean) => {
+    if (!user?.uid) return;
+    setMemSuggestions(p => p.filter(x => x.id !== m.id));
+    try {
+      const { confirmMemory, rejectMemory } = await import("../../core/memoryServiceV2");
+      if (remember) {
+        await confirmMemory(user.uid, m.id);
+        toast.success("Got it. I'll remember that.");
+      } else {
+        await rejectMemory(user.uid, m.id);
+      }
+    } catch {
+      toast.error("Couldn't save that. You can answer in What Cleo knows.");
+    }
+  };
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, loading]);
+  }, [msgs, loading, memSuggestions.length]);
 
   useEffect(() => {
     if (user?.uid && msgs.length > 1) {
@@ -333,15 +373,14 @@ export function CleoScreen() {
 
   const confirmTasks = async () => {
     if (!pendingTasks.length || !user?.uid) return;
-    const existing = await loadData(user.uid, "tasks");
-    const current = (existing?.tasks as any[]) || [];
     const newTasks = pendingTasks.map(t => ({
       id: t.id, title: t.title, category: t.category,
       status: "pending", priority: "must", source: "cleo",
       energyRequired: "medium", userConfirmed: true,
       ...(t.dueDate ? { dueDate: t.dueDate } : {}), createdAt: Date.now(),
     }));
-    await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
+    const { createItem } = await import("../../core/householdItems");
+    await Promise.all(newTasks.map(t => createItem(user.uid!, "tasks", t)));
     for (const task of newTasks) {
       await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }
@@ -367,7 +406,7 @@ export function CleoScreen() {
             ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
           </p>
         </div>
-        <button onClick={()=>{ setMsgs([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
+        <button onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
           style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
           New chat
         </button>
@@ -416,6 +455,8 @@ export function CleoScreen() {
             </div>
           </div>
         ))}
+
+        {!loading && <MemorySuggestionCard suggestions={memSuggestions} onAnswer={answerMemory} />}
 
         {loading && (
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>

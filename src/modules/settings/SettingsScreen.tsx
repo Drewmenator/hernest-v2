@@ -29,8 +29,9 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
   const loadMemories = async () => {
     if (!user?.uid) return;
     try {
+      // Only what Cleo actually uses; suggestions wait in What Cleo knows.
       const mems = await loadMemoriesV2(user.uid);
-      setMemoryV2List(mems);
+      setMemoryV2List(mems.filter(m => m.status === "active"));
       setShowMemoryV2(true);
     } catch { setMemoryV2List([]); setShowMemoryV2(true); }
   };
@@ -165,6 +166,8 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
             const collections = ["profile","bills","tasks","calendar","calendar_synced","school","meals","family","thrive","trips","circle","style","cleo_memory","cleo_memory_v2","cleo_feedback","budget","budget_v2"];
             const allData: Record<string,unknown> = {};
             await Promise.all(collections.map(async c => { allData[c] = await loadData(user.uid!, c); }));
+            // Chores are one record each now (tasks and bills come back through loadData).
+            allData.chores = await (await import("../../core/householdItems")).listItems(user.uid!, "chores").catch(() => null);
             const blob = new Blob([JSON.stringify(allData, null, 2)], { type:"application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");

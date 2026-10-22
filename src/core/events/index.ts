@@ -18,6 +18,9 @@ export type EventType =
   | "plan.task.created"
   | "plan.task.completed"
   | "plan.task.deleted"
+  | "plan.task.proposed"
+  | "plan.task.accepted"
+  | "plan.task.declined"
   | "plan.calendar.event.added"
   | "plan.school.newsletter.parsed"
   | "plan.meal.generated"
@@ -83,6 +86,29 @@ export interface HerNestEvent<T = unknown> {
   schemaVersion?: number;
 }
 
+// Privacy: only events about shared household things may be visible to the
+// household or copied to the shared log (households/{id}/events), which every
+// member can read. Everything else (Cleo chats, crisis alerts, mood, sleep,
+// wellness, style, profile, memories, receipts) is private: it stays in this
+// device's local log only. An allowlist, so a new event type is private until
+// someone decides otherwise. Keep in sync with sharedEventType() in firestore.rules.
+const SHARED_EVENT_PREFIXES = ["plan.", "trips.", "family.", "calendar.", "circle."];
+const SHARED_EVENT_TYPES = new Set<string>(["partner.invite.accepted"]);
+
+export function isSharedEventType(type: string): boolean {
+  return SHARED_EVENT_TYPES.has(type) || SHARED_EVENT_PREFIXES.some(p => type.startsWith(p));
+}
+
+// The visibility an event actually gets: private types can never be widened.
+export function effectiveVisibility(type: string, requested?: EventVisibility): EventVisibility {
+  if (!isSharedEventType(type)) return requested === "cleo_only" ? "cleo_only" : "private";
+  return requested ?? "household";
+}
+
+export function isHouseholdVisible(v: EventVisibility | undefined): boolean {
+  return v === "household" || v === "partners";
+}
+
 // High-frequency / transient events we don't persist to the durable log.
 const EPHEMERAL_EVENTS = new Set<EventType>([
   "system.online",
@@ -99,6 +125,11 @@ const EPHEMERAL_EVENTS = new Set<EventType>([
 // events (e.g. every logged expense). Title is the actor's name (server-set).
 const HOUSEHOLD_PUSH: Partial<Record<EventType, { screen: string; summary: (p: any) => string }>> = {
   "plan.task.created":          { screen: "plan",     summary: (p) => `added a task${p?.title || p?.text ? `: ${p.title || p.text}` : ""}` },
+  // Task ownership: the person asked hears about it once (no repeat nudges),
+  // and the asker hears the answer. Title is the actor's name.
+  "plan.task.proposed":         { screen: "plan",     summary: (p) => `asked ${p?.assigneeName || "you"} to: ${p?.title || "a task"}. Accept or decline in Plan.` },
+  "plan.task.accepted":         { screen: "plan",     summary: (p) => `said yes to: ${p?.title || "a task"}` },
+  "plan.task.declined":         { screen: "plan",     summary: (p) => `can't do: ${p?.title || "a task"}. It's back on your list.` },
   "plan.calendar.event.added":  { screen: "calendar", summary: (p) => `added to the calendar${p?.title ? `: ${p.title}` : ""}` },
   "trips.trip.created":         { screen: "trips",    summary: (p) => `started planning a trip${p?.destination || p?.name ? ` to ${p.destination || p.name}` : ""}` },
   "plan.school.newsletter.parsed": { screen: "plan",  summary: () => `added school events to the calendar` },
@@ -113,7 +144,7 @@ function toLoggedEvent(e: HerNestEvent): LoggedEvent {
     actorUserId: e.actorUserId ?? e.userId,
     subjectMemberId: e.subjectMemberId,
     payload: (e.payload ?? {}) as Record<string, unknown>,
-    visibility: e.visibility ?? "household",
+    visibility: effectiveVisibility(e.type, e.visibility),
     confidence: e.confidence ?? 1,
     occurredAt: e.occurredAt ?? e.timestamp,
     recordedAt: e.recordedAt ?? e.timestamp,
@@ -160,7 +191,7 @@ class EventBus {
       subjectMemberId: meta.subjectMemberId,
       occurredAt: meta.occurredAt ?? now,
       recordedAt: now,
-      visibility: meta.visibility ?? "household",
+      visibility: effectiveVisibility(type, meta.visibility),
       confidence: meta.confidence ?? 1,
       schemaVersion: 1,
     };
@@ -176,7 +207,7 @@ class EventBus {
 
     // ── Household push (best-effort) — tell partners about shared actions ──
     const hp = HOUSEHOLD_PUSH[type];
-    if (hp && (event.visibility === "partners" || event.visibility === "household")) {
+    if (hp && isHouseholdVisible(event.visibility)) {
       import("../pushNotifications")
         .then((m) => m.notifyHousehold(hp.summary(payload), hp.screen))
         .catch(() => {});

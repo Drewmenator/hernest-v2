@@ -102,3 +102,37 @@ describe("nextTrip", () => {
     expect(r?.days).toBe(12);
   });
 });
+
+describe("buildNeedsYou with task ownership", () => {
+  const ago = (days: number) => NOW.getTime() - days * 86400000;
+  const ask = { id: "t1", title: "Pick up dry cleaning", status: "pending", createdBy: "alex", createdByName: "Alex", assigneeUid: "sam", assigneeName: "Sam", state: "proposed" as const, proposedAt: ago(0.1) };
+
+  it("asks the assignee to accept or decline", () => {
+    const items = buildNeedsYou({ tasks: [ask] }, { tripsOn: false, now: NOW, viewerUid: "sam" });
+    expect(items).toEqual([expect.objectContaining({ taskId: "t1", label: "Alex asked you: Pick up dry cleaning" })]);
+  });
+
+  it("shows the asker nothing while it's fresh, then Not accepted yet after 2 days", () => {
+    expect(buildNeedsYou({ tasks: [ask] }, { tripsOn: false, now: NOW, viewerUid: "alex" })).toEqual([]);
+    const late = buildNeedsYou({ tasks: [{ ...ask, proposedAt: ago(3) }] }, { tripsOn: false, now: NOW, viewerUid: "alex" });
+    expect(late[0]).toMatchObject({ label: "Not accepted yet: Pick up dry cleaning" });
+    expect(late[0].taskId).toBeUndefined();
+  });
+
+  it("tells the asker when it was declined", () => {
+    const items = buildNeedsYou({ tasks: [{ ...ask, state: "declined" as const }] }, { tripsOn: false, now: NOW, viewerUid: "alex" });
+    expect(items[0].label).toBe("Sam declined: Pick up dry cleaning");
+  });
+
+  it("an overdue task Sam accepted is Sam's, not Alex's", () => {
+    const t = { ...ask, state: "accepted" as const, dueDate: "2026-10-19" };
+    expect(buildNeedsYou({ tasks: [t] }, { tripsOn: false, now: NOW, viewerUid: "alex" })).toEqual([]);
+    expect(buildNeedsYou({ tasks: [t] }, { tripsOn: false, now: NOW, viewerUid: "sam" })[0].label).toContain("is overdue");
+  });
+
+  it("a bill set to the other person stays off your Today", () => {
+    const bills = [bill("Rent", "2026-10-21", { payer: "sam" })];
+    expect(buildNeedsYou({ bills }, { tripsOn: false, now: NOW, viewerUid: "alex" })).toEqual([]);
+    expect(buildNeedsYou({ bills }, { tripsOn: false, now: NOW, viewerUid: "sam" })).toHaveLength(1);
+  });
+});

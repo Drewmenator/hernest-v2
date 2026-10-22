@@ -313,14 +313,20 @@ async function triggerMemoryWriteback(
   messages: { role: string; content: string }[]
 ): Promise<void> {
   try {
-    const facts = await extractFactsFromConversation(messages, userId);
+    // Health and passing feelings are never kept as lasting memories.
+    const facts = (await extractFactsFromConversation(messages, userId))
+      .filter(f => f.type !== "health" && f.type !== "temporary");
     if (facts.length > 0) {
       // Route writeback through V2 governance (validate/dedup/decay) — Step 4.
+      // Everything inferred here is saved as a suggestion that waits for
+      // the user's yes; Cleo's chat asks about it after the reply.
       const { proposeMemory, v1FactToCandidate } = await import("./memoryServiceV2");
+      let suggested = 0;
       for (const f of facts) {
-        await proposeMemory(userId, v1FactToCandidate(f)).catch(() => {});
+        const res = await proposeMemory(userId, v1FactToCandidate(f)).catch(() => null);
+        if (res?.action === "needs_confirmation") suggested++;
       }
-      bus.publish("cleo.memory.updated", { factsAdded: facts.length }, {
+      bus.publish("cleo.memory.updated", { factsAdded: facts.length, suggested }, {
         userId,
         source: "orchestrator",
       });

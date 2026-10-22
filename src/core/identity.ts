@@ -23,16 +23,16 @@ export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "budget_v2",
   "bills",
   "tasks",
+  "chores",            // per-item docs users/{owner}/chores/{id} (householdItems.ts)
+  "items_migration",   // marker: which lists were copied to per-item docs
   "calendar",
   "calendar_synced",   // events fetched from connected providers (Google/Apple/Outlook)
   "trips",
   "school",
   "circle",
   "family",
-  "alerts",
-  "decisions_v2",
-  "household_insights",
-  "household_graph",
+  // "alerts" is personal (it holds crisis flags and sleep alerts), and the
+  // old decisions/insights/graph collections were removed in simplify phase 3.
 ]);
 
 export function isHouseholdCollection(collection: string): boolean {
