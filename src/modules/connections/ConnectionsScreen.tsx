@@ -10,6 +10,7 @@ import { auth } from "../../core/firebase";
 import { PageTitle } from "../../shared/components";
 import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
+import { appleHealthSupported, connectAppleHealth, isAppleHealthConnected } from "../../core/appleHealth";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
 
@@ -33,7 +34,7 @@ const CONNECTORS: Connector[] = [
   { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
   { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "connected" },
   { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
-  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
+  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];
 
 // Manual data sources already built into other screens — surfaced here so this
@@ -71,7 +72,13 @@ export function ConnectionsScreen() {
     const results = await Promise.all(checks.map(async c =>
       [c.id, await getConnectorHealth(uid, c.statusDoc!, c.statusField || "accessToken")] as const
     ));
-    setHealth(Object.fromEntries(results));
+    const map: Record<string, ConnectorHealth> = Object.fromEntries(results);
+    // On the iPhone, Apple Health is read directly (no Shortcut), and its
+    // status lives in the user's own data rather than integrations/.
+    if (appleHealthSupported() && await isAppleHealthConnected(uid)) {
+      map.apple_health = { connected: true, lastError: null };
+    }
+    setHealth(map);
   };
 
   useEffect(() => {
@@ -95,7 +102,13 @@ export function ConnectionsScreen() {
     } else if (c.kind === "deeplink" && c.tab) {
       setActiveTab(c.tab);
     } else if (c.kind === "health") {
-      await setupHealth();
+      if (appleHealthSupported() && user?.uid) {
+        const r = await connectAppleHealth(user.uid);
+        if (r === "connected") { toast.success("Apple Health connected ✓"); await loadHealth(user.uid); }
+        else toast.error("Couldn't connect Apple Health — check Settings → Health → Data Access");
+      } else {
+        await setupHealth();
+      }
     } else {
       toast("Coming in a future wave ✦", { icon: "🔌" });
     }

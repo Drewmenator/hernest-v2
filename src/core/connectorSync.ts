@@ -76,6 +76,7 @@ export async function syncAllConnectors(uid: string): Promise<void> {
       await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
     } catch { /* health written server-side */ }
   }
+  import("./memory").then(m => m.maintainMemory(uid)).catch(() => {});
   import("./wellnessAutoTrack").then(async m => {
     await m.autoTrackWellness(uid);
     // With fresh wearable data, deliver a wellness nudge as a local notification

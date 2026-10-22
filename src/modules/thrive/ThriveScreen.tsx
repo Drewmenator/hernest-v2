@@ -7,6 +7,7 @@ import { ThriveVitals } from "./ThriveVitals";
 import { computeWeeklyScore } from "../../core/thriveCheckin";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
 import { pickNudge } from "../../core/thriveCheckin";
 import toast from "react-hot-toast";
@@ -252,17 +253,23 @@ export function ThriveScreen() {
       moodRatings,
     );
 
-    const sys = `You are Cleo, a warm wellness coach. Generate a weekly wellness score summary.
-Return ONLY valid JSON:
-{"headline":"one punchy sentence","wins":["string","string"],"focus":"one gentle suggestion","affirmation":"one warm personal sentence","trend":"improving|stable|declining"}
+    const sys = `You are Cleo, a warm wellness coach. Generate a weekly wellness score summary: a one-sentence headline, two wins, one gentle focus suggestion, one warm personal affirmation and the trend.
 Score is ${total.toFixed(1)}/10. Sleep: ${breakdown.sleep.toFixed(1)}, Readiness: ${breakdown.readiness.toFixed(1)}, Activity: ${breakdown.activity.toFixed(1)}, Mood: ${breakdown.mood.toFixed(1)} (all /10).
 User: ${(profile as any)?.name||"lovely"}. Tone: ${total>=8?"celebratory":total>=6?"encouraging":"gentle"}. Ground every claim in these numbers — never invent.`;
 
-    const result = await ai(sys, `Weekly wellness for ${(profile as any)?.name||"user"}. 7-day trend from their ring:\n${hist.map(d => `${d.day}: sleep ${d.sleepHours ?? "?"}h (score ${d.sleepScore ?? "?"}), readiness ${d.readiness ?? "?"}`).join("\n")}\nRecent mood (of 9): ${moodRatings.slice(-3).join(", ") || "not logged"}`, "wellness_score");
+    const result = await ai(sys, `Weekly wellness for ${(profile as any)?.name||"user"}. 7-day trend from their ring:\n${hist.map(d => `${d.day}: sleep ${d.sleepHours ?? "?"}h (score ${d.sleepScore ?? "?"}), readiness ${d.readiness ?? "?"}`).join("\n")}\nRecent mood (of 9): ${moodRatings.slice(-3).join(", ") || "not logged"}`, "wellness_score", [], {
+      schema: s.object({
+        headline: s.string("one punchy sentence"),
+        wins: s.array(s.string()),
+        focus: s.string("one gentle suggestion"),
+        affirmation: s.string("one warm personal sentence"),
+        trend: s.enum(["improving", "stable", "declining"]),
+      }),
+    });
 
     if (!result.error) {
       try {
-        const data = JSON.parse(result.text.replace(/```json\s*/gi,"").replace(/```/g,"").trim());
+        const data = JSON.parse(result.text);
         const ws: WeeklyScore = {
           score: total,
           headline: data.headline,

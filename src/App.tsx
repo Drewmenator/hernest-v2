@@ -24,7 +24,9 @@ import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
 import { HomeScreen }       from "./modules/home/HomeScreen";
 import { CleoScreen }       from "./modules/cleo/CleoScreen";
 const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
-const BudgetScreen = React.lazy(() => import("./modules/budget/BudgetScreen").then(m => ({ default: m.BudgetScreen })));
+// The "budget" tab is now Bills (Oct 2026 redesign). The old Budget screens
+// stay in modules/budget but are no longer shown; their data is untouched.
+const BillsScreen = React.lazy(() => import("./modules/bills/BillsScreen").then(m => ({ default: m.BillsScreen })));
 const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
 const ThriveScreen = React.lazy(() => import("./modules/thrive/ThriveScreen").then(m => ({ default: m.ThriveScreen })));
 const StyleScreen = React.lazy(() => import("./modules/style/StyleScreen").then(m => ({ default: m.StyleScreen })));
@@ -285,7 +287,7 @@ export default function App() {
       case "home":     return <EB name="Home"><HomeScreen /></EB>;
       case "cleo":     return <EB name="Cleo"><CleoScreen /></EB>;
       case "plan":     return <EB name="Plan"><PlanScreen /></EB>;
-      case "budget":   return <EB name="Budget"><BudgetScreen /></EB>;
+      case "budget":   return <EB name="Bills"><BillsScreen /></EB>;
       case "briefing": return <EB name="Briefing"><BriefingScreen /></EB>;
       case "thrive":   return <EB name="Thrive"><ThriveScreen /></EB>;
       case "style":    return <EB name="Style"><StyleScreen /></EB>;

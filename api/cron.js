@@ -4,10 +4,14 @@
 // calendar_synced doc, so the morning briefing is fresh BEFORE the app is
 // opened. Also clears the cached briefing so it regenerates on next open.
 //
+// ?mode=hourly (called by GitHub Actions every hour) skips the calendar
+// refresh and only sends morning briefings to users whose local time is 7am.
+//
 // Auth: Vercel adds `Authorization: Bearer $CRON_SECRET` when CRON_SECRET
-// is set. We reject anything else.
+// is set; the GitHub workflow sends the same header. We reject anything else.
 import { adminDb, encryptSecret, openToken } from "./_lib/secure.js";
 import { sendDailyPushesTo } from "./_lib/push.js";
+import { morningDue, localParts, wallClockNow, userTimeZones, hourlyTriggerAlive, claimMorning } from "./_lib/localTime.js";
 
 async function refreshGoogle(uid, data) {
   let accessToken = openToken(data.accessToken);
@@ -87,20 +91,70 @@ async function persist(uid, events) {
 
 // ── Morning briefing push ──────────────────────────────────────────
 // One "good morning" nudge per user who has a device registered, lightly
-// personalized with today's calendar count (built in _lib/push.js). Runs after
-// the calendar refresh so the count is fresh. Tapping it opens the briefing tab.
-async function sendMorningBriefings() {
+// personalized with today's calendar count (built in _lib/push.js). Tapping it
+// opens the briefing tab.
+//
+// Timing: devices store their time zone, and an hourly trigger (GitHub Actions,
+// .github/workflows/morning-push.yml → ?mode=hourly) sends each such user their
+// briefing at local 7am. Users with no stored zone (older app builds) keep the
+// old behaviour: the daily 06:00 UTC run. If the hourly trigger has stopped
+// (no run in 3h), the daily run covers everyone so nobody silently goes without.
+const HOURLY_STATE = "ops/cron_state";
+
+async function deviceZonesByUser() {
   const deviceSnap = await adminDb.collectionGroup("devices").limit(2000).get();
-  const uids = new Set();
-  for (const d of deviceSnap.docs) {
-    const uid = d.ref.parent.parent?.id;
-    if (uid) uids.add(uid);
-  }
-  let pushed = 0;
-  for (const uid of uids) {
+  return userTimeZones(deviceSnap.docs.map(d => ({ uid: d.ref.parent.parent?.id, ...d.data() })));
+}
+
+async function sendMorningTo(uid, timeZone, now, localDate) {
+  if (localDate) {
+    const prev = await claimMorning(adminDb, uid, localDate);
+    if (prev === undefined) return false;
     try {
-      const r = await sendDailyPushesTo(uid);
-      if (r.digest > 0 || r.birthday > 0) pushed++;
+      const r = await sendDailyPushesTo(uid, timeZone ? wallClockNow(now, timeZone) : now);
+      return r.digest > 0 || r.birthday > 0;
+    } catch (e) {
+      // Release the claim so the next hourly run retries.
+      await adminDb.doc(`users/${uid}/data/push_state`).set({ morningSentDate: prev }, { merge: true }).catch(() => {});
+      throw e;
+    }
+  }
+  const r = await sendDailyPushesTo(uid, now);
+  return r.digest > 0 || r.birthday > 0;
+}
+
+// Hourly: users whose local time is in the morning window and who haven't had
+// today's briefing.
+async function sendLocalMorningBriefings(now = new Date()) {
+  await adminDb.doc(HOURLY_STATE).set({ lastHourlyAt: now.getTime() }, { merge: true });
+  const zones = await deviceZonesByUser();
+  let pushed = 0;
+  for (const [uid, timeZone] of zones) {
+    if (!timeZone) continue;
+    try {
+      // Cheap pre-check on the clock alone; claimMorning does the real dedupe.
+      const { send, localDate } = morningDue({ timeZone, now, lastSentDate: null });
+      if (send && await sendMorningTo(uid, timeZone, now, localDate)) pushed++;
+    } catch (e) {
+      console.error("[Cron] hourly push failed:", e?.message);
+    }
+  }
+  return pushed;
+}
+
+// Daily (06:00 UTC): users with no stored zone, plus everyone if the hourly
+// trigger looks dead. Zoned users are still deduped by their local date.
+async function sendMorningBriefings(now = new Date()) {
+  const zones = await deviceZonesByUser();
+  const lastHourlyAt = (await adminDb.doc(HOURLY_STATE).get()).data()?.lastHourlyAt;
+  const fallback = !hourlyTriggerAlive(lastHourlyAt, now.getTime());
+  if (fallback) console.warn("[Cron] hourly trigger not seen in 3h; daily run sends to everyone");
+  let pushed = 0;
+  for (const [uid, timeZone] of zones) {
+    if (timeZone && !fallback) continue;
+    try {
+      const localDate = timeZone ? localParts(now, timeZone)?.date : null;
+      if (await sendMorningTo(uid, timeZone, now, localDate)) pushed++;
     } catch (e) {
       console.error("[Cron] daily push failed:", e?.message);
     }
@@ -112,6 +166,17 @@ export default async function handler(req, res) {
   const expected = process.env.CRON_SECRET;
   if (expected && req.headers["authorization"] !== `Bearer ${expected}`) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  if (req.query?.mode === "hourly") {
+    try {
+      const pushed = await sendLocalMorningBriefings();
+      console.log(`[Cron] hourly: pushed ${pushed}`);
+      return res.json({ mode: "hourly", pushed });
+    } catch (e) {
+      console.error("[Cron] hourly fatal:", e?.message);
+      return res.status(500).json({ error: "cron_failed" });
+    }
   }
 
   let refreshed = 0, failed = 0;

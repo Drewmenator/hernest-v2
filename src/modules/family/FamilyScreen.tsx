@@ -6,6 +6,7 @@ import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
 import { displayAge } from "../../core/dateAwareness";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import toast from "react-hot-toast";
 
 const ROLE_COLORS: Record<string, string> = {
@@ -246,14 +247,16 @@ export function FamilyScreen() {
     setGeneratingMeals(true);
     const kids = familyMembers.filter(m => m.role === "child").map(m => m.name).join(", ") || "none";
     const diet = (profile as any)?.diet || "no restrictions";
-    const sys = `You are Cleo. Return ONLY valid JSON array of 7 objects:
-[{"day":"Monday","dinner":"meal name under 6 words"}]
-Mon-Sun. Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
+    const sys = `You are Cleo. Plan 7 dinners, one per day Monday to Sunday ("day" is the full day name, "dinner" a meal name under 6 words).
+Family-friendly, varied, budget-conscious. Kids: ${kids}. Diet: ${diet}.`;
     const familyCtx = familyMembers.map((m: any) => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""})`; }).join(", ");
-    const result = await ai(sys, `Plan this week's family dinners. Family: ${familyCtx || "not specified"}. Keep it practical and family-friendly.`, "meal_plan");
+    const schema = s.object({
+      meals: s.array(s.object({ day: s.enum(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]), dinner: s.string("meal name under 6 words") })),
+    });
+    const result = await ai(sys, `Plan this week's family dinners. Family: ${familyCtx || "not specified"}. Keep it practical and family-friendly.`, "meal_plan", [], { schema });
     if (!result.error) {
       try {
-        const parsed = (() => { const s=result.text.indexOf("{"); const e=result.text.lastIndexOf("}"); if(s===-1||e===-1) throw new Error("No JSON"); return JSON.parse(result.text.slice(s,e+1)); })();
+        const parsed: MealDay[] = JSON.parse(result.text).meals;
         setMeals(parsed);
         await persistAll(familyMembers, tasks, parsed);
         toast.success("Dinner plan ready ✦");

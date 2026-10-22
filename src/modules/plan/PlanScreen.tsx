@@ -6,6 +6,7 @@ import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, E
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
 import { buildMemoryContext } from "../../core/memory";
 import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
@@ -192,24 +193,28 @@ export function PlanScreen() {
     const energy = p?.energyPattern || "morning";
     const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
 
-    const sys = `You are Cleo, a meal planner. Return ONLY valid JSON:
-{
-  "days": [
-    {"dayName":"Monday","date":"YYYY-MM-DD","breakfast":"string","lunch":"string","dinner":"string","snack":"string","prepNotes":"string","prepTime":30}
-  ],
-  "shoppingList": [
-    {"item":"string","quantity":"string","category":"produce|protein|pantry|dairy|frozen|other","checked":false}
-  ]
-}
-7 days Mon-Sun. Keep meal names under 6 words. Shopping list max 25 items, categorized.
+    const sys = `You are Cleo, a meal planner.
+7 days Mon-Sun. Keep meal names under 6 words. prepTime is minutes. Shopping list max 25 items, categorized, all unchecked.
 Consider: easier meals on busy weekdays, more elaborate on weekends.`;
+    const schema = s.object({
+      days: s.array(s.object({
+        dayName: s.enum(DAYS_OF_WEEK),
+        breakfast: s.string(), lunch: s.string(), dinner: s.string(), snack: s.string(),
+        prepNotes: s.string(), prepTime: s.integer("minutes"),
+      })),
+      shoppingList: s.array(s.object({
+        item: s.string(), quantity: s.string(),
+        category: s.enum(["produce","protein","pantry","dairy","frozen","other"]),
+        checked: s.boolean(),
+      })),
+    });
 
     const prompt = `Diet: ${diet}. Kids: ${kids}. Energy: ${energy} person. Budget-conscious. ${memCtx?"Context: "+memCtx:""}`;
-    const result = await ai(sys, prompt, "meal_plan");
+    const result = await ai(sys, prompt, "meal_plan", [], { schema });
 
     if (!result.error) {
       try {
-        const raw = JSON.parse(result.text.replace(/```json\s*/gi,"").replace(/```/g,"").trim());
+        const raw = JSON.parse(result.text);
         // Add actual dates per blueprint
         const now = new Date();
         const monday = new Date(now);

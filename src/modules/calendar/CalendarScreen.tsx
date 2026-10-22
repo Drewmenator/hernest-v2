@@ -4,18 +4,23 @@ import { useStore } from "../../core/store";
 import { Card, PageTitle, Pill, Button, Input, EmptyState } from "../../shared/components";
 import { saveData, loadData, db, auth } from "../../core/firebase";
 import { ai } from "../../core/ai";
+import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
+import { deviceCalendarSupported, deviceCalendarConnected, connectDeviceCalendar, fetchDeviceEvents } from "../../core/deviceCalendar";
 
 const safeDate = (d?: string) => { try { if (!d) return new Date(); const dt = new Date(d.includes("T") ? d : d+"T00:00:00"); return isNaN(dt.getTime()) ? new Date() : dt; } catch { return new Date(); } };
 const safeStr = (d?: string) => { try { return d || new Date().toISOString().split("T")[0]; } catch { return ""; } };
+
+// iPhone: Apple Calendar means the phone's own calendars (no iCloud password).
+const onDevice = deviceCalendarSupported();
 
 export interface CalEvent {
   id: string;
   title: string;
   date: string;
   time?: string;
-  source: "google" | "school" | "trip" | "birthday" | "manual" | "work";
+  source: "google" | "apple" | "school" | "trip" | "birthday" | "manual" | "work";
   child?: string;
   color: string;
   allDay: boolean;
@@ -217,7 +222,8 @@ export function CalendarScreen() {
       getDoc(doc(db, "users", user.uid, "integrations", "google_calendar"))
         .then((snap: any) => setGoogleConnected(snap.exists() && !!(snap.data()?.connected || snap.data()?.connectedAt)))
         .catch(() => setGoogleConnected(false));
-      getDoc(doc(db, "users", user.uid, "integrations", "apple_calendar"))
+      if (onDevice) deviceCalendarConnected().then(setAppleConnected);
+      else getDoc(doc(db, "users", user.uid, "integrations", "apple_calendar"))
         .then((snap: any) => setAppleConnected(snap.exists() && !!snap.data()?.email))
         .catch(() => setAppleConnected(false));
       getDoc(doc(db, "users", user.uid, "integrations", "outlook_calendar"))
@@ -236,8 +242,12 @@ export function CalendarScreen() {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
         const res = await fetch(`${url}?uid=${user?.uid}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, { headers: { Authorization: `Bearer ${idToken}` } });
-        const data = await res.json();
-        console.log("[Calendar] fetched from", url, data.events?.length, "events");
+        await mergeEvents(url, await res.json());
+      } catch(e) { console.warn("[Calendar] fetch failed:", e); }
+    };
+    const mergeEvents = async (url: string, raw: { events?: CalEvent[] }) => {
+      const data = { events: raw?.events || [] };
+      try {
         if (data.events?.length > 0 && user?.uid) bus.publish("calendar.synced", { source: url, count: data.events.length }, { userId: user.uid, source: "calendar" }).catch(() => {});
         if (data.events?.length > 0) {
           setEvents(prev => {
@@ -264,7 +274,8 @@ export function CalendarScreen() {
     (async () => {
       if (googleConnected) await fetchExternalCalendar("/api/calendar/google");
       if (outlookConnected) await fetchExternalCalendar("/api/calendar/outlook");
-      if (appleConnected) await fetchExternalCalendar("/api/calendar/apple");
+      if (appleConnected && onDevice) await mergeEvents("device", { events: await fetchDeviceEvents().catch(() => []) });
+      else if (appleConnected) await fetchExternalCalendar("/api/calendar/apple");
     })();
   }, [googleConnected, outlookConnected, appleConnected, user?.uid]);
 
@@ -294,23 +305,33 @@ export function CalendarScreen() {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({
-            system: 'Extract school calendar events from this document. Return ONLY valid JSON array: [{"title":"string","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD or null","type":"holiday|exam|event|inset|other"}]. Extract ALL dates and events you can find. Return [] if nothing found.',
+            system: 'Extract school calendar events from this document. Dates are YYYY-MM-DD; endDate is null for single-day events. Extract ALL dates and events you can find. Return an empty events list if nothing found.',
             prompt: "Extract all school calendar events from this document.",
             feature: "school_calendar",
             max_tokens: 2000,
+            schema: s.object({
+              events: s.array(s.object({
+                title: s.string(),
+                date: s.string("YYYY-MM-DD"),
+                endDate: s.nullable(s.string("YYYY-MM-DD")),
+                type: s.enum(["holiday", "exam", "event", "inset", "other"]),
+              })),
+            }),
             messages: [{
               role: "user",
               content: [
                 { type: ext === "pdf" ? "document" : "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-                { type: "text", text: "Extract all school calendar events as JSON array." }
+                { type: "text", text: "Extract all school calendar events." }
               ]
             }]
           })
         });
         if (!response.ok) { toast.error("Couldn't read that file. Try again or use an .ics file"); setUploadingSchool(false); return; }
         const data = await response.json();
-        const text = data.content?.find((b: { type?: string }) => b?.type === "text")?.text || "[]";
-        const events = JSON.parse(text.replace(/```json|```/g,"").trim());
+        const text = data.content?.find((b: { type?: string }) => b?.type === "text")?.text || '{"events":[]}';
+        let events: { title: string; date: string; endDate: string | null; type: string }[] = [];
+        try { events = JSON.parse(text).events || []; }
+        catch { toast.error("Couldn't read that file. Try again or use an .ics file"); setUploadingSchool(false); return; }
         if (!events.length) { toast.error("No events found — try a clearer image or .ics file"); setUploadingSchool(false); return; }
            // Convert to iCal-like text for pending modal
         const icalText = ["BEGIN:VCALENDAR", ...events.map((ev: any) => ["BEGIN:VEVENT",`SUMMARY:${ev.title}`,`DTSTART:${(ev.date||"").replace(/-/g,"")}`,`DTEND:${(ev.endDate||ev.date||"").replace(/-/g,"")}`, "END:VEVENT"].join("\n")), "END:VCALENDAR"].join("\n");      setPendingIcal({ text: icalText, filename: file.name });
@@ -375,6 +396,11 @@ export function CalendarScreen() {
   };
 
   const connectCalendar = async (provider: "google"|"outlook"|"apple") => {
+    if (provider === "apple" && onDevice) {
+      if (await connectDeviceCalendar()) { setAppleConnected(true); toast.success("iPhone calendars connected ✓"); }
+      else toast.error("Calendar access is off — turn it on in Settings → HerNest → Calendars");
+      return;
+    }
     if (provider === "apple") { setShowAppleModal(true); return; }
     if (provider === "google") {
       // Redirect to Google OAuth
@@ -462,7 +488,7 @@ export function CalendarScreen() {
         {[
           { key:"google",  name:"Google Calendar", icon:"◈", color:"#4285F4", connected:googleConnected,  desc:"Sign in once — stays connected" },
           { key:"outlook", name:"Outlook / Work",  icon:"◈", color:"#1B2A4A", connected:outlookConnected, desc:"Microsoft 365 & work events" },
-          { key:"apple",   name:"Apple Calendar", icon:"",  color:"#6E6E73", connected:appleConnected,   desc:"iCloud Calendar sync" },
+          { key:"apple",   name:onDevice ? "iPhone Calendars" : "Apple Calendar", icon:"",  color:"#6E6E73", connected:appleConnected,   desc:onDevice ? "Every calendar on this iPhone" : "iCloud Calendar sync" },
         ].map(p => (
           <div key={p.key} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
             <span style={{ fontSize:22 }}>{p.icon}</span>
@@ -473,7 +499,7 @@ export function CalendarScreen() {
               </p>
             </div>
             {p.connected
-              ? <button onClick={()=>p.key==="apple"?setShowAppleModal(true):null} style={{ background:`${T.sage}15`, color:T.sage, borderRadius:10, padding:"4px 10px", fontFamily:F.sans, fontSize:11, fontWeight:600, border:"none", cursor:p.key==="apple"?"pointer":"default" }}>✓ Connected{p.key==="apple"?" ↻":""}</button>
+              ? <button onClick={()=>p.key==="apple"&&!onDevice?setShowAppleModal(true):null} style={{ background:`${T.sage}15`, color:T.sage, borderRadius:10, padding:"4px 10px", fontFamily:F.sans, fontSize:11, fontWeight:600, border:"none", cursor:p.key==="apple"?"pointer":"default" }}>✓ Connected{p.key==="apple"?" ↻":""}</button>
               : <button onClick={()=>connectCalendar(p.key as any)} style={{ background:p.color, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>Connect</button>
             }
           </div>

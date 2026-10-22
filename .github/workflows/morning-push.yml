@@ -1,0 +1,30 @@
+name: Morning briefing (hourly)
+
+# Vercel Hobby only allows daily crons, so GitHub calls the hourly mode of
+# api/cron.js instead. It sends each user's morning briefing at their local
+# 7am (see api/_lib/localTime.js). Needs the repo secret CRON_SECRET (same
+# value as in Vercel). Optional repo variable APP_URL overrides the address.
+# Scheduled workflows only run from the default branch (main).
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # every hour at :07 (GitHub is busiest on the hour)
+  workflow_dispatch:       # "Run workflow" button for a manual test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the hourly cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://hernest-v2.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Repository secret CRON_SECRET is not set"
+            exit 1
+          fi
+          curl --fail-with-body -sS -m 240 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron?mode=hourly"

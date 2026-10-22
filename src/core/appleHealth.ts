@@ -1,0 +1,142 @@
+// ─── Apple Health (HealthKit), read directly on the iPhone ──────────
+// Replaces the iOS Shortcut workaround (which could only send sleep hours and
+// steps) on the native app. Reads the last week from HealthKit and stores a
+// daily summary in users/{uid}/data/apple_health, the same shape
+// wellnessAutoTrack already understands, plus heart and exercise data.
+// The web app can't read HealthKit and keeps the Shortcut path.
+import { Capacitor } from "@capacitor/core";
+import type { HealthDataType, HealthSample } from "@capgo/capacitor-health";
+import { loadData, saveData } from "./firebase";
+import type { WearableDayPoint } from "./wellnessAutoTrack";
+
+const READ_TYPES: HealthDataType[] = [
+  "sleep", "steps", "restingHeartRate", "heartRateVariability", "exerciseTime", "mindfulness",
+];
+const ASLEEP = new Set(["asleep", "rem", "deep", "light"]);
+const DAYS = 7;
+
+export function appleHealthSupported(): boolean {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+}
+
+async function plugin() {
+  const { Health } = await import("@capgo/capacitor-health");
+  return Health;
+}
+
+// Local YYYY-MM-DD for an ISO timestamp (HealthKit returns UTC instants).
+export function localDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const minutesBetween = (a: string, b: string) => Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 60000);
+
+// Hours asleep per night, keyed by the local day the person woke up. Uses
+// stage data when present; ignores in-bed and awake time. When several
+// sources (Watch, iPhone, a sleep app) record the same night, the one with the
+// most sleep wins rather than adding them up.
+export function sleepHoursByNight(samples: HealthSample[]): Record<string, number> {
+  const bySourceNight: Record<string, number> = {};
+  for (const smp of samples) {
+    const night = localDay(smp.endDate);
+    const source = smp.sourceId || smp.sourceName || "unknown";
+    let mins = 0;
+    if (smp.hasStageData && smp.stages?.length) {
+      mins = smp.stages.filter(st => ASLEEP.has(st.stage)).reduce((a, st) => a + st.durationMinutes, 0);
+    } else if (!smp.sleepState || ASLEEP.has(smp.sleepState)) {
+      mins = minutesBetween(smp.startDate, smp.endDate);
+    }
+    const key = `${night}|${source}`;
+    bySourceNight[key] = (bySourceNight[key] || 0) + mins;
+  }
+  const out: Record<string, number> = {};
+  for (const [key, mins] of Object.entries(bySourceNight)) {
+    const night = key.split("|")[0];
+    out[night] = Math.max(out[night] || 0, Math.round((mins / 60) * 10) / 10);
+  }
+  return out;
+}
+
+// Asks iOS for read access. iOS never says whether the person allowed it, so
+// we just try to read afterwards.
+export async function connectAppleHealth(uid: string): Promise<"connected" | "unavailable" | "error"> {
+  if (!appleHealthSupported()) return "unavailable";
+  try {
+    const Health = await plugin();
+    const { available } = await Health.isAvailable();
+    if (!available) return "unavailable";
+    await Health.requestAuthorization({ read: READ_TYPES });
+    await saveData(uid, "apple_health", { connected: true, connectedAt: Date.now() });
+    await syncAppleHealth(uid);
+    return "connected";
+  } catch (e) {
+    console.warn("[AppleHealth] connect failed:", e);
+    return "error";
+  }
+}
+
+export async function isAppleHealthConnected(uid: string): Promise<boolean> {
+  if (!appleHealthSupported()) return false;
+  const d = await loadData(uid, "apple_health").catch(() => null);
+  return !!d?.connected;
+}
+
+// Reads the last week and stores the summary. Safe to call often.
+export async function syncAppleHealth(uid: string): Promise<boolean> {
+  if (!(await isAppleHealthConnected(uid))) return false;
+  try {
+    const Health = await plugin();
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (DAYS - 1));
+    const range = { startDate: start.toISOString(), endDate: end.toISOString() };
+    const sleepRange = { startDate: new Date(start.getTime() - 12 * 3600000).toISOString(), endDate: range.endDate };
+
+    const daily = async (dataType: HealthDataType, aggregation: "sum" | "average") => {
+      const res = await Health.queryAggregated({ dataType, ...range, bucket: "day", aggregation }).catch(() => ({ samples: [] }));
+      const map: Record<string, number> = {};
+      for (const b of res.samples) map[localDay(b.startDate)] = b.value;
+      return map;
+    };
+    const [sleepRes, steps, restingHr, hrv, exercise, mindful] = await Promise.all([
+      Health.readSamples({ dataType: "sleep", ...sleepRange, limit: 500 }).catch(() => ({ samples: [] })),
+      daily("steps", "sum"),
+      daily("restingHeartRate", "average"),
+      daily("heartRateVariability", "average"),
+      daily("exerciseTime", "sum"),
+      daily("mindfulness", "sum"),
+    ]);
+    const sleep = sleepHoursByNight(sleepRes.samples);
+
+    const days: string[] = [];
+    for (let i = 0; i < DAYS; i++) days.push(localDay(new Date(start.getTime() + i * 86400000).toISOString()));
+    const round = (n: number | undefined) => (n == null ? null : Math.round(n));
+    const history: WearableDayPoint[] = days.map(day => ({
+      day,
+      sleepHours: sleep[day] ?? null,
+      sleepScore: null, readiness: null,
+      hrv: round(hrv[day]), restingHr: round(restingHr[day]),
+      steps: round(steps[day]),
+      stressDay: null,
+    }));
+    const today = days[days.length - 1];
+
+    await saveData(uid, "apple_health", {
+      connected: true,
+      source: "healthkit",
+      date: today,
+      lastSleepHours: sleep[today] ?? null,
+      lastSteps: round(steps[today]),
+      restingHr: round(restingHr[today]),
+      avgHrv: round(hrv[today]),
+      exerciseMins: round(exercise[today]),
+      mindfulMins: round(mindful[today]),
+      history,
+      syncedAt: Date.now(),
+    });
+    return true;
+  } catch (e) {
+    console.warn("[AppleHealth] sync failed:", e);
+    return false;
+  }
+}

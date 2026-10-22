@@ -2,7 +2,7 @@
 // ─── Firebase Config ─────────────────────────────────────────────
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, GoogleAuthProvider } from "firebase/auth";
-import { initializeFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { isHouseholdCollection, getHouseholdId } from "./identity";
 import { FLAGS } from "../config";
 
@@ -35,8 +35,15 @@ const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 // ignoreUndefinedProperties: optional event fields (e.g. subjectMemberId) are
 // often undefined; Firestore rejects undefined values with invalid-argument
 // unless told to drop them. Dropping is exactly what we want here.
+// localCache: keep a copy of the user's data on the device so screens still
+// show it offline (writes already queue via offlineSync). If the browser's
+// storage is unavailable Firestore falls back to memory on its own. Sign-out
+// clears this copy (signOut.ts).
 export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
+  localCache: persistentLocalCache({
+    tabManager: isNative ? persistentSingleTabManager({}) : persistentMultipleTabManager(),
+  }),
   ...(isNative
     ? { experimentalForceLongPolling: true }
     : { experimentalAutoDetectLongPolling: true }),

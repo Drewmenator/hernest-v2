@@ -13,17 +13,15 @@
 //     → publish event
 
 import { ai, aiJSON, type Feature } from "./ai";
+import type { JsonSchema } from "./aiSchema";
 import { runCleoAgent, runCleoAgentStreaming } from "./cleoAgent";
 import { AI } from "../config";
-import { buildAppContext }           from "./contextBuilder";
-import { buildHouseholdSnapshot }    from "./household/HouseholdIntelligence";
 import { extractFactsFromConversation } from "./memory";
 import { bus }                       from "./events";
 import { computeHouseholdState, buildStatePromptAddendum } from "./household/householdStateEngine";
 import { validateResponse } from "./household/responseValidator";
-import { retrieve, invalidateCache } from "./contextRetrieval";
-import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo, generateContextPackForCFO, formatCleoContextPackForPrompt, formatCFOContextPackForPrompt } from "./graph/GraphService";
-import { useStore }                  from "./store";
+import { retrieve } from "./contextRetrieval";
+import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo, formatCleoContextPackForPrompt } from "./graph/GraphService";
 import { getHouseholdId }            from "./identity";
 import { FLAGS }                     from "../config";
 import { todayLocal } from "./dateAwareness";
@@ -67,6 +65,9 @@ export interface OrchestratorRequest {
   conversationHistory?: { role: "user" | "assistant"; content: string }[];
   options?: {
     requireJson?: boolean;
+    // Answer shape for requireJson (object at the root). With it the API
+    // guarantees JSON of that shape; without it the reply is parsed best-effort.
+    jsonSchema?: JsonSchema;
     allowMemoryWriteback?: boolean;
     contextDepth?: "light" | "full";  // light = fast, full = cross-module
     onToken?: (t: string) => void;    // when set, Cleo's reply streams token-by-token
@@ -304,63 +305,6 @@ Only include TASKS_JSON if you found clear actionable tasks. The app shows these
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CONTEXT PACK BUILDER
-// Assembles the right context for each intent
-// Uses light pack for simple queries, full pack for cross-module
-// ═══════════════════════════════════════════════════════════════════
-
-async function buildContextString(
-  userId: string,
-  profile: Record<string, unknown>,
-  classification: IntentClassification,
-  depth: "light" | "full"
-): Promise<{ context: string; modules: string[]; assumptions: string[] }> {
-  const modules: string[] = [];
-  const assumptions: string[] = [];
-
-  // Light context: just what the source module needs
-  if (depth === "light" || !classification.needsFullContext) {
-    const lines: string[] = [];
-    const name = (profile.name as string) || "this household";
-    lines.push(`User: ${name}`);
-    if (profile.kids) {
-      lines.push(`Kids: ${(profile.kids as any[]).map((k: any) => k.name).join(", ")}`);
-    }
-    modules.push("profile");
-    return { context: lines.join("\n"), modules, assumptions };
-  }
-
-  // Full context: pull from all required modules via contextBuilder
-  try {
-    const { buildBriefingPrompt } = await import("./contextBuilder");
-    const appCtx = await import("./contextBuilder").then(m => m.buildAppContext(userId, profile));
-    modules.push(...classification.requiredModules);
-
-    // Note missing data as assumptions
-    if (appCtx.budget.monthlyIncome === 0) {
-      assumptions.push("Monthly income not set — financial estimates use budget total only");
-    }
-    if (!appCtx.tasks.dueToday.length && !appCtx.tasks.overdue.length) {
-      assumptions.push("No tasks found for today");
-    }
-
-    return {
-      context: buildBriefingPrompt(appCtx),
-      modules,
-      assumptions,
-    };
-  } catch (e) {
-    console.warn("[Orchestrator] Full context build failed, using minimal context", e);
-    assumptions.push("Full household context unavailable — answer based on question only");
-    return {
-      context: `User: ${(profile.name as string) || "HerNest user"}`,
-      modules: ["profile"],
-      assumptions,
-    };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // MEMORY WRITEBACK
 // Non-blocking — fires and forgets after response is returned
 // ═══════════════════════════════════════════════════════════════════
@@ -424,6 +368,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
 
   const {
     requireJson = false,
+    jsonSchema,
     allowMemoryWriteback = true,
     contextDepth = "full",
     onToken,
@@ -525,7 +470,7 @@ ${stateAddendum}`;
 
   try {
     if (requireJson) {
-      parsed = await aiJSON(systemPrompt, userMessage, feature, null);
+      parsed = await aiJSON(systemPrompt, userMessage, feature, null, jsonSchema);
       text = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
       if (!parsed) {
         fallbackUsed = true;
