@@ -72,7 +72,7 @@
   },
   "overrides": {
     "websocket-driver": "^0.7.5",
-    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/grpc-js": "^1.14.5",
     "protobufjs": "^7.6.5",
     "undici": "^7.28.0",
     "form-data": "^2.5.6",
