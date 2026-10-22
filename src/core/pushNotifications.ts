@@ -73,12 +73,13 @@ async function completeRegistration(uid: string, FirebaseMessaging: any): Promis
     });
 
     // On-device notifications: standing evening check-in reminder, bill
-    // reminders, task reminders, and tap routing (permission is already granted, so these won't prompt).
+    // reminders (kept live by watchBillReminders), task reminders, and tap routing (permission is already granted, so these won't prompt).
     import("./localNotifications").then(l => {
       l.ensureDailyCheckinReminder();
       l.initLocalNotificationTaps();
       l.syncBillRemindersFromCloud(uid);
       l.watchTaskReminders(uid);
+      l.watchBillReminders(uid);
     }).catch(() => {});
 
     await FirebaseMessaging.addListener("notificationActionPerformed", (e: any) => {
@@ -87,6 +88,8 @@ async function completeRegistration(uid: string, FirebaseMessaging: any): Promis
         import("./store").then((m: any) => {
           const st = m?.useStore?.getState?.();
           st?.setScreen?.("app");
+          // Plan notifications are about tasks: open Tasks, not the Calendar.
+          if (tab === "plan") { try { sessionStorage.setItem("hn_plan_tab", "tasks"); } catch { /* private mode */ } }
           st?.setActiveTab?.(tab);
         }).catch(() => {});
       }

@@ -1,5 +1,6 @@
 import React from "react";
 import { T, F } from "../../config/theme";
+import { Sparkle } from "lucide-react";
 
 interface Props { children: React.ReactNode; name?: string; }
 interface State { hasError: boolean; error?: Error; }
@@ -25,7 +26,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div style={{ padding: "40px 24px", textAlign: "center", animation: "fadeUp .3s ease both" }}>
-          <p style={{ fontFamily: F.sans, fontSize: 32, margin: "0 0 16px" }}>✦</p>
+          <p style={{ margin: "0 0 16px", color: T.gold }}><Sparkle size={32} strokeWidth={1.9} aria-hidden="true" /></p>
           <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: "0 0 8px" }}>
             Something went wrong
           </p>
@@ -34,7 +35,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </p>
           <button
             onClick={() => this.setState({ hasError: false })}
-            style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "12px 24px", fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer", minHeight: 44 }}
+            style={{ background: T.esp, color: T.onAction, border: "none", borderRadius: 14, padding: "12px 24px", fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer", minHeight: 44 }}
           >
             Try again
           </button>

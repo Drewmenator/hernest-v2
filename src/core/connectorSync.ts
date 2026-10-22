@@ -27,15 +27,40 @@ async function idToken(): Promise<string | null> {
   try { return (await auth.currentUser?.getIdToken()) || null; } catch { return null; }
 }
 
-// Merge provider events into calendar_synced (same shape CalendarScreen uses)
-async function persistEvents(uid: string, events: any[]): Promise<void> {
-  if (!events.length) return;
-  const existing = ((await loadData(uid, "calendar_synced"))?.events as any[]) || [];
-  const byId = new Map<string, any>();
-  [...existing, ...events].forEach((e: any) => { if (e?.id) byId.set(e.id, e); });
+const SOURCE_OF: Record<string, string> = { google: "google", outlook: "work", apple: "apple" };
+
+export interface SyncMeta { complete?: boolean; range?: { from: string; to: string } | null }
+
+// Merge provider events into calendar_synced (same shape CalendarScreen uses).
+// calendar_synced is shared with the household, so each event records who
+// synced it. When the server says it sent the full list for a date range,
+// events this user synced earlier in that range that are no longer there
+// (cancelled or moved) are dropped. Other people's events are never touched.
+export interface SyncedEvent { id?: string; date?: string; source?: string; syncedBy?: string }
+
+export function mergeSyncedEvents(existing: SyncedEvent[], events: SyncedEvent[], uid: string, provider: string, meta: SyncMeta = {}, cutoff = ""): SyncedEvent[] {
+  const source = SOURCE_OF[provider];
+  const range = meta.complete ? meta.range : null;
+  const inRange = (e: SyncedEvent) => !!range && !!e.date && e.date >= range.from && e.date < range.to;
+  const kept = range && source
+    ? existing.filter(e => !(e?.source === source && e?.syncedBy === uid && inRange(e)))
+    : existing;
+  const byId = new Map<string, SyncedEvent>();
+  kept.forEach(e => { if (e?.id) byId.set(e.id, e); });
+  events.forEach(e => { if (e?.id) byId.set(e.id, { ...e, syncedBy: uid }); });
+  return [...byId.values()].filter(e => !e.date || e.date >= cutoff);
+}
+
+// Saves the merge and returns the ids of events it removed (so an open
+// calendar can take them off the screen too).
+export async function saveSyncedEvents(uid: string, provider: string, events: SyncedEvent[], meta: SyncMeta = {}): Promise<Set<string>> {
+  if (!events.length && !(meta.complete && meta.range)) return new Set();
+  const existing = ((await loadData(uid, "calendar_synced"))?.events as SyncedEvent[]) || [];
   const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-  const merged = [...byId.values()].filter((e: any) => !e.date || e.date >= cutoff);
+  const merged = mergeSyncedEvents(existing, events, uid, provider, meta, cutoff);
   await saveData(uid, "calendar_synced", { events: merged });
+  const kept = new Set(merged.map(e => e.id));
+  return new Set(existing.map(e => e?.id).filter((id): id is string => !!id && !kept.has(id)));
 }
 
 async function isConnected(uid: string, docName: string, field: string): Promise<boolean> {
@@ -43,6 +68,18 @@ async function isConnected(uid: string, docName: string, field: string): Promise
     const snap = await getDoc(doc(db, "users", uid, "integrations", docName));
     return snap.exists() && !!snap.data()?.[field];
   } catch { return false; }
+}
+
+// Ask the server to pull the latest Oura sleep, readiness and activity
+// (no-op when Oura isn't connected). Also used when the app resumes.
+export async function syncOuraNow(uid: string): Promise<void> {
+  if (!(await isConnected(uid, "oura", "accessToken"))) return;
+  const token = await idToken();
+  if (!token) return;
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    await fetch(`/api/connectors?provider=oura&action=sync&tz=${encodeURIComponent(tz)}`, { headers: { Authorization: `Bearer ${token}` } });
+  } catch { /* health written server-side */ }
 }
 
 // ── Sync all connected calendar sources. Fire-and-forget from App boot. ──
@@ -63,9 +100,10 @@ export async function syncAllConnectors(uid: string): Promise<void> {
       });
       if (!res.ok) return; // health written server-side (incl. reauth_required)
       const data = await res.json();
-      if (data.events?.length) {
-        await persistEvents(uid, data.events);
-        bus.publish("calendar.synced", { source: provider, count: data.events.length }, { userId: uid, source: "connectorSync" }).catch(() => {});
+      const events = Array.isArray(data.events) ? data.events : [];
+      await saveSyncedEvents(uid, provider, events, { complete: data.complete === true, range: data.range });
+      if (events.length) {
+        bus.publish("calendar.synced", { source: provider, count: events.length }, { userId: uid, source: "connectorSync" }).catch(() => {});
       }
     } catch (e) {
       console.warn("[ConnectorSync]", provider, "failed:", e);
@@ -74,14 +112,12 @@ export async function syncAllConnectors(uid: string): Promise<void> {
 
   // Oura: refresh sleep/readiness server-side, then auto-log wellness so
   // Thrive/briefing see it without the user ever opening a form.
-  if (await isConnected(uid, "oura", "accessToken")) {
-    try {
-      await fetch("/api/connectors?provider=oura&action=sync", { headers: { Authorization: `Bearer ${token}` } });
-    } catch { /* health written server-side */ }
-  }
+  await syncOuraNow(uid);
   import("./memory").then(m => m.maintainMemory(uid)).catch(() => {});
   import("./wellnessAutoTrack").then(async m => {
     await m.autoTrackWellness(uid);
+    // Screens opened before the sync finished re-read the fresh numbers.
+    import("./healthRefresh").then(h => window.dispatchEvent(new Event(h.HEALTH_UPDATED))).catch(() => {});
     // With fresh wearable data, deliver a wellness nudge as a local notification
     // if one applies right now (native only, deduped per type per day).
     import("./localNotifications").then(l => l.maybeScheduleWellnessNudge(uid)).catch(() => {});

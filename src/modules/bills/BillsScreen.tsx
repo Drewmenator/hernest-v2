@@ -5,10 +5,10 @@
 // budget_v2 is left untouched). Design: docs/superpowers/specs/2026-10-21-bills-redesign-design.md
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F, S, TYPE } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
-import { PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows } from "../../shared/components";
+import { Emoji, PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, BarsChart, TipText } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
 import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/components/Icons";
 import { formatMoney } from "../../shared/utils/money";
@@ -17,12 +17,15 @@ import {
   monthlyEstimate, paidThisMonth, daysUntilDue, nextDueDate, iso, autopayStatus, autopayDueDates,
 } from "../../core/bills";
 import { takeBillFocus, onBillFocus } from "../../core/billReminders";
-import { syncBillReminders } from "../../core/localNotifications";
+import { watchBillReminders } from "../../core/localNotifications";
+import { todayLocal } from "../../core/dateAwareness";
 import { payBill, undoBillPayment, confirmAutopayPayment, markAutopayFailed } from "./billActions";
 import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
 import { BillImport } from "./BillImport";
 import { inputStyle } from "./billsStyle";
+import { BillIcon } from "./BillIcon";
+import { haptic } from "../../shared/haptics";
 
 const SETUP_DONE_KEY = "hn_bills_setup_seen";
 
@@ -48,6 +51,18 @@ function refreshBill(b: Bill, now: Date): Bill | null {
   return b.addedOn ? null : { ...b, addedOn: iso(now) };
 }
 
+// Bring every bill up to date. Each one is updated in its own transaction, so
+// two phones doing this at once can't record an autopay twice.
+function refreshAll(uid: string, list: Bill[]) {
+  const now = new Date();
+  for (const b of list) {
+    if (refreshBill(b, now)) mutateItem<Bill>(uid, "bills", b.id, cur => refreshBill(cur, now), b).catch(() => {});
+  }
+}
+
+// Re-run the bring-up-to-date pass when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
+
 function seenSetup(): boolean {
   try { return localStorage.getItem(SETUP_DONE_KEY) === "1"; } catch { return false; }
 }
@@ -71,25 +86,46 @@ export function BillsScreen() {
   // Live list: a change on either phone shows on both.
   useEffect(() => {
     if (!uid) return;
+    // Reminders are rebuilt by the app-wide bill watcher on every change (so a
+    // paid, moved or removed bill stops reminding, even when the other person
+    // made the change). Starting it here is a no-op when it already runs.
+    void watchBillReminders(uid);
     let first = true;
     return subscribeItems<Bill>(uid, "bills", items => {
       const list = items.filter(b => b && b.name);
       setBills(list);
-      // Rebuild the reminders so a paid, moved or removed bill stops reminding,
-      // including when the other person made the change.
-      syncBillReminders(list, uid);
       if (first) {
         first = false;
         setLoaded(true);
         if (!list.length && !seenSetup()) setView({ kind: "setup" });
-        // Each bill is brought up to date in its own transaction, so two
-        // phones doing this at once can't record an autopay twice.
-        const now = new Date();
-        for (const b of list) {
-          if (refreshBill(b, now)) mutateItem<Bill>(uid, "bills", b.id, cur => refreshBill(cur, now), b).catch(() => {});
-        }
+        refreshAll(uid, list);
       }
     });
+  }, [uid]);
+
+  // The local day. Groups like Overdue and This week depend on it, so it moves
+  // on when the app comes back to the front and at midnight while Bills is open.
+  const [day, setDay] = useState(() => todayLocal());
+  useEffect(() => {
+    const msToMidnight = () => {
+      const n = new Date();
+      return new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5).getTime() - n.getTime();
+    };
+    const timer = window.setTimeout(() => setDay(todayLocal()), msToMidnight());
+    return () => window.clearTimeout(timer);
+  }, [day]);
+  useEffect(() => {
+    if (!uid) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setDay(todayLocal());
+      if (Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      refreshAll(uid, billsRef.current);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [uid]);
 
   const addBills = async (added: Bill[]) => {
@@ -104,7 +140,7 @@ export function BillsScreen() {
     for (const k of Object.keys(g) as BillGroup[]) g[k].sort((a, b) => (daysUntilDue(a, now) ?? 9999) - (daysUntilDue(b, now) ?? 9999));
     return g;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bills]);
+  }, [bills, day]);
 
   const paidList = paidThisMonth(bills, now);
 
@@ -122,6 +158,7 @@ export function BillsScreen() {
     try {
       const r = await payBill(uid, b, amt && amt > 0 ? amt : undefined);
       if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
+      haptic("success");
       showUndoToast(`${b.name} marked as paid`, () => {
         undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
       });
@@ -170,7 +207,7 @@ export function BillsScreen() {
   if (!loaded && uid) return (
     <div>
       <PageTitle title="Bills" />
-      <Skeleton height={128} radius={22} style={{ marginBottom: S.md }} />
+      <Skeleton height={230} radius={24} style={{ marginBottom: S.md }} />
       <Skeleton height={50} radius={12} />
       <Card style={{ marginTop: S.xxl, padding: `${S.xs}px ${S.lg}px` }}><SkeletonRows rows={3} /></Card>
     </div>
@@ -236,11 +273,11 @@ export function BillsScreen() {
 
   return (
     <div style={{ animation: "fadeUp .35s ease both" }}>
-      <PageTitle title="Bills" subtitle={bills.length ? "What's due, what's paid, what needs you" : undefined} />
+      <PageTitle collapse title="Bills" subtitle={bills.length ? "What's due, what's paid, what needs you" : undefined} />
 
       {bills.length === 0 ? (
         <Card>
-          <EmptyState tint="household"
+          <EmptyState bare tint="household"
             icon={<BudgetIcon size={26} color={T.householdInk} />}
             title="Never miss a bill"
             body="Tell HerNest which bills you have and roughly when they're due. We'll remind you before each one."
@@ -248,12 +285,14 @@ export function BillsScreen() {
             onAction={() => setView({ kind: "setup" })} />
         </Card>
       ) : (
-        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length} />
+        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length}
+          estimate={weekBills.some(b => displayAmount(b).estimate)}
+          next={grouped.overdue[0] ?? grouped.week[0] ?? null} now={now} days={weekByDay(weekBills, now)} />
       )}
 
       {/* Ways to add */}
       <div style={{ display: "flex", gap: S.sm, marginBottom: S.xs }}>
-        <Button onClick={() => setView({ kind: "edit", bill: null })} style={addBtn}><PlusIcon size={18} color="#fff" strokeWidth={2.2} />Add bill</Button>
+        <Button onClick={() => setView({ kind: "edit", bill: null })} style={addBtn}><PlusIcon size={18} color={T.onAction} strokeWidth={2.2} />Add bill</Button>
         <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "screenshot" })} style={addBtn} ariaLabel="Add a bill from a photo or screenshot"><CameraIcon size={18} />Photo</Button>
         <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "text" })} style={addBtn} ariaLabel="Add a bill by typing it"><EditIcon size={17} />Type it</Button>
       </div>
@@ -293,6 +332,7 @@ export function BillsScreen() {
                 const when = new Date(`${payment.paidOn}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
                 return (
                   <ListRow key={`${bill.id}_${payment.due}`} divider={i > 0}
+                    leading={<BillIcon name={bill.name} />}
                     title={bill.name}
                     detail={payment.auto ? (payment.confirmedBy ? `Autopay, confirmed for ${when}` : `Autopay ran ${when} (not confirmed)`) : `Paid ${when}`}
                     trailing={
@@ -328,28 +368,67 @@ export function BillsScreen() {
 const addBtn: React.CSSProperties = { flex: 1, minWidth: 0, width: "auto", padding: "0 10px" };
 const amountStyle: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
 
-// Sage when things are on track; a soft red tint with the word "Overdue"
-// when a bill is late. Calm, never an alarm.
-function SummaryCard({ overdue, count, total, autopay, toCheck }: { overdue: number; count: number; total: number; autopay: number; toCheck: number }) {
+// What's due on each of the next 7 days (overdue bills count as today).
+// What's due on each of the next 7 days (overdue bills count as today),
+// with the bills behind each bar for the chart's touch readout.
+function weekByDay(list: Bill[], now: Date): { amounts: number[]; bills: Bill[][] } {
+  const amounts = Array(7).fill(0);
+  const bills: Bill[][] = Array.from({ length: 7 }, () => []);
+  for (const b of list) {
+    const d = Math.max(0, Math.min(6, daysUntilDue(b, now) ?? 0));
+    amounts[d] += displayAmount(b).amount || 0.01; // a bill with no amount still shows
+    bills[d].push(b);
+  }
+  return { amounts, bills };
+}
+const dayLetters = (now: Date) => Array.from({ length: 7 }, (_, i) => {
+  if (i === 0) return "Today";
+  const d = new Date(now); d.setDate(d.getDate() + i);
+  return d.toLocaleDateString("en-US", { weekday: "narrow" });
+});
+
+// Sage when things are on track; a soft rose with the word "Overdue" when
+// a bill is late. Calm, never an alarm. The big number is what's due this
+// week; the bars show which days.
+function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days, estimate }: {
+  overdue: number; count: number; total: number; autopay: number; toCheck: number; estimate?: boolean;
+  next: Bill | null; now: Date; days: { amounts: number[]; bills: Bill[][] };
+}) {
   const late = overdue > 0;
-  const bg = late ? T.dangerBg : T.householdBg;
-  const ink = late ? T.danger : T.householdInk;
+  const tint = late ? "alert" : "household";
+  const a = ATMOS[tint];
   const check = toCheck ? ` · ${toCheck} autopay to confirm` : "";
   const detail = count === 0
-    ? (toCheck ? `${toCheck} autopay to confirm` : "You're all caught up.")
+    ? (toCheck ? `${toCheck} autopay to confirm` : "Nothing due in the next 7 days.")
     : `${count} bill${count === 1 ? "" : "s"} coming up${autopay ? ` · ${autopay} on autopay` : ""}${check}`;
+  const headline = late
+    ? (overdue === 1 ? "1 bill is overdue. Mark it paid once it's sorted." : `${overdue} bills are overdue. Mark each one paid once it's sorted.`)
+    : next ? `${next.name} is next, ${dueLabel(next, now).replace(/^Due /, "due ")}.`
+    : "You're all caught up.";
   return (
-    <section aria-label="This week" style={{ background: bg, borderRadius: 22, padding: S.xl, marginBottom: S.md }}>
-      <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: ink, margin: 0 }}>
-        {late ? `${overdue} bill${overdue === 1 ? " is" : "s are"} overdue` : "Due in the next 7 days"}
-      </p>
-      <p style={{ fontFamily: F.sans, fontSize: 36, fontWeight: 800, letterSpacing: "-0.03em", color: T.text, margin: "4px 0 2px", fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>
-        {count === 0 ? "Nothing due" : total > 0 ? formatMoney(total) : `${count} bill${count === 1 ? "" : "s"}`}
-      </p>
-      <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text, opacity: 0.8, margin: 0 }}>
-        {late ? "Tap Mark as paid once it's sorted." : detail}
-      </p>
-    </section>
+    <GlowCard tint={tint} ariaLabel="This week" eyebrow={late ? "Needs you" : "Due in the next 7 days"} reveal={false}>
+      <HeroNumber
+        value={count === 0 ? "$0" : total > 0 ? formatMoney(total) : `${count}`}
+        unit={count > 0 && !(total > 0) ? (count === 1 ? "bill" : "bills") : undefined}
+        label={estimate && total > 0 ? "About. Some amounts change each month." : undefined}
+        size={48} />
+      <Headline size={21} style={{ marginTop: 12 }}>{headline}</Headline>
+      <Detail>{detail}</Detail>
+      {count > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <BarsChart values={days.amounts} labels={i => dayLetters(now)[i]} color={a.chart} height={104}
+            highlight={days.amounts.findIndex(v => v > 0)}
+            tooltip={i => {
+              const when = i === 0 ? "Today" : (() => { const d = new Date(now); d.setDate(d.getDate() + i); return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); })();
+              const list = days.bills[i];
+              if (!list.length) return <TipText title={when} value="nothing due" />;
+              const amt = list.reduce((sum, b) => sum + (displayAmount(b).amount || 0), 0);
+              return <TipText title={`${when} · ${list.map(b => b.name).join(", ")}`} value={amt > 0 ? `${list.some(b => displayAmount(b).estimate) ? "about " : ""}${formatMoney(amt)}` : undefined} />;
+            }}
+            ariaLabel={`Bills due over the next 7 days: ${days.bills.map((l, i) => l.length ? `${dayLetters(now)[i]}: ${l.map(b => b.name).join(", ")}` : null).filter(Boolean).join("; ") || "none"}.`} />
+        </div>
+      )}
+    </GlowCard>
   );
 }
 
@@ -382,6 +461,7 @@ function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount,
       <ListRow divider={!first}
         onClick={paying ? undefined : onOpen}
         ariaLabel={`Edit ${bill.name}`}
+        leading={<BillIcon name={bill.name} />}
         title={bill.name}
         detail={group === "check"
           ? (checkDates.length > 1 ? `Autopay was due ${shortDate(checkDates[0])} and ${checkDates.length - 1} more time${checkDates.length > 2 ? "s" : ""}` : `Autopay was due ${shortDate(checkDates[0])}`)
@@ -417,7 +497,7 @@ function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount,
           <div style={{ display: "flex", gap: S.sm }}>
             <Button size="sm" onClick={() => onConfirm(true)} style={{ flex: 2 }}>Mark as paid</Button>
             <Button size="sm" variant="secondary" onClick={() => onConfirm(false)} style={{ flex: 1.3 }}>Skip amount</Button>
-            <Button size="sm" variant="ghost" onClick={onCancelPay} ariaLabel="Cancel" style={{ width: 44, padding: 0, border: "none" }}>✕</Button>
+            <Button size="sm" variant="ghost" onClick={onCancelPay} ariaLabel="Cancel" style={{ width: 44, padding: 0, border: "none" }}><Emoji e="✕" size={16} /></Button>
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ export function PrimaryButton({ children, onClick, disabled, style }: {
 }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      style={{ width: "100%", background: disabled ? T.linen : T.esp, color: "#fff", border: "none", borderRadius: 14,
+      style={{ width: "100%", background: disabled ? T.linen : T.esp, color: T.onAction, border: "none", borderRadius: 14,
         padding: "14px 18px", fontFamily: F.sans, fontSize: 15, fontWeight: 700, cursor: disabled ? "default" : "pointer",
         minHeight: 50, touchAction: "manipulation", ...style }}>
       {children}
@@ -54,7 +54,7 @@ export function DayPicker({ value, onPick, allowUnsure, onUnsure }: {
         {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
           <button key={d} onClick={() => onPick(d)} aria-label={`Day ${d}`} aria-pressed={value === d}
             style={{ height: 40, borderRadius: 10, border: `1.5px solid ${value === d ? T.esp : T.linen}`,
-              background: value === d ? T.esp : "#fff", color: value === d ? "#fff" : T.esp,
+              background: value === d ? T.esp : T.surface, color: value === d ? T.onAction : T.esp,
               fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: "pointer", touchAction: "manipulation" }}>
             {d}
           </button>
@@ -63,7 +63,7 @@ export function DayPicker({ value, onPick, allowUnsure, onUnsure }: {
       {allowUnsure && (
         <button onClick={onUnsure}
           style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1.5px solid ${value ? T.linen : T.esp}`,
-            background: value ? "#fff" : T.sand, color: T.bark, fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+            background: value ? T.surface : T.sand, color: T.bark, fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
           Not sure yet
         </button>
       )}

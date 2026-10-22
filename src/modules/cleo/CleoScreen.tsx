@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F, TYPE } from "../../config/theme";
-import { useStore } from "../../core/store";
-import { Spinner, Button, CleoActionCard } from "../../shared/components";
+import { T, F, TYPE, ATMOS, ATMOS_TEXT2, SHADOWS, alpha } from "../../config/theme";
+import { useStore, type HouseholdSnapshot } from "../../core/store";
+import { todayLocal } from "../../core/dateAwareness";
+import { Spinner, CleoActionCard, GlowCard, Headline, Detail } from "../../shared/components";
+import { Target, HeartHandshake, Wallet, CalendarDays, MessageCircleHeart, SquarePen, ThumbsUp, ThumbsDown } from "lucide-react";
 import { SparkleIcon, MicIcon, ArrowUpIcon, StopIcon } from "../../shared/components/Icons";
 import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
@@ -20,12 +22,48 @@ interface ExtractedTask { id: string; title: string; category: string; dueDate?:
 import { crisisReply } from "../../core/crisis";
 
 const QUICK_REPLIES = [
-  "What should I focus on today?",
-  "I'm feeling overwhelmed",
-  "Are we on track financially?",
-  "Help me plan my week",
-  "I need to vent",
+  { text: "What should I focus on today?", Icon: Target },
+  { text: "I'm feeling overwhelmed", Icon: HeartHandshake },
+  { text: "Are we on track financially?", Icon: Wallet },
+  { text: "Help me plan my week", Icon: CalendarDays },
+  { text: "I need to vent", Icon: MessageCircleHeart },
 ];
+
+// The household snapshot (trip countdown, calendar load) is reused for 10
+// minutes on the same local day, then rebuilt.
+const SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
+function snapshotIsFresh(snap: HouseholdSnapshot, now: Date = new Date()): boolean {
+  const built = new Date(snap.lastRefreshed);
+  if (Number.isNaN(built.getTime())) return false;
+  const age = now.getTime() - built.getTime();
+  return age >= 0 && age < SNAPSHOT_MAX_AGE_MS && todayLocal(built) === todayLocal(now);
+}
+
+// The chat kept for this app session, tagged with the local day it was saved.
+// Older saves were a plain list of messages with no day, so they count as stale.
+interface SavedSession { date: string; msgs: Msg[] }
+function readSavedSession(raw: string | null, today: string = todayLocal()): Msg[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as SavedSession | Msg[] | null;
+    if (!parsed || Array.isArray(parsed)) return null;
+    return parsed.date === today && Array.isArray(parsed.msgs) && parsed.msgs.length ? parsed.msgs : null;
+  } catch { return null; }
+}
+
+// Cleo's mark: the sparkle inside a soft halo of light. Large in the
+// opening hero, small beside her messages.
+function CleoMark({ size = 32 }: { size?: number }) {
+  return (
+    <span aria-hidden="true" style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0, display: "grid", placeItems: "center",
+      background: `radial-gradient(circle at 35% 30%, ${T.glassStrong} 0%, ${alpha(ATMOS.cleo.chart, 0.28)} 55%, ${alpha(ATMOS.cleo.chart, 0.12)} 100%)`,
+      boxShadow: `0 0 0 1px ${alpha(ATMOS.cleo.chart, 0.25)}, 0 ${Math.round(size / 6)}px ${Math.round(size / 2)}px ${alpha(ATMOS.cleo.chart, 0.30)}`,
+    }}>
+      <SparkleIcon size={Math.round(size * 0.5)} color={ATMOS.cleo.ink} filled />
+    </span>
+  );
+}
 
 export function CleoScreen() {
   const { user, profile, householdSnapshot, setHouseholdSnapshot } = useStore();
@@ -43,7 +81,7 @@ export function CleoScreen() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  const name = (profile as any)?.name || "lovely";
+  const name = String((profile as any)?.name || "").trim().split(/\s+/)[0] || "there";
 
   // Another screen's "Ask Cleo" button can leave a message ready to send.
   // Put it in the box (don't auto-send) and clear it so it only shows once.
@@ -65,15 +103,28 @@ export function CleoScreen() {
     });
   }, []);
 
+  // The saved snapshot is reused only while fresh (see snapshotIsFresh), so
+  // a trip countdown or a busy week doesn't go stale over days. Both effects
+  // below share one rebuild.
+  const snapBuild = useRef<Promise<HouseholdSnapshot> | null>(null);
+  const freshSnapshot = (uid: string): Promise<HouseholdSnapshot> => {
+    if (householdSnapshot && snapshotIsFresh(householdSnapshot)) return Promise.resolve(householdSnapshot);
+    if (!snapBuild.current) {
+      snapBuild.current = buildHouseholdSnapshot(uid)
+        .then(snap => { setHouseholdSnapshot(snap); return snap; })
+        .finally(() => { snapBuild.current = null; });
+    }
+    return snapBuild.current;
+  };
+
   // ── Load household context on mount ──────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Use existing snapshot if available, otherwise build one
+    // Use the saved snapshot while it's fresh, otherwise build a new one
     const buildCtx = async () => {
       try {
-        const snap = householdSnapshot || await buildHouseholdSnapshot(user.uid);
-        if (!householdSnapshot) setHouseholdSnapshot(snap);
+        const snap = await freshSnapshot(user.uid);
 
         // Only used for the "Household-aware" label; Cleo's real context is
         // built per message by the orchestrator.
@@ -86,31 +137,34 @@ export function CleoScreen() {
   }, [user?.uid]);
 
   // ── Session restore ───────────────────────────────────────────────
+  // Only today's chat comes back; yesterday's (and its "Good morning") is dropped.
   useEffect(() => {
-    const saved = sessionStorage.getItem(`cleo_session_${user?.uid}`);
-    if (saved) {
-      try { setMsgs(JSON.parse(saved)); return; } catch {}
-    }
+    const key = `cleo_session_${user?.uid}`;
+    let saved: string | null = null;
+    try { saved = sessionStorage.getItem(key); } catch { /* private mode */ }
+    const restored = readSavedSession(saved);
+    if (restored) { setMsgs(restored); return; }
+    if (saved) { try { sessionStorage.removeItem(key); } catch { /* private mode */ } }
     // Build proactive opening based on household state
     const buildProactiveOpening = async () => {
       try {
-        const snap = householdSnapshot || await buildHouseholdSnapshot(user?.uid || "");
+        const snap = await freshSnapshot(user?.uid || "");
         const observations: string[] = [];
 
         // Check stress level
         if (snap?.householdStressLevel === "high") {
-          observations.push("Things look pretty full right now — I want to make sure you're not carrying too much alone.");
+          observations.push("Things look pretty full right now. I want to make sure you're not carrying too much alone.");
         }
 
         // Check calendar load
         if (snap?.calendarLoad === "critical" || snap?.calendarLoad === "heavy") {
-          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritize?`);
+          observations.push(`Your calendar looks ${snap.calendarLoad} this week. Want me to help you simplify or prioritize?`);
         }
 
         // Check upcoming trip
         if (snap?.upcomingTrip) {
           const { name: dest, daysUntil } = snap.upcomingTrip;
-          observations.push(`${dest} is ${daysUntil} day${daysUntil === 1 ? "" : "s"} away — anything left to sort before you go?`);
+          observations.push(`${dest} is ${daysUntil} day${daysUntil === 1 ? "" : "s"} away. Anything left to sort before you go?`);
         }
 
         const proactiveNote = observations.length > 0
@@ -118,16 +172,16 @@ export function CleoScreen() {
           : "";
 
         const greeting = snap?.householdStressLevel === "high"
-          ? `Hey ${name} 💛 How are you actually doing?${proactiveNote}`
+          ? `Hey ${name}, how are you actually doing?${proactiveNote}`
           : snap?.calendarLoad === "critical"
-          ? `Good ${getTimeOfDay()}, ${name} ✦ Looks like a big week ahead.${proactiveNote}`
-          : `Good ${getTimeOfDay()}, ${name} ✦${proactiveNote || "\n\nWhat's on your mind today?"}`;
+          ? `Good ${getTimeOfDay()}, ${name}. Looks like a big week ahead.${proactiveNote}`
+          : `Good ${getTimeOfDay()}, ${name}.${proactiveNote || "\n\nWhat's on your mind today?"}`;
 
         setMsgs([{ role: "assistant", content: greeting, type: "text" }]);
       } catch {
         setMsgs([{
           role: "assistant",
-          content: `Good ${getTimeOfDay()}, ${name} ✦\n\nWhat's on your mind today?`,
+          content: `Good ${getTimeOfDay()}, ${name}.\n\nWhat's on your mind today?`,
           type: "text",
         }]);
       }
@@ -170,13 +224,19 @@ export function CleoScreen() {
     }
   };
 
+  // Follow the conversation; the opening hero stays at the top. Scrolls
+  // only the message list (scrollIntoView would also move the page).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (msgs.length <= 1 && !loading) return;
+    const log = bottomRef.current?.parentElement;
+    if (log) log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
   }, [msgs, loading, memSuggestions.length]);
 
   useEffect(() => {
     if (user?.uid && msgs.length > 1) {
-      sessionStorage.setItem(`cleo_session_${user.uid}`, JSON.stringify(msgs));
+      try {
+        sessionStorage.setItem(`cleo_session_${user.uid}`, JSON.stringify({ date: todayLocal(), msgs } satisfies SavedSession));
+      } catch { /* private mode or full */ }
     }
   }, [msgs]);
 
@@ -350,8 +410,8 @@ export function CleoScreen() {
       await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }
     setPendingTasks([]);
-    toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan ✓`);
-    setMsgs(p => [...p, { role:"assistant", content:`Done! I've added ${newTasks.length > 1 ? "all of them" : "it"} to your plan. You'll find ${newTasks.length > 1 ? "them" : "it"} in the Plan tab ✦` }]);
+    toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan`);
+    setMsgs(p => [...p, { role:"assistant", content:`Done! I've added ${newTasks.length > 1 ? "all of them" : "it"} to your plan. You'll find ${newTasks.length > 1 ? "them" : "it"} in the Plan tab.` }]);
   };
 
   const dismissTasks = () => {
@@ -359,44 +419,69 @@ export function CleoScreen() {
     setMsgs(p => [...p, { role:"assistant", content:"No worries — I'll keep this in mind though." }]);
   };
 
+  // The opening: Cleo's greeting as a hero until the conversation starts.
+  const opening = msgs.length <= 1 && !loading && msgs.every(m => m.role === "assistant");
+  const openingText = msgs[0]?.content || `Good ${getTimeOfDay()}, ${name}.\n\nWhat's on your mind today?`;
+  const [openLine, ...openRest] = openingText.split("\n").filter(l => l.trim());
+  const newChat = () => { setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); };
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 90px)", animation:"fadeUp .3s ease both" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 152px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", animation:"fadeUp .3s ease both" }}>
 
       {/* Header */}
-      <header style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
-        <div aria-hidden="true" style={{ width:44, height:44, borderRadius:14, background:T.cleoBg, display:"grid", placeItems:"center" }}>
-          <SparkleIcon size={22} color={T.action} filled />
-        </div>
+      <header style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14, flexShrink:0 }}>
+        <CleoMark size={40} />
         <div style={{ flex:1, minWidth:0 }}>
-          <h1 style={{ fontFamily:F.sans, fontSize:TYPE.section, fontWeight:700, color:T.text, margin:0 }}>Cleo</h1>
-          <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:0 }}>
+          <h1 style={{ fontFamily:F.display, fontSize:26, fontWeight:500, letterSpacing:"-0.015em", color:T.text, margin:0, lineHeight:1.1 }}>Cleo</h1>
+          <p style={{ fontFamily:F.sans, fontSize:TYPE.meta + 1, color:T.text2, margin:"2px 0 0" }}>
             {householdCtxStr ? "Knows your household" : "Your assistant"}
           </p>
         </div>
-        <Button size="sm" variant="secondary" style={{ width:"auto" }}
-          onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}>
-          New chat
-        </Button>
+        {!opening && (
+          <button onClick={newChat}
+            style={{ display:"inline-flex", alignItems:"center", gap:6, minHeight:40, padding:"0 14px", borderRadius:99, border:`1px solid ${T.glass}`, background:T.frost, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.text, cursor:"pointer", touchAction:"manipulation", boxShadow:SHADOWS.sm }}>
+            <SquarePen size={16} strokeWidth={1.9} aria-hidden="true" /> New chat
+          </button>
+        )}
       </header>
 
       {/* Messages */}
-      <div role="log" aria-live="polite" style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as never }}>
-        {msgs.map((m,i)=>{
+      <div role="log" aria-live="polite" style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as never, padding:"2px 2px 0" }}>
+        {opening ? (
+          <GlowCard tint="cleo" reveal={false} style={{ padding:"24px 20px 20px" }}>
+            <CleoMark size={56} />
+            <Headline size={27} style={{ marginTop:16 }}>{openLine}</Headline>
+            {openRest.map((l, i) => <Detail key={i} style={{ fontSize:TYPE.body, marginTop:8 }}>{l}</Detail>)}
+            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:ATMOS_TEXT2, margin:"20px 0 10px" }}>Try asking</p>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+              {QUICK_REPLIES.map(({ text, Icon })=>(
+                <button key={text} onClick={()=>send(text)}
+                  style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"0 14px", borderRadius:99, border:`1px solid ${T.glass}`, background:T.glassStrong, fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.text, cursor:"pointer", touchAction:"manipulation", minHeight:44 }}>
+                  <Icon size={16} color={ATMOS.cleo.ink} strokeWidth={1.9} aria-hidden="true" />{text}
+                </button>
+              ))}
+            </div>
+          </GlowCard>
+        ) : msgs.map((m,i)=>{
           const mine = m.role==="user";
           const crisis = m.type==="crisis";
+          // Cleo's mark sits beside the first of her messages in a row.
+          const firstOfRun = !mine && (i === 0 || msgs[i-1].role !== "assistant");
           return (
-          <div key={i} style={{ display:"flex", justifyContent:mine?"flex-end":"flex-start", marginBottom:12 }}>
-            <div style={{ maxWidth:"86%", display:"flex", flexDirection:"column", gap:6, alignItems:mine?"flex-end":"flex-start" }}>
+          <div key={i} style={{ display:"flex", justifyContent:mine?"flex-end":"flex-start", alignItems:"flex-end", gap:8, marginBottom:12 }}>
+            {!mine && <span style={{ width:28, flexShrink:0, alignSelf:"flex-start", marginTop:2 }}>{firstOfRun && <CleoMark size={28} />}</span>}
+            <div style={{ maxWidth:"84%", display:"flex", flexDirection:"column", gap:6, alignItems:mine?"flex-end":"flex-start" }}>
               <div style={{
-                background: mine ? T.text : crisis ? T.personalBg : T.surface,
-                borderRadius: mine ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
+                background: mine ? T.action : crisis ? T.personalBg : T.surface,
+                border: mine ? "none" : `1px solid ${crisis ? alpha(T.personalInk, 0.2) : T.hairline}`,
+                borderRadius: mine ? "22px 22px 8px 22px" : "8px 22px 22px 22px",
                 padding: "12px 16px",
-                boxShadow: mine ? "none" : "0 1px 2px rgba(28,61,90,0.05), 0 4px 14px rgba(28,61,90,0.05)",
+                boxShadow: mine ? `0 6px 16px -8px ${alpha(T.action, 0.6)}` : SHADOWS.sm,
               }}>
                 {m.content.split("\n").filter(l=>l.trim()).map((line,j,arr)=>{
                   const parts = line.split(/\*\*(.*?)\*\*/g);
                   return (
-                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?"#fff":T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
+                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?T.onAction:T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
                       {parts.map((part,pi) => pi%2===1 ? <strong key={pi}>{part}</strong> : part)}
                     </p>
                   );
@@ -405,12 +490,16 @@ export function CleoScreen() {
 
               {m.role==="assistant" && !crisis && i < msgs.length-1 && (
                 <div style={{ display:"flex", gap:4 }}>
-                  {(["up","down"] as const).map(kind=>(
-                    <button key={kind} onClick={()=>saveFeedback(i,kind,m.content)} aria-pressed={feedback[i]===kind}
-                      style={{ background:feedback[i]===kind?T.cleoBg:"none", border:"none", borderRadius:99, padding:"4px 10px", minHeight:32, fontFamily:F.sans, fontSize:13, fontWeight:600, color:feedback[i]===kind?T.action:T.text2, cursor:"pointer" }}>
-                      {kind==="up" ? "Helpful" : "Not helpful"}
-                    </button>
-                  ))}
+                  {(["up","down"] as const).map(kind=>{
+                    const on = feedback[i]===kind;
+                    const Icon = kind==="up" ? ThumbsUp : ThumbsDown;
+                    return (
+                      <button key={kind} onClick={()=>saveFeedback(i,kind,m.content)} aria-pressed={on}
+                        style={{ display:"inline-flex", alignItems:"center", gap:5, background:on?T.cleoBg:"none", border:"none", borderRadius:99, padding:"4px 10px", minHeight:32, fontFamily:F.sans, fontSize:12, fontWeight:600, color:on?T.action:T.text2, cursor:"pointer" }}>
+                        <Icon size={13} strokeWidth={2} aria-hidden="true" />{kind==="up" ? "Helpful" : "Not helpful"}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -430,31 +519,22 @@ export function CleoScreen() {
         {!loading && <MemorySuggestionCard suggestions={memSuggestions} onAnswer={answerMemory} />}
 
         {loading && (
-          <div role="status" aria-label="Cleo is thinking" style={{ display:"flex", marginBottom:12 }}>
-            <div style={{ background:T.surface, borderRadius:"20px 20px 20px 6px", padding:"14px 18px", boxShadow:"0 1px 2px rgba(28,61,90,0.05)" }}>
-              <div style={{ display:"flex", gap:5 }}>
-                {[0,1,2].map(i=><div key={i} style={{ width:8, height:8, borderRadius:"50%", background:T.wisteria, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
+          <div role="status" aria-label="Cleo is thinking" style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+            <CleoMark size={28} />
+            <div style={{ background:T.surface, border:`1px solid ${T.hairline}`, borderRadius:"8px 22px 22px 22px", padding:"14px 18px", boxShadow:SHADOWS.sm }}>
+              <div style={{ display:"flex", gap:6 }}>
+                {[0,1,2].map(i=><div key={i} style={{ width:8, height:8, borderRadius:"50%", background:ATMOS.cleo.chart, opacity:0.75, animation:`breathe 1.4s ease-in-out ${i*0.22}s infinite` }}/>)}
               </div>
             </div>
           </div>
         )}
 
-        {msgs.length === 1 && !loading && (
-          <div style={{ marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:T.text2, margin:"4px 0 8px" }}>Try asking</p>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-              {QUICK_REPLIES.map(q=>(
-                <button key={q} onClick={()=>send(q)} style={{ padding:"9px 14px", borderRadius:99, border:"none", background:T.cleoBg, fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.action, cursor:"pointer", touchAction:"manipulation", minHeight:40 }}>{q}</button>
-              ))}
-            </div>
-          </div>
-        )}
         <div ref={bottomRef}/>
       </div>
 
       {/* Input */}
       <div style={{ paddingTop:10, flexShrink:0 }}>
-        <div style={{ display:"flex", gap:8, alignItems:"flex-end", background:T.surface, borderRadius:24, padding:6, boxShadow:"0 2px 10px rgba(28,61,90,0.08)" }}>
+        <div style={{ display:"flex", gap:6, alignItems:"flex-end", background:T.frost, backdropFilter:"blur(22px) saturate(170%)", WebkitBackdropFilter:"blur(22px) saturate(170%)", border:`1px solid ${T.glass}`, borderRadius:28, padding:6, boxShadow:`0 1px 0 ${T.glassStrong} inset, ${SHADOWS.md}` }}>
           <textarea
             ref={inputRef}
             value={input}
@@ -464,15 +544,15 @@ export function CleoScreen() {
             aria-label="Message Cleo"
             rows={1}
             disabled={loading}
-            style={{ flex:1, background:"transparent", border:"none", padding:"10px 8px 10px 12px", fontFamily:F.sans, fontSize:16, color:T.text, outline:"none", resize:"none", lineHeight:1.5, minHeight:44, WebkitOverflowScrolling:"touch" as never }}
+            style={{ flex:1, background:"transparent", border:"none", padding:"10px 8px 10px 14px", fontFamily:F.sans, fontSize:16, color:T.text, outline:"none", resize:"none", lineHeight:1.5, minHeight:44, WebkitOverflowScrolling:"touch" as never }}
           />
           <button onClick={startVoice} disabled={loading} aria-label={recording ? "Stop recording" : "Speak to Cleo"}
             style={{ width:44, height:44, borderRadius:22, background:recording?T.dangerBg:"transparent", border:"none", cursor:"pointer", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
             {recording ? <StopIcon size={20} color={T.danger} filled /> : <MicIcon size={22} color={T.text2} />}
           </button>
           <button onClick={()=>send()} disabled={!input.trim()||loading} aria-label="Send"
-            style={{ width:44, height:44, borderRadius:22, background:input.trim()?T.action:T.divider, border:"none", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
-            {loading?<Spinner size={16} color="#fff"/>:<ArrowUpIcon size={20} color="#fff" strokeWidth={2.4}/>}
+            style={{ width:44, height:44, borderRadius:22, background:input.trim()?`linear-gradient(160deg, ${T.action}, ${T.actionPress})`:T.divider, border:"none", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center", boxShadow:input.trim()?SHADOWS.gold:"none", transition:"background .2s" }}>
+            {loading?<Spinner size={16} color={T.onAction}/>:<ArrowUpIcon size={20} color={input.trim()?T.onAction:T.text2} strokeWidth={2.4}/>}
           </button>
         </div>
       </div>

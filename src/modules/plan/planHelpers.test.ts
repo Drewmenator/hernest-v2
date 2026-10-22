@@ -95,3 +95,18 @@ describe("familyDinnersToPlan", () => {
     expect(familyDinnersToPlan(undefined)).toBeNull();
   });
 });
+
+describe("billDatesInRange", () => {
+  it("lists every due date of each bill inside the range", async () => {
+    const { billDatesInRange } = await import("./planHelpers");
+    const bills = [
+      { id: "e", name: "Electric", cadence: "monthly" as const, dueDay: 15, addedOn: "2026-01-01" },
+      { id: "w", name: "Daycare", cadence: "weekly" as const, dueDate: "2026-11-06", addedOn: "2026-01-01" },
+      { id: "o", name: "Camp deposit", cadence: "once" as const, dueDate: "2026-12-20", addedOn: "2026-01-01" },
+    ];
+    const r = billDatesInRange(bills, "2026-11-01", "2026-11-30");
+    expect(r.filter(b => b.id === "e").map(b => b.date)).toEqual(["2026-11-15"]);
+    expect(r.filter(b => b.id === "w").map(b => b.date)).toEqual(["2026-11-06", "2026-11-13", "2026-11-20", "2026-11-27"]);
+    expect(r.some(b => b.id === "o")).toBe(false);
+  });
+});

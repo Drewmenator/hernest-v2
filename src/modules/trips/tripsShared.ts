@@ -143,17 +143,17 @@ export function estimateBudgetBreakdown(total: number): BudgetBreakdown {
   };
 }
 
-export const STATE_CONFIG: Record<TripState, { label: string; color: string; emoji: string; description: string }> = {
-  dreaming:   { label: "Dreaming",    color: T.lav,   emoji: "✦",  description: "Explore the idea" },
-  evaluating: { label: "Evaluating",  color: T.sky,   emoji: "◎",  description: "Checking affordability" },
-  booking:    { label: "Booking",     color: T.teal,  emoji: "◈",  description: "Securing reservations" },
-  preparing:  { label: "Preparing",   color: T.gold,  emoji: "◆",  description: "Getting ready" },
-  countdown:  { label: "Countdown",   color: T.sage,  emoji: "✓",  description: "Almost there" },
-  travel_day: { label: "Travel Day",  color: "#dc2626", emoji: "✈", description: "Today's the day" },
-  in_trip:    { label: "In Trip",     color: T.teal,  emoji: "☀",  description: "Enjoy every moment" },
-  returning:  { label: "Returning",   color: T.gold,  emoji: "→",  description: "Heading home" },
-  recovery:   { label: "Recovery",    color: T.sage,  emoji: "◦",  description: "Settling back in" },
-  completed:  { label: "Completed",   color: T.taupe, emoji: "✦",  description: "A trip to remember" },
+export const STATE_CONFIG: Record<TripState, { label: string; color: string; bg: string; emoji: string; description: string }> = {
+  dreaming:   { label: "Dreaming",   color: T.action,      bg: T.cleoBg,      emoji: "✦", description: "Explore the idea" },
+  evaluating: { label: "Evaluating", color: T.planInk,     bg: T.planBg,      emoji: "✦", description: "Checking affordability" },
+  booking:    { label: "Booking",    color: T.planInk,     bg: T.planBg,      emoji: "✦", description: "Securing reservations" },
+  preparing:  { label: "Preparing",  color: T.warn,        bg: T.warnBg,      emoji: "✦", description: "Getting ready" },
+  countdown:  { label: "Countdown",  color: T.householdInk, bg: T.householdBg, emoji: "✓", description: "Almost there" },
+  travel_day: { label: "Travel day", color: T.danger,      bg: T.dangerBg,    emoji: "✈", description: "Today's the day" },
+  in_trip:    { label: "In trip",    color: T.householdInk, bg: T.householdBg, emoji: "☀", description: "Enjoy every moment" },
+  returning:  { label: "Returning",  color: T.warn,        bg: T.warnBg,      emoji: "→", description: "Heading home" },
+  recovery:   { label: "Recovery",   color: T.householdInk, bg: T.householdBg, emoji: "✦", description: "Settling back in" },
+  completed:  { label: "Completed",  color: T.text2,       bg: T.sand,        emoji: "✦", description: "A trip to remember" },
 };
 
 export const PRE_DEPARTURE_TASKS: Omit<PreDepartureTask, "completed">[] = [

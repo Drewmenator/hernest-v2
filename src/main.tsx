@@ -1,6 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
+import { startAppearance } from './shared/appearance'
+
+// Light or dark (Wisteria Glow / Midnight Wisteria) before the first paint.
+startAppearance()
 
 // Native API base: in the Capacitor shell the app is served from
 // capacitor://localhost, so relative "/api/..." fetches have no server to hit.

@@ -4,8 +4,11 @@
 // (Shortcuts can't do Firebase auth) — the token IS the credential, so
 // CORS "*" is intentional and safe (no cookies, no ambient authority).
 //
-// Body: { token, sleepHours?, steps?, date? }
+// Body: { token, sleepHours?, steps?, date?, tz? }  (tz: IANA zone, e.g.
+// "America/New_York"; with no date, the day is today in that zone, default
+// America/Chicago, so evening data isn't filed under tomorrow's UTC date)
 import { adminDb } from "./_lib/secure.js";
+import { localDate, zoneOr } from "./_lib/calendarEvents.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -14,7 +17,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { token, sleepHours, steps, date } = req.body || {};
+  const { token, sleepHours, steps, date, tz } = req.body || {};
   if (!token) return res.status(400).json({ error: "missing_token" });
 
   try {
@@ -22,7 +25,7 @@ export default async function handler(req, res) {
     if (!tokDoc.exists) return res.status(401).json({ error: "invalid_token" });
     const uid = tokDoc.data().uid;
 
-    const today = /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? date : new Date().toISOString().split("T")[0];
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? date : localDate(new Date(), zoneOr(tz));
     const update = { date: today, receivedAt: Date.now(), lastError: null };
     if (sleepHours != null && !isNaN(Number(sleepHours))) update.lastSleepHours = Math.round(Number(sleepHours) * 10) / 10;
     if (steps != null && !isNaN(Number(steps))) update.lastSteps = Math.round(Number(steps));

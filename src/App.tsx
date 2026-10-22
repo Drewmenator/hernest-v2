@@ -1,133 +1,32 @@
 // ─── HerNest V2 App ───────────────────────────────────────────────
 import React, { useEffect } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
 import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
 import { auth } from "./core/firebase";
 import { loadData } from "./core/firebase";
 import { initConnectivity } from "./core/connectivity";
 import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
+import { withTimeout } from "./core/timeout";
 import { bus } from "./core/events";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { isOnboarded } from "./core/onboarding";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
-const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 import { F, T } from "./config/theme";
-import { TabBar } from "./shared/components/TabBar";
-import { CrisisSheet } from "./shared/components/CrisisSheet";
-import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
-
-// Screens
+import { globalStyles } from "./shared/globalStyles";
+import { AppShell } from "./AppShell";
 import { LoginScreen }      from "./modules/auth/LoginScreen";
 import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
-import { TodayScreen }      from "./modules/home/TodayScreen";
-import { lastMeSegment }    from "./modules/me/meSegment";
-import { CleoScreen }       from "./modules/cleo/CleoScreen";
-const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
-// The "budget" tab is now Bills (Oct 2026 redesign). The old Budget screens
-// were deleted in simplify phase 3; their saved data is untouched.
-const BillsScreen = React.lazy(() => import("./modules/bills/BillsScreen").then(m => ({ default: m.BillsScreen })));
-const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
-// Me tab: Wellness (Thrive) and Style, shown as they are.
-const MeScreen = React.lazy(() => import("./modules/me/MeScreen").then(m => ({ default: m.MeScreen })));
-const TripsScreen = React.lazy(() => import("./modules/trips/TripsScreen").then(m => ({ default: m.TripsScreen })));
-const CircleScreen = React.lazy(() => import("./modules/circle/CircleScreen").then(m => ({ default: m.CircleScreen })));
-const FamilyScreen = React.lazy(() => import("./modules/family/FamilyScreen").then(m => ({ default: m.FamilyScreen })));
-const ProfileScreen = React.lazy(() => import("./modules/profile/ProfileScreen").then(m => ({ default: m.ProfileScreen })));
-const CalendarScreen = React.lazy(() => import("./modules/calendar/CalendarScreen").then(m => ({ default: m.CalendarScreen })));
-const MemoryScreen = React.lazy(() => import("./modules/memory/MemoryScreen").then(m => ({ default: m.MemoryScreen })));
-const ConnectionsScreen = React.lazy(() => import("./modules/connections/ConnectionsScreen").then(m => ({ default: m.ConnectionsScreen })));
-const SettingsScreen = React.lazy(() => import("./modules/settings/SettingsScreen").then(m => ({ default: m.SettingsScreen })));
-const UpgradeScreen = React.lazy(() => import("./modules/upgrade/UpgradeScreen").then(m => ({ default: m.UpgradeScreen })));
 
-// Global styles
-const globalStyles = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  
-  /* Mobile-first base */
-  html {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-    height: 100%;
-    /* Safe area support for iPhone notch/home indicator */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  }
-  
-  body {
-    background: ${T.cream};
-    font-family: 'DM Sans', sans-serif;
-    overflow-x: hidden;
-    overflow-y: auto;
-    min-height: 100%;
-    min-height: -webkit-fill-available;
-    /* Smooth momentum scrolling on iOS */
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Remove tap highlights on mobile */
-  * { -webkit-tap-highlight-color: transparent; }
 
-  /* Keyboard focus must be visible — tap-highlight removal killed every
-     focus cue. :focus-visible only fires for keyboard/AT, so touch is
-     unaffected. */
-  :focus-visible {
-    outline: 2px solid ${T.gold} !important;
-    outline-offset: 2px;
-    border-radius: 4px;
-  }
 
-  /* Respect vestibular/motion preferences */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-  
-  /* Buttons — minimum 44px touch target per Apple HIG */
-  button {
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  
-  /* Inputs */
-  input, textarea, select {
-    font-family: 'DM Sans', sans-serif;
-    /* Prevent zoom on focus in iOS */
-    font-size: max(16px, 1em);
-  }
-  
-  /* Scrollable containers */
-  .scroll-x {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .scroll-x::-webkit-scrollbar { display: none; }
-
-  /* Loading placeholders (Skeleton) */
-  .hn-skeleton {
-    background: linear-gradient(90deg, #ECE5D6 0%, #F6F1E6 50%, #ECE5D6 100%);
-    background-size: 200% 100%;
-    animation: hnShimmer 1.4s ease-in-out infinite;
-  }
-  @keyframes hnShimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
-
-  /* Press feedback on buttons, instant on touch-down */
-  button:active:not(:disabled) { transform: scale(0.98); }
-
-  /* Animations */
-  @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
-  @keyframes spin { to { transform:rotate(360deg) } }
-  @keyframes breathe { 0%,100% { transform:scale(1) } 50% { transform:scale(1.04) } }
-  @keyframes slideUp { from { transform:translateY(100%) } to { transform:translateY(0) } }
-`;
 
 
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab, setActiveTab } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab } = useStore();
+  // Signed in but the household or profile is taking too long to load:
+  // say so with a Try again, rather than "Loading…" forever.
+  const [slowStart, setSlowStart] = React.useState(false);
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)
@@ -142,6 +41,7 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       clearTimeout(loadingTimeout);
       if (u) {
+        const slow = setTimeout(() => { if (useStore.getState().screen === "loading") setSlowStart(true); }, 12_000);
         // Shared-device guard: different account than last time → wipe
         // non-uid-scoped local caches (briefings etc.) before anything loads.
         try {
@@ -156,7 +56,8 @@ export default function App() {
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
         // Usage tracking (off unless VITE_POSTHOG_KEY is set): the uid only.
         import("./core/analytics").then(m => m.identifyUser(u.uid)).catch(() => {});
-        await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
+        // Listeners must not hold up the start (never wait more than 5s).
+        await withTimeout(bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" }), 5000);
         // ── Household identity (migration Step 1) ──
         // Accept any pending invite, then resolve + provision the household so
         // getHouseholdId() is populated before household-scoped data loads.
@@ -195,8 +96,19 @@ export default function App() {
         // never reasons over stale data (previously only synced on the
         // Calendar screen).
         import("./core/connectorSync").then(m => m.syncAllConnectors(u.uid)).catch(() => {});
+        // Re-read Apple Health / Oura when the app comes back to the front,
+        // so last night's sleep shows up without closing HerNest.
+        import("./core/healthRefresh").then(m => m.startHealthRefreshOnResume(() => useStore.getState().user?.uid)).catch(() => {});
         // Native push: register this device for FCM (no-op on web). Fire-and-forget.
         import("./core/pushNotifications").then(m => m.registerPush(u.uid)).catch(() => {});
+        // Family list into the app now, so birthdays reach Today and the
+        // briefing without visiting Your family first.
+        loadData(u.uid, "family").then(d => {
+          const members = (d?.members as never[]) || [];
+          if (members.length && !useStore.getState().familyMembers.length) useStore.getState().setFamilyMembers(members);
+        }).catch(() => {});
+        clearTimeout(slow);
+        setSlowStart(false);
         setScreen(isOnboarded(profileData) ? "app" : "onboarding");
       } else {
         setUser(null);
@@ -214,20 +126,20 @@ export default function App() {
       window.history.replaceState({}, "", window.location.pathname);
       // Small delay to let app load then show success
       setTimeout(() => {
-        import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected ✓"));
+        import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected"));
       }, 1500);
     }
     if (params.get("upgraded") === "1") {
       window.history.replaceState({}, "", window.location.pathname);
       // Don't celebrate until the webhook has actually confirmed the sub
-      import("react-hot-toast").then(({ default: toast }) => toast("Finishing your upgrade...", { icon: "✦" }));
+      import("react-hot-toast").then(({ default: toast }) => toast("Finishing your upgrade..."));
       // Webhook may land a moment after redirect — re-check shortly
       setTimeout(() => {
         const u = useStore.getState().user;
         if (u?.uid) loadData(u.uid, "subscription").then(sub => {
           if (sub?.status === "active") {
             useStore.getState().setIsPro(true);
-            import("react-hot-toast").then(({ default: toast }) => toast.success("Welcome to HerNest Pro ✦"));
+            import("react-hot-toast").then(({ default: toast }) => toast.success("Welcome to HerNest Pro"));
           }
         }).catch(() => {});
       }, 4000);
@@ -279,9 +191,21 @@ export default function App() {
   if (screen === "loading") {
     return (
       <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
+        <style>{globalStyles}</style>
         <div style={{ textAlign: "center" }}>
           <h1 style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 40, color: T.text, fontWeight: 800 }}>HerNest</h1>
           <p style={{ fontFamily: F.sans, fontSize: 14, color: T.text2, marginTop: 8 }}>Loading…</p>
+          {slowStart && (
+            <div role="alert" style={{ marginTop: 20, maxWidth: 300 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 15, color: T.text, margin: "0 0 12px", lineHeight: 1.5 }}>
+                This is taking longer than usual. Check your connection, then try again.
+              </p>
+              <button onClick={() => window.location.reload()}
+                style={{ minHeight: 44, padding: "0 22px", borderRadius: 12, border: "none", background: T.action, color: T.onAction, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+                Try again
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -301,57 +225,11 @@ export default function App() {
     </>
   );
 
-  // Tab ids are kept from the old layout so notifications and links still
-  // land: "home" is Today, "budget" is Bills, "thrive"/"style" open Me.
-  const renderScreen = () => {
-    switch (activeTab) {
-      case "home":     return <EB name="Today"><TodayScreen /></EB>;
-      case "cleo":     return <EB name="Cleo"><CleoScreen /></EB>;
-      case "plan":     return <EB name="Plan"><PlanScreen /></EB>;
-      case "budget":   return <EB name="Bills"><BillsScreen /></EB>;
-      case "me":       return <EB name="Me"><MeScreen segment={lastMeSegment()} /></EB>;
-      case "thrive":   return <EB name="Me"><MeScreen segment="wellness" /></EB>;
-      case "style":    return <EB name="Me"><MeScreen segment="style" /></EB>;
-      case "briefing": return <EB name="Briefing"><BriefingScreen /></EB>;
-      case "trips":    return <EB name="Trips"><TripsScreen /></EB>;
-      case "circle":   return <EB name="Circle"><CircleScreen /></EB>;
-      case "calendar": return <EB name="Calendar"><CalendarScreen /></EB>;
-      case "memory":   return <EB name="Memory"><MemoryScreen /></EB>;
-      case "connections": return <EB name="Connections"><ConnectionsScreen /></EB>;
-      case "profile":  return <EB name="Profile"><ProfileScreen /></EB>;
-      case "family":   return <EB name="Family"><FamilyScreen /></EB>;
-      case "settings": return <EB name="Settings"><SettingsScreen initialSection="account" /></EB>;
-      case "privacy":  return <EB name="Settings"><SettingsScreen key="privacy" initialSection="privacy" /></EB>;
-      // Go Pro is parked: the screen stays, but nothing in the app links to it.
-      case "upgrade":  return <EB name="Upgrade"><UpgradeScreen /></EB>;
-      default:         return <EB name="Today"><TodayScreen /></EB>;
-    }
-  };
-
-  // Screens opened from a tab (You menu, See full briefing, ...) get a way back.
-  const backTo = isSubScreen(activeTab) ? tabFor(activeTab) : null;
-
-
-
   return (
     <ErrorBoundary>
       <style>{globalStyles}</style>
       <BrowserRouter>
-        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <div style={{ padding: "16px 20px calc(120px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
-            {backTo && (
-              <button onClick={() => setActiveTab(backTo)} style={{ background: "none", border: "none", padding: "4px 0", marginBottom: 4, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 44 }}>
-                ‹ {TAB_LABEL[backTo] || "Back"}
-              </button>
-            )}
-            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #5E4A8C30",borderTop:"2px solid #5E4A8C",animation:"spin 0.8s linear infinite"}}/></div>}>
-              {renderScreen()}
-            </React.Suspense>
-          </div>
-          <TabBar />
-          <CrisisSheet />
-          <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
-        </div>
+        <AppShell />
       </BrowserRouter>
     </ErrorBoundary>
   );

@@ -82,7 +82,7 @@ interface CacheEntry {
 }
 
 const SESSION_CACHE = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 60 * 1000; // 1 minute: a partner's changes reach Cleo quickly
 
 function cacheKey(userId: string, collection: string): string {
   return `${userId}:${collection}`;
@@ -125,7 +125,13 @@ async function loadWithCache(
   if (cached !== undefined) return cached;
 
   try {
-    const data = await loadData(userId, collection);
+    let data = await loadData(userId, collection);
+    // The calendar Cleo sees includes connected calendars and email dates.
+    if (collection === "calendar") {
+      const synced = await loadData(userId, "calendar_synced").catch(() => null);
+      const extra = (synced?.events as unknown[]) || [];
+      if (extra.length) data = { ...(data || {}), events: [...(((data?.events as unknown[]) || [])), ...extra] };
+    }
     setCache(userId, collection, data);
     return data;
   } catch {
@@ -381,10 +387,10 @@ function buildContextString(
     const events = (c.events as any[]) || [];
     const today = todayLocal();
     const todayEvents = events.filter((e: any) => e.date === today);
-    const weekEvents = events.filter((e: any) => {
-      const diff = (new Date(e.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-      return diff >= 0 && diff <= 7;
-    });
+    // Local calendar days (a "YYYY-MM-DD" parsed as UTC is already "past"
+    // in a US evening, which dropped tomorrow from Cleo's week).
+    const in7 = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return todayLocal(d); })();
+    const weekEvents = events.filter((e: any) => typeof e.date === "string" && e.date.slice(0, 10) >= today && e.date.slice(0, 10) <= in7);
 
     // Real titles and dates, so "what's on Thursday?" isn't answered from a count.
     const when = (e: { title?: string; time?: string }) => `${e.title}${e.time ? ` at ${e.time}` : ""}`;

@@ -14,6 +14,7 @@ import { sendDailyPushesTo } from "./_lib/push.js";
 import { morningDue, localParts, wallClockNow, userTimeZones, hourlyTriggerAlive, claimMorning } from "./_lib/localTime.js";
 import { freshGoogleToken } from "./_lib/googleToken.js";
 import { scanFamilyMail } from "./_lib/familyMail.js";
+import { fetchGoogleEvents, mergeSyncedEvents, combineFetches } from "./_lib/calendarEvents.js";
 
 async function refreshGoogle(uid, data) {
   let accessToken = openToken(data.accessToken);
@@ -42,34 +43,6 @@ async function refreshGoogle(uid, data) {
   return accessToken;
 }
 
-async function fetchEvents(accessToken) {
-  const headers = { Authorization: `Bearer ${accessToken}` };
-  const now = new Date();
-  const timeMin = now.toISOString();
-  const timeMax = new Date(now.getTime() + 60 * 86400000).toISOString();
-  const listData = await (await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50", { headers })).json();
-  const calendars = (listData.items || []).filter(c => c.accessRole !== "freeBusyReader");
-  let events = [];
-  for (const cal of calendars) {
-    try {
-      const evData = await (await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=50`,
-        { headers }
-      )).json();
-      if (evData.error) continue;
-      events = events.concat((evData.items || []).map(e => ({
-        id: `google_${e.id}`,
-        title: e.summary || "Event",
-        date: e.start?.date || (e.start?.dateTime ? e.start.dateTime.split("T")[0] : ""),
-        source: "google", color: cal.backgroundColor || "#4285F4",
-        allDay: !!e.start?.date,
-      })));
-    } catch { /* skip a calendar */ }
-  }
-  const seen = new Set();
-  return events.filter(e => e.id && !seen.has(e.id) && seen.add(e.id));
-}
-
 // calendar_synced is a household-scoped collection: partners' data lives
 // under the primary's uid. Resolve the owner before persisting.
 async function ownerFor(uid) {
@@ -80,14 +53,19 @@ async function ownerFor(uid) {
   } catch { return uid; }
 }
 
-async function persist(uid, events) {
-  if (!events.length) return;
-  const owner = await ownerFor(uid);
+// A complete fetch REPLACES the household's Google events from today (local)
+// to the end of the fetched window, so events cancelled or deleted in Google
+// disappear; past events are kept. An incomplete fetch (any member's calendar
+// errored, was cut off, or couldn't be refreshed) only merges by id — a
+// failed fetch never wipes anything.
+async function persist(owner, { events, complete, from, to }) {
+  if (!events.length && !complete) return;
   const existing = ((await adminDb.doc(`users/${owner}/data/calendar_synced`).get()).data()?.events) || [];
-  const byId = new Map();
-  [...existing, ...events].forEach(e => { if (e?.id) byId.set(e.id, e); });
   const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-  const merged = [...byId.values()].filter(e => !e.date || e.date >= cutoff);
+  const merged = mergeSyncedEvents(existing, events, {
+    replace: complete ? { source: "google", from, to } : null,
+    cutoff,
+  });
   await adminDb.doc(`users/${owner}/data/calendar_synced`).set({ events: merged }, { merge: true });
 }
 
@@ -220,27 +198,53 @@ export default async function handler(req, res) {
   try {
     // All google_calendar integration docs across users
     const snap = await adminDb.collectionGroup("integrations").limit(500).get();
-    const googleDocs = snap.docs.filter(d => d.ref.id === "google_calendar" && d.data()?.refreshToken);
+    // Every google_calendar doc, grouped by household: calendar_synced is shared,
+    // so one member's sync may only replace Google events when EVERY connected
+    // member's calendar was fetched in full (else a partner's events vanish).
+    const googleDocs = snap.docs.filter(d => d.ref.id === "google_calendar");
+    // Each user's zone (from their devices) so dates and times are on their
+    // clock. No zone → Google's own offset is read literally.
+    let zones = new Map();
+    try { zones = await deviceZonesByUser(); } catch (e) { console.error("[Cron] device zones failed:", e?.message); }
 
+    const households = new Map();
     for (const d of googleDocs) {
       const uid = d.ref.parent.parent?.id;
       if (!uid) continue;
+      const owner = await ownerFor(uid);
+      if (!households.has(owner)) households.set(owner, []);
+      households.get(owner).push({ uid, d });
+    }
+
+    for (const [owner, members] of households) {
+      const parts = [];
+      let allFetched = true;
+      for (const { uid, d } of members) {
+        if (!d.data()?.refreshToken) { allFetched = false; continue; }
+        try {
+          const token = await refreshGoogle(uid, d.data());
+          if (!token) { failed++; allFetched = false; continue; }
+          const fetched = await fetchGoogleEvents(token, { tz: zones.get(uid) });
+          parts.push(fetched);
+          await d.ref.set({ lastSyncedAt: Date.now(), itemCount: fetched.events.length, lastError: null }, { merge: true });
+          refreshed++;
+        } catch (e) {
+          failed++;
+          allFetched = false;
+          console.error("[Cron] user sync failed:", e?.message);
+        }
+      }
+      if (!parts.length) continue;
       try {
-        const token = await refreshGoogle(uid, d.data());
-        if (!token) { failed++; continue; }
-        const events = await fetchEvents(token);
-        await persist(uid, events);
-        await d.ref.set({ lastSyncedAt: Date.now(), itemCount: events.length, lastError: null }, { merge: true });
-        refreshed++;
+        await persist(owner, combineFetches(parts, allFetched));
       } catch (e) {
-        failed++;
-        console.error("[Cron] user sync failed:", e?.message);
+        console.error("[Cron] persist failed:", e?.message);
       }
     }
     // Family email → calendar + "From your email". Non-fatal.
     let mail = { scanned: 0, needReconnect: 0 };
     try {
-      mail = await scanAllGmail(snap.docs, await deviceZonesByUser());
+      mail = await scanAllGmail(snap.docs, zones.size ? zones : await deviceZonesByUser());
     } catch (e) {
       console.error("[Cron] gmail pass failed:", e?.message);
     }

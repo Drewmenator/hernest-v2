@@ -30,7 +30,7 @@ export function applyCors(req, res, methods = "GET, POST, OPTIONS") {
     res.setHeader("Vary", "Origin");
   }
   res.setHeader("Access-Control-Allow-Methods", methods);
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-HN-TZ");
   if (req.method === "OPTIONS") { res.status(200).end(); return true; }
   return false;
 }

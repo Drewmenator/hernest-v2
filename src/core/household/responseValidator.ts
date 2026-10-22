@@ -255,7 +255,7 @@ function checkSafety(text: string): {
 
 const VALIDATION_FALLBACKS: Partial<Record<AIIntent, string>> = {
   financial_analysis: "I want to give you accurate financial guidance — let me try that again with better data.",
-  emotional_support:  "I'm here with you. Let me try that again. 💛",
+  emotional_support:  "I'm here with you. Let me try that again.",
   decision_support:   "I wasn't able to complete that analysis safely. Please try again.",
 };
 

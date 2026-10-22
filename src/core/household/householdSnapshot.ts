@@ -12,8 +12,10 @@ type Trip = { destination?: string; departureDate?: string };
 type MoodLog = { value?: number };
 type SleepLog = { hours?: number };
 
+// Local calendar day (not UTC: in a US evening UTC is already tomorrow,
+// which dropped today's events from the week count).
 function isoDay(d: Date): string {
-  return d.toISOString().split("T")[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Pure part, exported for tests.

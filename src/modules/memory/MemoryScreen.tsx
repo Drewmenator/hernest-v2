@@ -3,7 +3,7 @@
 // the household. Backend already exists (memoryServiceV2 governance + the
 // durable event log); this screen surfaces and lets the user CONTROL it.
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { PageTitle } from "../../shared/components";
 import {
@@ -148,12 +148,12 @@ export function MemoryScreen() {
     const content = str(m.content);
     const conf = str(m.confidence);
     return (
-    <div key={m.id} style={{ background: "#fff", border: `1.5px solid ${pending ? `${T.gold}55` : T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 10 }}>
+    <div key={m.id} style={{ background: T.surface, border: `1.5px solid ${pending ? `${alpha(T.gold, 0.33)}` : T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 10 }}>
       {title && <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: "0 0 4px", }}>{title}</p>}
       <p style={{ fontFamily: F.sans, fontSize: 13, color: T.bark, margin: "0 0 10px", lineHeight: 1.5 }}>{content}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <span style={chip(`${T.lav}14`, T.lav)}>{str(m.type).replace(/_/g, " ")}</span>
-        <span style={chip(`${T.sky}14`, T.sky)}>{m.origin === "user_typed" ? "you told Cleo" : `from ${str(m.sourceModule)}`}</span>
+        <span style={chip(`${alpha(T.lav, 0.08)}`, T.lav)}>{str(m.type).replace(/_/g, " ")}</span>
+        <span style={chip(`${alpha(T.sky, 0.08)}`, T.sky)}>{m.origin === "user_typed" ? "you told Cleo" : `from ${str(m.sourceModule)}`}</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, color: T.taupe }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: CONF_COLOR[conf] || T.taupe, display: "inline-block" }} />
           {conf}
@@ -162,7 +162,7 @@ export function MemoryScreen() {
         {pending ? (
           <>
             <button onClick={() => onReject(m)} aria-label={`No, don't remember: ${content}`} style={btn(T.taupe, "transparent")}>No</button>
-            <button onClick={() => onConfirm(m)} aria-label={`Yes, remember: ${content}`} style={btn("#fff", T.sage)}>Yes</button>
+            <button onClick={() => onConfirm(m)} aria-label={`Yes, remember: ${content}`} style={btn(T.onAction, T.sage)}>Yes</button>
           </>
         ) : (
           <button onClick={() => onForget(m)} style={btn(T.taupe, "transparent")}>Forget</button>
@@ -182,7 +182,7 @@ export function MemoryScreen() {
           <button key={v} onClick={() => setView(v)}
             style={{ flex: 1, padding: "9px", borderRadius: 11, border: "none", cursor: "pointer",
               fontFamily: F.sans, fontSize: 13, fontWeight: view === v ? 700 : 500,
-              background: view === v ? "#fff" : "transparent", color: view === v ? T.esp : T.taupe,
+              background: view === v ? T.surface : "transparent", color: view === v ? T.esp : T.taupe,
               boxShadow: view === v ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
             {v === "memory" ? "Memory" : "Timeline"}
           </button>
@@ -194,17 +194,17 @@ export function MemoryScreen() {
       ) : view === "memory" ? (
         <>
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search what Cleo remembers…"
-            style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16 }} />
+            style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: T.surface, fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16 }} />
 
           {/* Tell Cleo something */}
-          <div style={{ background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 18 }}>
+          <div style={{ background: T.surface, border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 18 }}>
             <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>Tell Cleo something</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 8px", lineHeight: 1.5 }}>Anything you'd like her to keep in mind, like "Soccer is every Tuesday at 5."</p>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={tellText} onChange={e => setTellText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") onTell(); }}
                 placeholder="Type it here" aria-label="Tell Cleo something to remember" maxLength={300}
                 style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: T.ivory, fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }} />
-              <button onClick={onTell} disabled={!tellText.trim() || telling} style={{ ...btn("#fff", T.esp), opacity: tellText.trim() && !telling ? 1 : 0.5 }}>Save</button>
+              <button onClick={onTell} disabled={!tellText.trim() || telling} style={{ ...btn(T.onAction, T.esp), opacity: tellText.trim() && !telling ? 1 : 0.5 }}>Save</button>
             </div>
           </div>
 

@@ -2,9 +2,10 @@
 // connected calendars (Google / Outlook / Apple), trips and family birthdays.
 // Moved here from the old Calendar screen so Plan → Week is the one calendar
 // view. Connecting calendars happens in Connections; this only reads.
-import { useState, useEffect, useCallback } from "react";
-import { loadData, saveData, db, auth } from "../../core/firebase";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { loadData, db, auth } from "../../core/firebase";
 import { bus } from "../../core/events";
+import { saveSyncedEvents, type SyncMeta } from "../../core/connectorSync";
 import { deviceCalendarSupported, deviceCalendarConnected, fetchDeviceEvents } from "../../core/deviceCalendar";
 import { birthdayEvents } from "./planHelpers";
 import type { Person } from "../../core/familyPeople";
@@ -22,27 +23,64 @@ async function collectEvents(uid: string, people: Person[]): Promise<CalEvent[]>
   if (cal?.events) all.push(...(cal.events as CalEvent[]));
   if (synced?.events) all.push(...(synced.events as CalEvent[]));
   for (const t of ((trips?.trips as Array<{ id: string; dest?: string; date?: string }>) || [])) {
-    if (t?.date) all.push({ id: `trip-${t.id}`, title: `✈ ${t.dest || "Trip"}`, date: t.date, source: "trip", allDay: true });
+    if (t?.date) all.push({ id: `trip-${t.id}`, title: `${t.dest || "Trip"}`, date: t.date, source: "trip", allDay: true });
   }
   all.push(...(birthdayEvents(people, new Date().getFullYear()) as CalEvent[]));
   const seen = new Set<string>();
   return all.filter(e => e?.id && !seen.has(e.id) && seen.add(e.id));
 }
 
+// Put fresh events over the ones on screen, matched by id: a renamed or moved
+// event replaces its old copy (incoming wins), new ones are added at the end.
+export function mergeEventsById(prev: CalEvent[], incoming: CalEvent[]): CalEvent[] {
+  const fresh = new Map<string, CalEvent>();
+  for (const e of incoming) if (e?.id) fresh.set(e.id, e);
+  const out = prev.map(e => {
+    const f = fresh.get(e.id);
+    if (!f) return e;
+    fresh.delete(e.id);
+    return f;
+  });
+  return [...out, ...fresh.values()];
+}
+
+// Re-read events when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
+
 export function useCalendarEvents(uid: string | undefined, people: Person[]) {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [connected, setConnected] = useState({ google: false, outlook: false, apple: false, checked: false });
 
+
+  // Bumped when the app comes back to the front, so saved and connected
+  // calendars are read again (an event edited elsewhere shows its new version).
+  const [resumeTick, setResumeTick] = useState(0);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      setResumeTick(t => t + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // Latest versions fetched from connected calendars in this pull. The saved
+  // copy can be read before a pull saves, so it must not put old versions back.
+  const pulled = useRef(new Map<string, CalEvent>());
+
   const reload = useCallback(async () => {
-    if (uid) setEvents(await collectEvents(uid, people));
+    if (uid) { const all = await collectEvents(uid, people); setEvents(all.map(e => pulled.current.get(e.id) ?? e)); }
   }, [uid, people]);
 
   useEffect(() => {
     if (!uid) return;
     let alive = true;
-    collectEvents(uid, people).then(all => { if (alive) setEvents(all); });
+    collectEvents(uid, people).then(all => { if (alive) setEvents(all.map(e => pulled.current.get(e.id) ?? e)); });
     return () => { alive = false; };
-  }, [uid, people]);
+  }, [uid, people, resumeTick]);
 
   // Which calendars are connected (set up in Connections).
   useEffect(() => {
@@ -68,34 +106,37 @@ export function useCalendarEvents(uid: string | undefined, people: Person[]) {
   // (calendar_synced) so they show instantly next time and Cleo can see them.
   useEffect(() => {
     if (!uid || !connected.checked) return;
-    const merge = async (source: string, incoming: CalEvent[]) => {
-      if (!incoming?.length) return;
-      bus.publish("calendar.synced", { source, count: incoming.length }, { userId: uid, source: "calendar" }).catch(() => {});
-      setEvents(prev => { const ids = new Set(prev.map(e => e.id)); return [...prev, ...incoming.filter(e => !ids.has(e.id))]; });
+    const merge = async (provider: string, incoming: CalEvent[], meta: SyncMeta = {}) => {
+      if (!incoming?.length && !(meta.complete && meta.range)) return;
+      if (incoming.length) bus.publish("calendar.synced", { source: provider, count: incoming.length }, { userId: uid, source: "calendar" }).catch(() => {});
+      for (const e of incoming) if (e?.id) pulled.current.set(e.id, e);
+      setEvents(prev => mergeEventsById(prev, incoming));
       try {
-        const existing = ((await loadData(uid, "calendar_synced"))?.events as CalEvent[]) || [];
-        const byId = new Map<string, CalEvent>();
-        [...existing, ...incoming].forEach(e => { if (e?.id) byId.set(e.id, e); });
-        const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-        await saveData(uid, "calendar_synced", { events: [...byId.values()].filter(e => !e.date || e.date >= cutoff) });
+        // Same merge as the background sync: when the server sent the full
+        // list, events cancelled at the provider are removed (yours only).
+        const removed = await saveSyncedEvents(uid, provider, incoming, meta);
+        if (removed.size) setEvents(prev => prev.filter(e => !removed.has(e.id)));
       } catch (err) { console.warn("[Week] saving synced events failed:", err); }
     };
-    const fetchFrom = async (url: string) => {
+    const fetchFrom = async (provider: string) => {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-        const res = await fetch(`${url}?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, { headers: { Authorization: `Bearer ${idToken}` } });
-        await merge(url, ((await res.json()) as { events?: CalEvent[] })?.events || []);
-      } catch (e) { console.warn("[Week] calendar fetch failed:", url, e); }
+        const res = await fetch(`/api/calendar/${provider}?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, { headers: { Authorization: `Bearer ${idToken}` } });
+        if (!res.ok) return;
+        const data = (await res.json()) as { events?: CalEvent[]; complete?: boolean; range?: SyncMeta["range"] };
+        await merge(provider, Array.isArray(data?.events) ? data.events : [], { complete: data?.complete === true, range: data?.range });
+      } catch (e) { console.warn("[Week] calendar fetch failed:", provider, e); }
     };
+    pulled.current = new Map();
     // One after another: all of them write the same calendar_synced doc.
     (async () => {
-      if (connected.google) await fetchFrom("/api/calendar/google");
-      if (connected.outlook) await fetchFrom("/api/calendar/outlook");
+      if (connected.google) await fetchFrom("google");
+      if (connected.outlook) await fetchFrom("outlook");
       if (connected.apple && onDevice) await merge("device", (await fetchDeviceEvents().catch(() => [])) as CalEvent[]);
-      else if (connected.apple) await fetchFrom("/api/calendar/apple");
+      else if (connected.apple) await fetchFrom("apple");
     })();
-  }, [uid, connected]);
+  }, [uid, connected, resumeTick]);
 
   const anyConnected = connected.google || connected.outlook || connected.apple;
   return { events, reload, anyConnected, connectionChecked: connected.checked };

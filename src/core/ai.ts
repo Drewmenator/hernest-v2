@@ -81,6 +81,8 @@ export async function ai(
 
 // An image the model should read (base64, no data: prefix).
 export interface AIImage { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string; }
+// A PDF the model should read (base64, no data: prefix).
+export interface AIDocument { mediaType: "application/pdf"; data: string; }
 
 // One user turn made of images plus an instruction. Only features the server
 // allows attachments for will accept this (e.g. bill_scan).
@@ -88,7 +90,8 @@ export async function aiWithImages(
   system: string,
   images: AIImage[],
   instruction: string,
-  feature: Feature
+  feature: Feature,
+  schema?: JsonSchema
 ): Promise<AIResult> {
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
@@ -96,12 +99,35 @@ export async function aiWithImages(
     ...images.map(img => ({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } })),
     { type: "text", text: instruction },
   ];
-  return send(idToken, { system, feature, messages: [{ role: "user", content }] });
+  return send(idToken, { system, feature, messages: [{ role: "user", content }], ...(schema ? { schema } : {}) });
 }
+
+// Same as aiWithImages, for photos and PDFs together (e.g. a school calendar).
+export async function aiWithFiles(
+  system: string,
+  files: (AIImage | AIDocument)[],
+  instruction: string,
+  feature: Feature,
+  schema?: JsonSchema
+): Promise<AIResult> {
+  const idToken = await getIdToken();
+  if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
+  const content = [
+    ...files.map(f => ({ type: f.mediaType === "application/pdf" ? "document" : "image", source: { type: "base64", media_type: f.mediaType, data: f.data } })),
+    { type: "text", text: instruction },
+  ];
+  return send(idToken, { system, feature, messages: [{ role: "user", content }], ...(schema ? { schema } : {}) });
+}
+
+const AI_TIMEOUT_MS = 60_000;
 
 // showCrisis: the request carries the person's own words, so a server-side
 // crisis match should open the crisis sheet (not just fail quietly).
 async function send(idToken: string, body: Record<string, unknown>, showCrisis = false): Promise<AIResult> {
+  // Give up after a minute (the phone may have slept mid-request), so a
+  // "Cleo is writing..." state always ends in an answer or a Try again.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), AI_TIMEOUT_MS);
   try {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -109,7 +135,9 @@ async function send(idToken: string, body: Record<string, unknown>, showCrisis =
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify(body),
+      // tz: the daily AI limit resets at the user's own midnight.
+      body: JSON.stringify({ ...body, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      signal: abort.signal,
     });
 
     if (res.status === 429) {
@@ -137,8 +165,10 @@ async function send(idToken: string, body: Record<string, unknown>, showCrisis =
     // An empty reply becomes a soft fallback rather than a hard "having a moment".
     if (!text) return { text: "", error: "Empty response from model", code: "empty_response" };
     return { text };
-  } catch (e) {
-    return { text: "", error: "Network error", code: "network_error" };
+  } catch {
+    return { text: "", error: abort.signal.aborted ? "Timed out" : "Network error", code: abort.signal.aborted ? "timeout" : "network_error" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

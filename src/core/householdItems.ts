@@ -13,6 +13,7 @@
 // per-item docs once (ensureMigrated). The old doc is kept as a backup.
 import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
 import { db, ownerFor } from "./firebase";
+import { withTimeout, TIMED_OUT } from "./timeout";
 import {
   type ItemKind, type Item, LEGACY, migrateKind, readItems, readLegacyItems, createItemDoc,
   updateItemDoc, deleteItemDoc, mutateItemDoc, changedFields, toFirestorePatch, clean,
@@ -59,16 +60,24 @@ const CACHE_TTL = 30_000;
 const _cache = new Map<string, { items: Item[]; expires: number }>();
 const cacheKey = (uid: string, kind: ItemKind) => `${owner(uid, kind)}::${kind}`;
 function dropCache(uid: string, kind: ItemKind) { _cache.delete(cacheKey(uid, kind)); }
+export function clearItemsCache() { _cache.clear(); }
 
 export async function listItems<T extends Item = Item>(uid: string, kind: ItemKind): Promise<T[]> {
   const key = cacheKey(uid, kind);
   const hit = _cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.items as unknown as T[];
-  const migrated = await ensureMigrated(uid, kind);
   let items: Item[];
   try {
-    items = await readItems(db, owner(uid, kind), kind);
-    if (!migrated && !items.length) items = await readLegacyItems(db, owner(uid, kind), kind);
+    // Never wait forever: a read that hasn't answered in 10s gives an empty
+    // list this time (screens show their empty or retry state).
+    const r = await withTimeout((async () => {
+      const migrated = await ensureMigrated(uid, kind);
+      let list = await readItems(db, owner(uid, kind), kind);
+      if (!migrated && !list.length) list = await readLegacyItems(db, owner(uid, kind), kind);
+      return list;
+    })(), 10_000);
+    if (r === TIMED_OUT) { console.warn(`[Items] list ${kind} timed out`); return []; }
+    items = r;
   } catch (e) {
     console.error(`[Items] list ${kind} failed`, e);
     return [];

@@ -1,4 +1,5 @@
 import React from "react";
+import { T } from "../../config/theme";
 
 interface IconProps {
   size?: number;
@@ -31,13 +32,13 @@ export const CleoIcon = (p: IconProps) => <I {...p}>
 
 export const PlanIcon = (p: IconProps) => <I {...p}>
   <rect x="3.5" y="3.5" width="17" height="17" rx="5"/>
-  <path d="M8.5 12l2.5 2.5 4.5-5" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")} fill="none"/>
+  <path d="M8.5 12l2.5 2.5 4.5-5" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
 </I>;
 
 export const BudgetIcon = (p: IconProps) => <I {...p}>
   <rect x="3" y="5.5" width="18" height="13" rx="3.5"/>
-  <path d="M3 10h18" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
-  <path d="M7 14.5h3" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
+  <path d="M3 10h18" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")}/>
+  <path d="M7 14.5h3" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")}/>
 </I>;
 
 export const BriefIcon = (p: IconProps) => <I {...p}>
@@ -71,6 +72,14 @@ export const CircleIcon = (p: IconProps) => <I {...p}>
   <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
   <circle cx="17" cy="8" r="2.5"/>
   <path d="M21 20c0-2.8-1.8-5-4-5.5"/>
+</I>;
+
+// The Plan tab: a calendar page with a small check (calendar first, tasks inside).
+export const CalendarTabIcon = (p: IconProps) => <I {...p}>
+  <rect x="3.5" y="5" width="17" height="15.5" rx="4.5"/>
+  <path d="M8 3v4M16 3v4" fill="none"/>
+  <path d="M3.5 10h17" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
+  <path d="M9 15l2 2 4-4" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
 </I>;
 
 export const CalendarIcon = (p: IconProps) => <I {...p}>

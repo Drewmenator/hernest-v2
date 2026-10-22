@@ -27,7 +27,7 @@ export function CrisisSheet() {
   return (
     <div role="dialog" aria-modal="true" aria-label="Help is available"
       style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(42,31,24,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "#fff", width: "100%", maxWidth: 480, borderRadius: "24px 24px 0 0", padding: "24px 20px calc(20px + env(safe-area-inset-bottom))", maxHeight: "85vh", overflowY: "auto" }}>
+      <div style={{ background: T.surface, width: "100%", maxWidth: 480, borderRadius: "24px 24px 0 0", padding: "24px 20px calc(20px + env(safe-area-inset-bottom))", maxHeight: "85vh", overflowY: "auto" }}>
         {text.split("\n").filter(l => l.trim()).map((line, i) => {
           const parts = line.split(/\*\*(.*?)\*\*/g);
           return (
@@ -38,7 +38,7 @@ export function CrisisSheet() {
         })}
         {us && (
           <div style={{ display: "grid", gap: 8, margin: "16px 0 8px" }}>
-            <a href="tel:988" style={{ ...linkStyle, background: T.esp, color: "#fff" }}>Call 988</a>
+            <a href="tel:988" style={{ ...linkStyle, background: T.esp, color: T.onAction }}>Call 988</a>
             <a href="sms:988" style={{ ...linkStyle, background: T.sand, color: T.esp }}>Text 988</a>
           </div>
         )}

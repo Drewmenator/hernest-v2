@@ -1,4 +1,5 @@
 // ─── Oura sleep selection (pure, tested) ───────────────────────────
+import { localParts } from "./localTime.js";
 // Oura's /v2/usercollection/sleep returns MANY periods per day: the main
 // night ("long_sleep") plus naps and short in-bed fragments. Sorting by
 // day alone and taking [0] can grab a 6-minute fragment → the "0.1h" bug.
@@ -60,4 +61,17 @@ export function buildOuraHistory(sleepPeriods, dailySleep, readiness, activity, 
       stressDay: byDay(stress, day)?.day_summary ?? null,
     };
   });
+}
+
+// Date range for the Oura v2 collections. Oura files a night under the day
+// you woke up, and /sleep treats end_date as exclusive: ending the range
+// "today" left out the night just slept. End it tomorrow (UTC) instead, so
+// last night is always included whatever the server's or the user's zone.
+// `today` (the fallback health.date) is the user's local date when a valid
+// IANA `tz` is given, else the UTC date.
+export function ouraRange(now = new Date(), days = 14, tz = null) {
+  const ymd = (d) => d.toISOString().split("T")[0];
+  const start = new Date(now.getTime() - days * 86400000);
+  const end = new Date(now.getTime() + 86400000);
+  return { start: ymd(start), end: ymd(end), today: localParts(now, tz)?.date || ymd(now) };
 }

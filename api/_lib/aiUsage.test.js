@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  limits, estimateCostUsd, normalizeUsage, sseUsageTracker, householdIdFor, takeQuota, recordUsage, usageDocPath, PRICES,
+  limits, estimateCostUsd, normalizeUsage, sseUsageTracker, householdIdFor, takeQuota, recordUsage, usageDocPath, PRICES, dayKey,
 } from "./aiUsage.js";
 import { MODELS } from "./claudeRequest.js";
 import { fakeDb } from "./fakeDb.testutil.js";
@@ -85,5 +85,33 @@ describe("cost tracking", () => {
     expect(day.features.cleo_chat.calls).toBe(1);
     expect(day.features.bill_parse.outputTokens).toBe(200);
     expect(day.costUsd).toBeCloseTo(2 * (1000 * 0.1 + 200 * 0.5) / 1e6, 9);
+  });
+});
+
+describe("daily limit follows the user's local day", () => {
+  it("keys the day on the user's zone, defaulting to America/Chicago", () => {
+    const evening = new Date("2026-10-22T00:30:00Z"); // 8:30pm Oct 21 in New York, 7:30pm in Chicago
+    expect(dayKey(evening, "America/New_York")).toBe("2026-10-21");
+    expect(dayKey(evening)).toBe("2026-10-21");
+    expect(dayKey(evening, "garbage")).toBe("2026-10-21");
+    expect(dayKey(evening, "Asia/Tokyo")).toBe("2026-10-22");
+  });
+
+  it("an east-coast evening doesn't reset the household's limit", async () => {
+    const db = fakeDb();
+    const env = { AI_HOUSEHOLD_DAILY_LIMIT: "1", AI_USER_PER_MINUTE_LIMIT: "100" };
+    const tz = "America/New_York";
+    expect((await takeQuota(db, { uid: "a", householdId: "a", now: new Date("2026-10-21T22:00:00Z"), env, tz })).ok).toBe(true);
+    // 8:30pm the same local day (already Oct 22 in UTC): still limited
+    expect(await takeQuota(db, { uid: "a", householdId: "a", now: new Date("2026-10-22T00:30:00Z"), env, tz })).toEqual({ ok: false, reason: "daily_limit_reached" });
+    // after local midnight: fresh
+    expect((await takeQuota(db, { uid: "a", householdId: "a", now: new Date("2026-10-22T04:30:00Z"), env, tz })).ok).toBe(true);
+  });
+
+  it("records usage on the same local day the quota was taken", async () => {
+    const db = fakeDb();
+    const usage = normalizeUsage({ input_tokens: 10, output_tokens: 1 });
+    await recordUsage(db, { householdId: "a", uid: "a", feature: "f", model: "claude-haiku-5-5", usage, now: new Date("2026-10-22T00:30:00Z"), tz: "America/New_York" });
+    expect(db.store.get(usageDocPath("2026-10-21", "a")).inputTokens).toBe(10);
   });
 });
