@@ -7,15 +7,16 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { loadData, saveData } from "../../core/firebase";
+import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
 import { PageTitle, Spinner } from "../../shared/components";
 import { formatMoney } from "../../shared/utils/money";
 import {
-  type Bill, type BillGroup, groupOf, dueLabel, displayAmount, markPaid, undoPaid,
+  type Bill, type BillGroup, groupOf, dueLabel, displayAmount,
   monthlyEstimate, paidThisMonth, settleAutopay, daysUntilDue, nextDueDate, iso,
 } from "../../core/bills";
 import { takeBillFocus, onBillFocus } from "../../core/billReminders";
 import { syncBillReminders } from "../../core/localNotifications";
+import { payBill, undoBillPayment } from "./billActions";
 import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
 import { BillImport } from "./BillImport";
@@ -38,18 +39,14 @@ type View =
   | { kind: "import"; mode: "screenshot" | "text" }
   | { kind: "edit"; bill: Bill | null };
 
-// Bring stored bills up to date: give older bills an addedOn (so their past
+// Bring a stored bill up to date: give older bills an addedOn (so their past
 // repeats never count as missed) and let autopay bills tick themselves off.
-function refresh(bills: Bill[], now: Date): { bills: Bill[]; changed: boolean } {
-  let changed = false;
-  const out = bills.map(b => {
-    let next = b;
-    if (!next.addedOn) { next = { ...next, addedOn: iso(now) }; changed = true; }
-    const settled = settleAutopay(next, now);
-    if (settled !== next) changed = true;
-    return settled;
-  });
-  return { bills: out, changed };
+// Returns null when nothing needs to change.
+function refreshBill(b: Bill, now: Date): Bill | null {
+  let next = b;
+  if (!next.addedOn) next = { ...next, addedOn: iso(now) };
+  next = settleAutopay(next, now);
+  return next === b ? null : next;
 }
 
 function seenSetup(): boolean {
@@ -72,30 +69,33 @@ export function BillsScreen() {
   const billsRef = useRef<Bill[]>([]);
   useEffect(() => { billsRef.current = bills; }, [bills]);
 
+  // Live list: a change on either phone shows on both.
   useEffect(() => {
     if (!uid) return;
-    loadData(uid, "bills").then(d => {
-      const stored = ((d?.bills as Bill[]) || []).filter(b => b && b.name);
-      const { bills: fresh, changed } = refresh(stored, new Date());
-      setBills(fresh);
-      syncBillReminders(fresh, uid);
-      if (changed) saveData(uid, "bills", JSON.parse(JSON.stringify({ bills: fresh }))).catch(() => {});
-      if (!fresh.length && !seenSetup()) setView({ kind: "setup" });
-    }).catch(() => {}).finally(() => setLoaded(true));
+    let first = true;
+    return subscribeItems<Bill>(uid, "bills", items => {
+      const list = items.filter(b => b && b.name);
+      setBills(list);
+      // Rebuild the reminders so a paid, moved or removed bill stops reminding,
+      // including when the other person made the change.
+      syncBillReminders(list, uid);
+      if (first) {
+        first = false;
+        setLoaded(true);
+        if (!list.length && !seenSetup()) setView({ kind: "setup" });
+        // Each bill is brought up to date in its own transaction, so two
+        // phones doing this at once can't record an autopay twice.
+        const now = new Date();
+        for (const b of list) {
+          if (refreshBill(b, now)) mutateItem<Bill>(uid, "bills", b.id, cur => refreshBill(cur, now), b).catch(() => {});
+        }
+      }
+    });
   }, [uid]);
 
-  const persist = async (next: Bill[]) => {
-    setBills(next);
-    if (!uid) return;
-    // Rebuild the reminders so a paid, moved or removed bill stops reminding.
-    syncBillReminders(next, uid);
-    // JSON round-trip strips undefined fields, which Firestore rejects.
-    await saveData(uid, "bills", JSON.parse(JSON.stringify({ bills: next })));
-  };
-
   const addBills = async (added: Bill[]) => {
-    if (!added.length) return;
-    await persist([...bills, ...added]);
+    if (!added.length || !uid) return;
+    await Promise.all(added.map(b => createItem(uid, "bills", b)));
   };
 
   const now = new Date();
@@ -117,20 +117,22 @@ export function BillsScreen() {
   };
 
   const confirmPay = async (b: Bill, withAmount: boolean) => {
+    if (!uid) return;
     const amt = withAmount ? parseFloat(payAmount) : undefined;
-    const paid = markPaid(b, new Date(), amt && amt > 0 ? amt : undefined, uid);
-    const next = billsRef.current.map(x => (x.id === b.id ? paid : x));
     setPayingId(null);
-    await persist(next);
-    toast(t => (
-      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {b.name} marked paid
-        <button onClick={async () => {
-          toast.dismiss(t.id);
-          await persist(next.map(x => (x.id === b.id ? undoPaid(x) : x)));
-        }} style={{ background: "none", border: "none", color: T.goldText, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Undo</button>
-      </span>
-    ), { duration: 5000 });
+    try {
+      const r = await payBill(uid, b, amt && amt > 0 ? amt : undefined);
+      if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
+      toast(t => (
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {b.name} marked paid
+          <button onClick={async () => {
+            toast.dismiss(t.id);
+            await undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
+          }} style={{ background: "none", border: "none", color: T.goldText, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Undo</button>
+        </span>
+      ), { duration: 5000 });
+    } catch { toast.error("Couldn't save. Try again."); }
   };
 
   // ── Opened from a bill notification ────────────────────────────
@@ -184,13 +186,25 @@ export function BillsScreen() {
         bill={view.bill}
         onCancel={() => setView({ kind: "list" })}
         onSave={async b => {
-          const exists = bills.some(x => x.id === b.id);
-          await persist(exists ? bills.map(x => (x.id === b.id ? b : x)) : [...bills, b]);
+          // Compare with the bill as it was when the editor opened, and write
+          // only what was changed there, so a payment the other person
+          // recorded meanwhile is kept.
+          const before = view.bill && bills.some(x => x.id === b.id) ? view.bill : null;
+          const exists = !!before;
+          try {
+            if (uid) await (before
+              ? updateItem(uid, "bills", b.id, changedFields(before as never, b as never))
+              : createItem(uid, "bills", b));
+          } catch {
+            toast.error("Couldn't save. This bill may have been removed on another phone.");
+            setView({ kind: "list" });
+            return;
+          }
           setView({ kind: "list" });
           toast.success(exists ? "Bill updated" : "Bill added");
         }}
         onDelete={async id => {
-          await persist(bills.filter(x => x.id !== id));
+          if (uid) await removeItem(uid, "bills", id);
           setView({ kind: "list" });
           toast.success("Bill removed");
         }}

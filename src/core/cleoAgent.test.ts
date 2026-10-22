@@ -5,6 +5,10 @@ vi.mock("./firebase", () => ({
   loadData: vi.fn(async () => ({ tasks: [] })),
   saveData: vi.fn(async () => {}),
 }));
+vi.mock("./householdItems", () => ({
+  createItem: vi.fn(async () => {}),
+  listItems: vi.fn(async () => []),
+}));
 vi.mock("./events", () => ({ bus: { publish: vi.fn(async () => {}) } }));
 
 import { runCleoAgentStreaming } from "./cleoAgent";

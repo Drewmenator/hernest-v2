@@ -2,6 +2,7 @@
 // Per blueprint spec: aggregates ALL modules for Morning Briefing
 // v2: reads budget_v2, exposes household snapshot for intelligence layer
 
+import { taskIsFor } from "./taskOwnership";
 import { loadData } from "./firebase";
 import { daysUntilDue, displayAmount, type Bill } from "./bills";
 import { currencySymbol } from "../shared/utils/money";
@@ -205,7 +206,9 @@ export async function buildAppContext(
   const allTasks = (tasksData?.tasks as any[]) || [];
   // Plan stores status "completed"; older tasks used done: true.
   const isDone = (t:any) => t.status === "completed" || t.done === true;
-  const pendingTasks = allTasks.filter((t:any) => !isDone(t));
+  // A task given to someone else is theirs only once they accept it, and isn't
+  // this person's to-do until then (see taskOwnership.ts).
+  const pendingTasks = allTasks.filter((t:any) => !isDone(t) && taskIsFor(t, userId));
   const dueToday = pendingTasks.filter((t:any) => t.dueDate === todayStr);
   const overdue  = pendingTasks.filter((t:any) => t.dueDate && t.dueDate < todayStr);
   const doneTasks = allTasks.filter(isDone);

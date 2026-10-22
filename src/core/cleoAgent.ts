@@ -14,6 +14,7 @@
 
 import { auth, loadData, saveData } from "./firebase";
 import { bus } from "./events";
+import { createItem, listItems } from "./householdItems";
 import { AI } from "../config";
 
 const MAX_ITERS = 5;
@@ -42,6 +43,7 @@ const TOOLS = [
         dueDate: { type: "string", description: "Due date as YYYY-MM-DD if a date is given or implied (resolve relative dates like 'tomorrow' using today's date from the system prompt)" },
         priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "Priority; default medium" },
         category: { type: "string", enum: ["family", "work", "home", "travel", "personal", "School"], description: "Category; default personal" },
+        askPerson: { type: "string", description: "First name of another adult in the household to ASK to take this task (e.g. 'Sam'). Only when the user explicitly says to give it to, ask, or assign it to that person. This only sends them a request; they accept or decline themselves. Omit for the user's own tasks and for kids." },
       },
       required: ["title"],
     },
@@ -81,10 +83,10 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
     case "add_task": {
       const title = String(input.title || "").trim();
       if (!title) return "I couldn't add that — no task description was given.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
       const task = {
         id: crypto.randomUUID(),
         title,
+        createdBy: uid,
         category: (input.category as string) || "personal",
         priority: (input.priority as string) || "medium",
         status: "pending",
@@ -93,8 +95,24 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
         // a "Confirm" affordance (same flow as school-extracted tasks).
         userConfirmed: false,
         ...(input.dueDate ? { dueDate: String(input.dueDate) } : {}),
+        createdAt: Date.now(),
       };
-      await saveData(uid, "tasks", { tasks: [...existing, task] });
+      // Cleo can ask another adult to take it, but never accept on their
+      // behalf: the task starts as "asked" and they say yes or no themselves.
+      const askName = String(input.askPerson || "").trim();
+      if (askName) {
+        const { findAdult, proposeNewTask } = await import("./taskActions");
+        const adult = findAdult(askName);
+        if (adult && adult.uid !== uid) {
+          // The user asked for this hand-off in words, so it doesn't wait for their own Confirm.
+          await proposeNewTask({ ...task, userConfirmed: true }, adult);
+          return `Asked ${adult.name} to take "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""}. It shows as "Waiting for ${adult.name}" in Plan until ${adult.name} accepts or declines.`;
+        }
+        await createItem(uid, "tasks", task);
+        await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
+        return `I added "${title}" to your own list. I couldn't ask ${askName}, because they aren't in your HerNest household yet (invite them from Your family).`;
+      }
+      await createItem(uid, "tasks", task);
       await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
       return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""} — it's waiting for your confirmation in Plan.`;
     }
@@ -102,7 +120,7 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
     case "complete_task": {
       const q = String(input.title || "").trim().toLowerCase();
       if (!q) return "I couldn't tell which task to complete.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
+      const existing = await listItems<any>(uid, "tasks");
       // Fuzzy matching completed the WRONG task when several titles overlapped.
       // Only act on an unambiguous match; otherwise ask instead of guessing.
       const matches = existing.filter(
@@ -111,9 +129,8 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
       if (matches.length === 0) return `I couldn't find an open task matching "${input.title}".`;
       if (matches.length > 1) return `A few tasks match "${input.title}": ${matches.slice(0, 3).map((t: any) => `"${t.title}"`).join(", ")}. Which one did you mean?`;
       const match = matches[0];
-      const updated = existing.map((t: any) => (t.id === match.id ? { ...t, status: "completed" } : t));
-      await saveData(uid, "tasks", { tasks: updated });
-      await bus.publish("plan.task.completed", match, { userId: uid, source: "cleo" }).catch(() => {});
+      const { setTaskDone } = await import("./taskActions");
+      await setTaskDone(match, true);
       return `Marked "${match.title}" complete.`;
     }
 

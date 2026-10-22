@@ -156,6 +156,9 @@ export default function App() {
             window.history.replaceState({}, "", window.location.pathname);
           }
           await bootstrapHousehold(u.uid);
+          // One-time copy of tasks, chores and bills into one record per item
+          // (the old list docs stay as a backup). Screens also run it on demand.
+          import("./core/householdItems").then(m => m.migrateAllItems(u.uid)).catch(() => {});
           // One-time V1→V2 memory migration (migration Step 4)
           import("./core/memoryServiceV2").then(m => m.migrateV1MemoriesToV2(u.uid)).catch(() => {});
         } catch (e) {

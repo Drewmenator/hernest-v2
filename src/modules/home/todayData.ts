@@ -1,7 +1,8 @@
 // ─── Today screen data (pure, testable) ────────────────────────────
 // Turns the raw saved docs into the two short lists on Today:
 // "Needs you" (most urgent first, max 5) and "This week".
-import { daysUntilDue, displayAmount, type Bill } from "../../core/bills";
+import { daysUntilDue, displayAmount, billIsFor, type Bill } from "../../core/bills";
+import { taskIsFor, awaitsAnswerFrom, ownershipView, type OwnedTask } from "../../core/taskOwnership";
 import { daysUntilBirthday, todayLocal } from "../../core/dateAwareness";
 import { formatMoney } from "../../shared/utils/money";
 
@@ -15,11 +16,12 @@ export interface NeedsItem {
   tab: string;          // where tapping it goes
   urgent: boolean;      // overdue / today
   billId?: string;      // bill items get a Paid button
+  taskId?: string;      // a task someone asked you to take: Accept / Decline
 }
 
 export interface Person { name?: string; birthday?: string; birthDate?: string }
 
-export interface TaskLike { title?: string; text?: string; status?: string; done?: boolean; dueDate?: string }
+export interface TaskLike extends Partial<Omit<OwnedTask, "id">> { id?: string; title?: string; text?: string; status?: string; done?: boolean; dueDate?: string }
 export interface SchoolLike { id?: string; title?: string; child?: string; date?: string; requiresAction?: boolean; actionDeadline?: string }
 export interface TripLike { destination?: string; departureDate?: string; date?: string; packingList?: { done?: boolean }[] }
 export interface EventLike { title?: unknown; time?: unknown; date?: unknown }
@@ -44,6 +46,7 @@ const dayDiff = (iso: string | undefined, today: string): number | null => {
 const isDone = (t: TaskLike) => t?.status === "completed" || t?.status === "done" || t?.done === true;
 
 const whenWord = (d: number) => (d === 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`);
+const dueWord = (d: number | null) => (d == null ? "soon" : d < 0 ? `${-d} day${d < -1 ? "s" : ""} ago` : whenWord(d));
 
 export function tripDays(trip: TripLike, today: string): number | null {
   return dayDiff(trip?.departureDate || trip?.date, today);
@@ -59,14 +62,19 @@ export function nextTrip(trips: TripLike[] = [], now: Date = new Date()): { trip
   return upcoming[0] || null;
 }
 
-export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: Date }): NeedsItem[] {
+// viewerUid: whose Today this is. Bills set to the other person, and tasks
+// given to someone else, stay off it; tasks waiting for your yes or no and
+// tasks you asked for that were declined or left unanswered go on it.
+export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: Date; viewerUid?: string }): NeedsItem[] {
   const now = opts.now ?? new Date();
   const today = todayLocal(now);
   const out: NeedsItem[] = [];
 
   // 1. Bills overdue or due today that she pays herself.
+  const viewer = opts.viewerUid;
   for (const b of docs.bills || []) {
     if (!b?.name || b.autopay) continue;
+    if (viewer && !billIsFor(b, viewer)) continue;
     const d = daysUntilDue(b, now);
     if (d == null || d > 0) continue;
     const { amount } = displayAmount(b);
@@ -77,15 +85,36 @@ export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: D
     });
   }
 
-  // 2. Overdue tasks (one line, however many there are).
-  const overdue = (docs.tasks || []).filter(t => !isDone(t) && t?.dueDate && t.dueDate.slice(0, 10) < today);
+  // 2. Tasks someone asked you to take (answer right here), then tasks you
+  //    asked for that came back with a no or no answer after 2 days.
+  const tasks = docs.tasks || [];
+  const owned = (t: TaskLike) => ({ ...t, id: t.id || "" }) as OwnedTask;
+  if (viewer) {
+    for (const t of tasks) {
+      if (!t?.id) continue;
+      if (awaitsAnswerFrom(owned(t), viewer)) {
+        out.push({ id: `ask_${t.id}`, kind: "task", tab: "plan", urgent: true, taskId: t.id,
+          label: `${t.createdByName || "Someone"} asked you: ${t.title || "a task"}`,
+          detail: t.dueDate ? `Due ${dueWord(dayDiff(t.dueDate, today))}` : "" });
+        continue;
+      }
+      const v = t.createdBy === viewer ? ownershipView(owned(t), viewer, now.getTime()) : null;
+      if (v?.canFollowUp) {
+        out.push({ id: `followup_${t.id}`, kind: "task", tab: "plan", urgent: false,
+          label: `${v.label}: ${t.title || "a task"}`, detail: "Do it yourself or ask again in Plan" });
+      }
+    }
+  }
+
+  // 3. Overdue tasks that are yours (one line, however many there are).
+  const overdue = tasks.filter(t => !isDone(t) && t?.dueDate && t.dueDate.slice(0, 10) < today && (!viewer || taskIsFor(owned(t), viewer)));
   if (overdue.length === 1) {
     out.push({ id: "tasks_overdue", kind: "task", tab: "plan", urgent: true, label: `${overdue[0].title || overdue[0].text || "A task"} is overdue`, detail: "" });
   } else if (overdue.length > 1) {
     out.push({ id: "tasks_overdue", kind: "task", tab: "plan", urgent: true, label: `${overdue.length} tasks are overdue`, detail: "Do one, move the rest" });
   }
 
-  // 3. School deadlines in the next 3 days.
+  // 4. School deadlines in the next 3 days.
   for (const e of docs.school || []) {
     if (!e?.requiresAction) continue;
     const d = dayDiff(e.actionDeadline || e.date, today);
@@ -93,7 +122,7 @@ export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: D
     out.push({ id: `school_${e.id || e.title}`, kind: "school", tab: "plan", urgent: d === 0, label: e.title || "School form", detail: `${e.child ? e.child + " · " : ""}needed ${whenWord(d)}` });
   }
 
-  // 4. Birthdays in the next 7 days (deduped by name).
+  // 5. Birthdays in the next 7 days (deduped by name).
   const seen = new Set<string>();
   for (const p of docs.people || []) {
     const name = (p?.name || "").trim();
@@ -104,7 +133,7 @@ export function buildNeedsYou(docs: TodayDocs, opts: { tripsOn: boolean; now?: D
     out.push({ id: `bday_${name}`, kind: "birthday", tab: "family", urgent: d === 0, label: d === 0 ? `${name}'s birthday is today` : `${name}'s birthday is ${whenWord(d)}`, detail: "" });
   }
 
-  // 5. Trip prep, only if Trips is switched on.
+  // 6. Trip prep, only if Trips is switched on.
   if (opts.tripsOn) {
     const nt = nextTrip(docs.trips, now);
     if (nt && nt.days <= 14) {

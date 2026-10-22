@@ -10,7 +10,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
 
@@ -132,6 +132,76 @@ describe("household roster + event log", () => {
 
   it("stranger cannot read the event log", async () => {
     await assertFails(getDoc(doc(as(MALLORY), "households", ALICE, "events", "e1")));
+  });
+});
+
+describe("per-item household records (tasks, chores, bills)", () => {
+  const KINDS = ["tasks", "chores", "bills"];
+
+  it("owner and partner read and write each item", async () => {
+    for (const k of KINDS) {
+      await assertSucceeds(setDoc(doc(as(ALICE), "users", ALICE, k, "a1"), { id: "a1", title: "x" }));
+      await assertSucceeds(setDoc(doc(as(BOB), "users", ALICE, k, "b1"), { id: "b1", title: "y" }));
+      await assertSucceeds(updateDoc(doc(as(BOB), "users", ALICE, k, "a1"), { title: "z" }));
+      await assertSucceeds(getDoc(doc(as(ALICE), "users", ALICE, k, "b1")));
+      await assertSucceeds(getDocs(collection(as(BOB), "users", ALICE, k)));
+      await assertSucceeds(deleteDoc(doc(as(BOB), "users", ALICE, k, "b1")));
+    }
+  });
+
+  it("strangers and signed-out users can't read, list or write them", async () => {
+    await env.withSecurityRulesDisabled(async ctx => {
+      for (const k of KINDS) await setDoc(doc(ctx.firestore(), "users", ALICE, k, "s1"), { id: "s1" });
+    });
+    for (const k of KINDS) {
+      await assertFails(getDoc(doc(as(MALLORY), "users", ALICE, k, "s1")));
+      await assertFails(getDocs(collection(as(MALLORY), "users", ALICE, k)));
+      await assertFails(setDoc(doc(as(MALLORY), "users", ALICE, k, "m1"), { id: "m1" }));
+      await assertFails(updateDoc(doc(as(MALLORY), "users", ALICE, k, "s1"), { title: "hijack" }));
+      await assertFails(deleteDoc(doc(as(MALLORY), "users", ALICE, k, "s1")));
+      await assertFails(getDoc(doc(as(null), "users", ALICE, k, "s1")));
+    }
+  });
+
+  it("partner gets no access to the owner's other subcollections", async () => {
+    await assertFails(setDoc(doc(as(BOB), "users", ALICE, "devices", "tok"), { platform: "ios" }));
+    await assertFails(getDoc(doc(as(BOB), "users", ALICE, "usage", "2026-10-21")));
+  });
+
+  it("partner can read and write the migration marker; strangers can't", async () => {
+    await assertSucceeds(setDoc(doc(as(BOB), "users", ALICE, "data", "items_migration"), { tasks: { at: 1 } }, { merge: true }));
+    await assertSucceeds(getDoc(doc(as(BOB), "users", ALICE, "data", "items_migration")));
+    await assertFails(getDoc(doc(as(MALLORY), "users", ALICE, "data", "items_migration")));
+    await assertFails(setDoc(doc(as(MALLORY), "users", ALICE, "data", "items_migration"), { tasks: null }));
+  });
+});
+
+describe("task ownership", () => {
+  const ask = { id: "t1", title: "Pick up dry cleaning", createdBy: ALICE, assigneeUid: BOB, state: "proposed" };
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), "users", ALICE, "tasks", "t1"), ask); });
+  });
+
+  it("the assignee can accept or decline", async () => {
+    await assertSucceeds(updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "accepted" }));
+    await assertSucceeds(updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "declined" }));
+  });
+
+  it("the asker can't accept or decline on their behalf", async () => {
+    await assertFails(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "accepted" }));
+    await assertFails(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "declined" }));
+    await assertFails(setDoc(doc(as(ALICE), "users", ALICE, "tasks", "t2"), { ...ask, id: "t2", state: "accepted" }));
+  });
+
+  it("the asker can still ask, edit, ask again, complete or take it back", async () => {
+    await assertSucceeds(setDoc(doc(as(ALICE), "users", ALICE, "tasks", "t3"), { ...ask, id: "t3" }));
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { title: "Dry cleaning by 5pm" }));
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { state: "done", status: "completed" }));
+  });
+
+  it("once accepted, other edits by either person still work", async () => {
+    await updateDoc(doc(as(BOB), "users", ALICE, "tasks", "t1"), { state: "accepted" });
+    await assertSucceeds(updateDoc(doc(as(ALICE), "users", ALICE, "tasks", "t1"), { dueDate: "2026-10-24" }));
   });
 });
 
