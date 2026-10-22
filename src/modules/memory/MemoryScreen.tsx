@@ -64,7 +64,7 @@ function relativeTime(ts: number): string {
 }
 
 const chip = (bg: string, color: string): React.CSSProperties => ({
-  fontFamily: F.sans, fontSize: 10, fontWeight: 700, color,
+  fontFamily: F.sans, fontSize: 12, fontWeight: 700, color,
   padding: "2px 8px", borderRadius: 10, background: bg, textTransform: "capitalize" as const,
 });
 
@@ -149,12 +149,12 @@ export function MemoryScreen() {
     const conf = str(m.confidence);
     return (
     <div key={m.id} style={{ background: "#fff", border: `1.5px solid ${pending ? `${T.gold}55` : T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 10 }}>
-      {title && <p style={{ fontFamily: F.serif, fontSize: 16, color: T.esp, margin: "0 0 4px", fontStyle: "italic" }}>{title}</p>}
+      {title && <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: "0 0 4px", }}>{title}</p>}
       <p style={{ fontFamily: F.sans, fontSize: 13, color: T.bark, margin: "0 0 10px", lineHeight: 1.5 }}>{content}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span style={chip(`${T.lav}14`, T.lav)}>{str(m.type).replace(/_/g, " ")}</span>
         <span style={chip(`${T.sky}14`, T.sky)}>{m.origin === "user_typed" ? "you told Cleo" : `from ${str(m.sourceModule)}`}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 10, color: T.taupe }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, color: T.taupe }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: CONF_COLOR[conf] || T.taupe, display: "inline-block" }} />
           {conf}
         </span>
@@ -210,7 +210,7 @@ export function MemoryScreen() {
 
           {toConfirm.length > 0 && (
             <div style={{ marginBottom: 20 }}>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.gold, margin: "0 0 4px" }}>Waiting for your OK</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.gold, margin: "0 0 4px" }}>Waiting for your OK</p>
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", lineHeight: 1.5 }}>Cleo picked these up. She won't use them unless you say yes.</p>
               {toConfirm.map(m => MemoryCard(m, true))}
             </div>
@@ -219,13 +219,13 @@ export function MemoryScreen() {
           {known.length === 0 ? (
             toConfirm.length === 0 && (
             <div style={{ textAlign: "center", padding: "48px 24px" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Nothing remembered yet</p>
+              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: "0 0 8px" }}>Nothing remembered yet</p>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6 }}>When Cleo notices something worth keeping, like a routine or a preference, she'll ask you first. You can also tell her things yourself.</p>
             </div>
             )
           ) : (
             <>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{known.length} {known.length === 1 ? "memory" : "memories"}</p>
               {known.map(m => MemoryCard(m, false))}
             </>
           )}
@@ -234,7 +234,7 @@ export function MemoryScreen() {
         <>
           {events.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 24px" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>No activity yet</p>
+              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: "0 0 8px" }}>No activity yet</p>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0, lineHeight: 1.6 }}>As things happen across your household — tasks, events, plans — they'll show up here as a timeline.</p>
             </div>
           ) : (
@@ -244,7 +244,7 @@ export function MemoryScreen() {
                 <div key={e.id} style={{ position: "relative", marginBottom: 16 }}>
                   <div style={{ position: "absolute", left: -18, top: 4, width: 10, height: 10, borderRadius: "50%", background: T.sage, border: `2px solid ${T.ivory}` }} />
                   <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 2px", lineHeight: 1.4 }}>{humanizeEvent(e)}</p>
-                  <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>{relativeTime(Number(e.occurredAt) || Date.now())} · {str(e.source)}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>{relativeTime(Number(e.occurredAt) || Date.now())} · {str(e.source)}</p>
                 </div>
               ))}
             </div>

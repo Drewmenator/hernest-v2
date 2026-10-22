@@ -58,7 +58,7 @@ export function TripListView({
       {/* ── ADD TRIP FORM ────────────────────────────────────────── */}
       {showAdd && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 16px" }}>NEW TRIP</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 16px" }}>NEW TRIP</p>
 
           <input value={dest} onChange={e => setDest(e.target.value)}
             placeholder="Where to? (e.g. Lagos, Nigeria)"
@@ -66,12 +66,12 @@ export function TripListView({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
               <input type="date" value={depDate} onChange={e => setDepDate(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
               <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
             </div>
@@ -79,14 +79,14 @@ export function TripListView({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginBottom: 16 }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Currency</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Currency</p>
               <select value={currency} onChange={e => setCurrency(e.target.value)}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none" }}>
                 {["USD","GBP","EUR","NGN","CAD","AUD","ZAR"].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total Budget</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total Budget</p>
               <input type="number" value={budget} onChange={e => setBudget(e.target.value)}
                 placeholder="e.g. 5000"
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", boxSizing: "border-box" }} />
@@ -94,7 +94,7 @@ export function TripListView({
           </div>
 
           {/* Travellers — select from profile + add guests */}
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>WHO'S COMING</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>WHO'S COMING</p>
           <div style={{ marginBottom: 12 }}>
             {travellers.map((t, i) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.linen}` }}>
@@ -114,7 +114,7 @@ export function TripListView({
                   placeholder="Name"
                   style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minWidth: 0 }} />
                 <select value={t.type} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, type: e.target.value as any } : tt))}
-                  style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "4px 8px", fontFamily: F.sans, fontSize: 11, color: T.taupe }}>
+                  style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "4px 8px", fontFamily: F.sans, fontSize: 12, color: T.taupe }}>
                   <option value="adult">Adult</option>
                   <option value="child">Child</option>
                   <option value="infant">Infant</option>
@@ -134,7 +134,7 @@ export function TripListView({
                 id: crypto.randomUUID(), name: "", age: btn.type === "child" ? 8 : 35,
                 type: btn.type, role: btn.role as any, fromProfile: false,
               }])}
-                style={{ padding: "6px 12px", background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 20, fontFamily: F.sans, fontSize: 11, color: T.bark, cursor: "pointer" }}>
+                style={{ padding: "6px 12px", background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 20, fontFamily: F.sans, fontSize: 12, color: T.bark, cursor: "pointer" }}>
                 {btn.label}
               </button>
             ))}
@@ -150,7 +150,7 @@ export function TripListView({
       {/* ── UPCOMING TRIPS ───────────────────────────────────────── */}
       {upcoming.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>UPCOMING</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>UPCOMING</p>
           {upcoming.map(trip => {
             const du = daysUntil(trip.departureDate);
             const state = computeTripState(trip);
@@ -163,11 +163,11 @@ export function TripListView({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: cfg.color, background: `${cfg.color}15`, padding: "2px 10px", borderRadius: 20 }}>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}15`, padding: "2px 10px", borderRadius: 20 }}>
                         {cfg.emoji} {cfg.label}
                       </span>
                     </div>
-                    <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 2px", fontWeight: 500 }}>{trip.destination}</p>
+                    <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 22, color: T.esp, margin: "0 0 2px", fontWeight: 700 }}>{trip.destination}</p>
                     <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>
                       {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </p>
@@ -176,12 +176,12 @@ export function TripListView({
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {trip.travellers.slice(0, 4).map((t, i) => (
-                    <span key={i} style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, background: T.sand, padding: "3px 8px", borderRadius: 20 }}>
+                    <span key={i} style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, background: T.sand, padding: "3px 8px", borderRadius: 20 }}>
                       {t.type === "adult" ? "👩" : "🧒"} {t.name.split(" ")[0]}
                     </span>
                   ))}
                   {trip.travellers.length > 4 && (
-                    <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe }}>+{trip.travellers.length - 4}</span>
+                    <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>+{trip.travellers.length - 4}</span>
                   )}
                 </div>
               </div>
@@ -193,13 +193,13 @@ export function TripListView({
       {/* ── PAST TRIPS ───────────────────────────────────────────── */}
       {past.length > 0 && (
         <>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>PAST</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "20px 0 10px" }}>PAST</p>
           {past.map(trip => (
             <div key={trip.id} onClick={() => { setActiveTrip(normTrip(trip)); setDetailTab("overview"); }}
               role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`View trip to ${trip.destination}`}
               style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 8, cursor: "pointer", opacity: 0.85 }}>
-              <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: T.esp, margin: "0 0 2px" }}>{trip.destination}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>
+              <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: "0 0 2px" }}>{trip.destination}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>
                 {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
               </p>
             </div>

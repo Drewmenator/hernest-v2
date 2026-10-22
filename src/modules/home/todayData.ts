@@ -177,3 +177,19 @@ export function eventsTodayTomorrow(events: EventLike[] = [], now: Date = new Da
     .sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
   return { today: pick(today), tomorrow: pick(tomorrow) };
 }
+
+// "Already handled": tasks you asked another adult to take that they have
+// accepted and not finished yet. Kept short (at most two) so it never
+// crowds out what still needs you.
+export interface HandledItem { id: string; title: string; who: string }
+export const HANDLED_MAX = 2;
+
+export function alreadyHandled(tasks: OwnedTask[] = [], viewerUid?: string): HandledItem[] {
+  if (!viewerUid) return [];
+  return tasks
+    .filter(t => t && t.state === "accepted" && t.status !== "completed")
+    .filter(t => t.createdBy === viewerUid && !!t.assigneeUid && t.assigneeUid !== viewerUid)
+    .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"))
+    .slice(0, HANDLED_MAX)
+    .map(t => ({ id: t.id, title: t.title || "A task", who: (t.assigneeName || "Your partner").split(" ")[0] }));
+}

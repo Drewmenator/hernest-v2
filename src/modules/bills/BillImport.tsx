@@ -170,7 +170,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
               {shots.length ? "Add another screenshot" : "Choose a screenshot"}
             </GhostButton>
           )}
-          <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "0 4px 14px", lineHeight: 1.5 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 4px 14px", lineHeight: 1.5 }}>
             Your screenshot is sent to Cleo to read the bills. HerNest doesn't keep a copy.
           </p>
         </>

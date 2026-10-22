@@ -24,7 +24,7 @@ export function Avatar({ size = 40 }: { size?: number }) {
     <span aria-hidden style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, overflow: "hidden",
       display: "flex", alignItems: "center", justifyContent: "center",
       background: `linear-gradient(135deg,${T.gold},${T.goldText})`, color: "#fff",
-      fontFamily: F.serif, fontStyle: "italic", fontSize: size * 0.45 }}>
+      fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: size * 0.45 }}>
       {pic ? <img src={pic} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() || "✦")}
     </span>
   );
@@ -52,7 +52,7 @@ export function YouMenu({ onClose }: { onClose: () => void }) {
 
   const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 4px", background: "none", border: "none", borderBottom: `1px solid ${T.linen}`, cursor: "pointer", textAlign: "left", minHeight: 52, touchAction: "manipulation" };
   const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: 0 };
-  const sub: React.CSSProperties = { fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "1px 0 0" };
+  const sub: React.CSSProperties = { fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" };
   const icon: React.CSSProperties = { width: 32, height: 32, borderRadius: 10, background: T.goldP, color: T.goldText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 };
 
   // Portal: the screen's fade-in animation would otherwise trap position:fixed.
@@ -64,7 +64,7 @@ export function YouMenu({ onClose }: { onClose: () => void }) {
         <div style={{ width: 36, height: 4, borderRadius: 4, background: T.linen, margin: "0 auto 14px" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <Avatar size={44} />
-          <p style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 22, color: T.esp, margin: 0, flex: 1 }}>{name || "You"}</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: 0, flex: 1 }}>{name || "You"}</p>
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 22, color: T.taupe, cursor: "pointer", minWidth: 44, minHeight: 44 }}>×</button>
         </div>
 
@@ -76,12 +76,12 @@ export function YouMenu({ onClose }: { onClose: () => void }) {
           </button>
         ))}
 
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "18px 0 2px" }}>Extras</p>
+        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "18px 0 2px" }}>Extras</p>
         <div style={{ ...row, cursor: "default" }}>
           <span style={icon}>✈</span>
           <span style={{ flex: 1 }}>
             <p style={label}>Trips</p>
-            <p style={sub}>{tripsOn ? <>Shows upcoming trips on Today · <button onClick={() => go("trips")} style={{ background: "none", border: "none", padding: 0, color: T.goldText, fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>Open Trips</button></> : "Plan trips, packing lists and travel days"}</p>
+            <p style={sub}>{tripsOn ? <>Shows upcoming trips on Today · <button onClick={() => go("trips")} style={{ background: "none", border: "none", padding: 0, color: T.goldText, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Open Trips</button></> : "Plan trips, packing lists and travel days"}</p>
           </span>
           <button role="switch" aria-checked={tripsOn} aria-label="Trips" onClick={toggleTrips}
             style={{ width: 48, height: 28, borderRadius: 28, border: "none", padding: 3, cursor: "pointer", background: tripsOn ? T.sage : T.linen, transition: "background .2s", flexShrink: 0 }}>

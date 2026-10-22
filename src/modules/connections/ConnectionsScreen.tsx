@@ -171,7 +171,7 @@ export function ConnectionsScreen() {
         </p>
         {liveCount > 0 && (
           <button onClick={onSyncNow} disabled={syncing}
-            style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
+            style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
             {syncing ? "Syncing..." : "↺ Sync now"}
           </button>
         )}
@@ -182,7 +182,7 @@ export function ConnectionsScreen() {
         if (!items.length) return null;
         return (
           <div key={cat} style={{ marginBottom: 20 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>{cat}</p>
             {items.map(c => {
               const h = health[c.id];
               const isConnected = !loading && !!h?.connected;
@@ -194,7 +194,7 @@ export function ConnectionsScreen() {
                     <div style={{ width: 40, height: 40, borderRadius: 12, background: isConnected ? `${T.sage}14` : `${T.taupe}10`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: isConnected ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
-                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
                         {hasError
                           ? <span style={{ color: T.blush }}>Needs reconnecting — token expired</span>
                           : isConnected && h?.lastSyncedAt
@@ -209,7 +209,7 @@ export function ConnectionsScreen() {
                     ) : isConnected && !hasError ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.sage, flexShrink: 0 }}>✓ On</span>
                     ) : c.kind === "soon" ? (
-                      <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
                     ) : (
                       <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {hasError ? "Reconnect" : "Connect"}
@@ -224,20 +224,20 @@ export function ConnectionsScreen() {
                   )}
                   {c.id === "apple_health" && healthSetup && (
                     <div style={{ marginTop: 10, padding: "12px 14px", background: T.sand, borderRadius: 12, border: `1px solid ${T.linen}` }}>
-                      <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.esp, margin: "0 0 8px", lineHeight: 1.5, fontWeight: 700 }}>iOS Shortcut setup</p>
-                      <ol style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "0 0 10px", paddingLeft: 16, lineHeight: 1.7 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, margin: "0 0 8px", lineHeight: 1.5, fontWeight: 700 }}>iOS Shortcut setup</p>
+                      <ol style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", paddingLeft: 16, lineHeight: 1.7 }}>
                         <li>Open the <strong>Shortcuts</strong> app → new Automation → <strong>Time of Day</strong> (e.g. 8am daily)</li>
                         <li>Add <strong>Find Health Samples</strong> → Sleep → today; repeat for Steps</li>
                         <li>Add <strong>Get Contents of URL</strong> — method POST, JSON body below</li>
                       </ol>
                       <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
+                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
                       </div>
                       <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
-                        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
+                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
                       </div>
                       <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied ✓"); }}
-                        style={{ marginTop: 8, fontFamily: F.sans, fontSize: 11.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
+                        style={{ marginTop: 8, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
                     </div>
                   )}
                 </div>
@@ -249,20 +249,20 @@ export function ConnectionsScreen() {
 
       {/* Manual sources — already built, part of the same picture */}
       <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
+        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
         {MANUAL_SOURCES.map(s => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{s.name}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
             </div>
             <button onClick={() => { if (s.planTab) { try { sessionStorage.setItem(PLAN_TAB_KEY, s.planTab); } catch { /* private mode */ } } setActiveTab(s.tab); }} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
           </div>
         ))}
       </div>
 
-      <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "8px 0 0", lineHeight: 1.6, fontStyle: "italic", textAlign: "center" }}>
+      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "8px 0 0", lineHeight: 1.6, fontStyle: "italic", textAlign: "center" }}>
         Connected sources refresh automatically when you open HerNest. Bank feeds and school connectors arrive in the next wave.
       </p>
     </div>

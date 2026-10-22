@@ -4,7 +4,7 @@ import { T, F } from "../../config/theme";
 
 export function SectionHeading({ children, color = T.taupe }: { children: React.ReactNode; color?: string }) {
   return (
-    <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color, margin: "18px 4px 8px" }}>
+    <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color, margin: "18px 4px 8px" }}>
       {children}
     </p>
   );

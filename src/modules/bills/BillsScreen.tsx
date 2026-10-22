@@ -5,10 +5,12 @@
 // budget_v2 is left untouched). Design: docs/superpowers/specs/2026-10-21-bills-redesign-design.md
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F } from "../../config/theme";
+import { T, F, S, TYPE } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
-import { PageTitle, Spinner } from "../../shared/components";
+import { PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows } from "../../shared/components";
+import { showUndoToast } from "../../shared/components/undoToast";
+import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/components/Icons";
 import { formatMoney } from "../../shared/utils/money";
 import {
   type Bill, type BillGroup, groupOf, dueLabel, displayAmount,
@@ -20,14 +22,13 @@ import { payBill, undoBillPayment } from "./billActions";
 import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
 import { BillImport } from "./BillImport";
-import { SectionHeading, TextLink } from "./billsUi";
 import { inputStyle } from "./billsStyle";
 
 const SETUP_DONE_KEY = "hn_bills_setup_seen";
 
-const GROUPS: { id: BillGroup; label: string; color?: string }[] = [
-  { id: "overdue", label: "Overdue", color: T.red },
-  { id: "week",    label: "Next 7 days" },
+const GROUPS: { id: BillGroup; label: string }[] = [
+  { id: "overdue", label: "Overdue" },
+  { id: "week",    label: "This week" },
   { id: "month",   label: "Later this month" },
   { id: "later",   label: "Coming up" },
   { id: "nodate",  label: "Needs a due date" },
@@ -123,15 +124,9 @@ export function BillsScreen() {
     try {
       const r = await payBill(uid, b, amt && amt > 0 ? amt : undefined);
       if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
-      toast(t => (
-        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {b.name} marked paid
-          <button onClick={async () => {
-            toast.dismiss(t.id);
-            await undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
-          }} style={{ background: "none", border: "none", color: T.goldText, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Undo</button>
-        </span>
-      ), { duration: 5000 });
+      showUndoToast(`${b.name} marked as paid`, () => {
+        undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
+      });
     } catch { toast.error("Couldn't save. Try again."); }
   };
 
@@ -158,7 +153,14 @@ export function BillsScreen() {
   }, [loaded]);
 
   // ── Sub-views ──────────────────────────────────────────────────
-  if (!loaded && uid) return <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div>;
+  if (!loaded && uid) return (
+    <div>
+      <PageTitle title="Bills" />
+      <Skeleton height={128} radius={22} style={{ marginBottom: S.md }} />
+      <Skeleton height={50} radius={12} />
+      <Card style={{ marginTop: S.xxl, padding: `${S.xs}px ${S.lg}px` }}><SkeletonRows rows={3} /></Card>
+    </div>
+  );
 
   if (view.kind === "setup") {
     return (
@@ -215,169 +217,175 @@ export function BillsScreen() {
   // ── Main list ──────────────────────────────────────────────────
   const weekBills = [...grouped.overdue, ...grouped.week];
   const weekTotal = weekBills.reduce((s, b) => s + (displayAmount(b).amount || 0), 0);
+  const weekAutopay = weekBills.filter(b => b.autopay).length;
   const monthly = monthlyEstimate(bills);
 
   return (
-    <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="MONEY" title="Bills" />
+    <div style={{ animation: "fadeUp .35s ease both" }}>
+      <PageTitle title="Bills" subtitle={bills.length ? "What's due, what's paid, what needs you" : undefined} />
 
       {bills.length === 0 ? (
-        <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12, textAlign: "center" }}>
-          <p style={{ fontFamily: F.serif, fontSize: 21, fontStyle: "italic", color: T.esp, margin: "0 0 6px" }}>Never miss a bill</p>
-          <p style={{ fontFamily: F.sans, fontSize: 13.5, color: T.bark, margin: "0 0 16px", lineHeight: 1.6 }}>
-            Tell HerNest which bills you have and roughly when they're due. We'll remind you before each one.
-          </p>
-          <button onClick={() => setView({ kind: "setup" })}
-            style={{ background: T.esp, color: "#fff", border: "none", borderRadius: 14, padding: "13px 22px", fontFamily: F.sans, fontSize: 15, fontWeight: 700, cursor: "pointer", minHeight: 48 }}>
-            Set up my bills
-          </button>
-        </div>
+        <Card>
+          <EmptyState tint="household"
+            icon={<BudgetIcon size={26} color={T.householdInk} />}
+            title="Never miss a bill"
+            body="Tell HerNest which bills you have and roughly when they're due. We'll remind you before each one."
+            actionLabel="Set up my bills"
+            onAction={() => setView({ kind: "setup" })} />
+        </Card>
       ) : (
-        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} />
+        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} />
       )}
 
       {/* Ways to add */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 4 }}>
-        <AddTile icon="📸" label="Screenshot" onClick={() => setView({ kind: "import", mode: "screenshot" })} />
-        <AddTile icon="✍️" label="Type it" onClick={() => setView({ kind: "import", mode: "text" })} />
-        <AddTile icon="＋" label="Add one" onClick={() => setView({ kind: "edit", bill: null })} />
+      <div style={{ display: "flex", gap: S.sm, marginBottom: S.xs }}>
+        <Button onClick={() => setView({ kind: "edit", bill: null })} style={addBtn}><PlusIcon size={18} color="#fff" strokeWidth={2.2} />Add bill</Button>
+        <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "screenshot" })} style={addBtn} ariaLabel="Add a bill from a photo or screenshot"><CameraIcon size={18} />Photo</Button>
+        <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "text" })} style={addBtn} ariaLabel="Add a bill by typing it"><EditIcon size={17} />Type it</Button>
       </div>
 
       {GROUPS.map(g => grouped[g.id].length > 0 && (
-        <div key={g.id}>
-          <SectionHeading color={g.color}>{g.label}</SectionHeading>
-          {grouped[g.id].map(b => (
-            <BillRow
-              key={b.id}
-              bill={b}
-              now={now}
-              paying={payingId === b.id}
-              highlight={highlightId === b.id}
-              payAmount={payAmount}
-              setPayAmount={setPayAmount}
-              onOpen={() => setView({ kind: "edit", bill: b })}
-              onPay={() => startPay(b)}
-              onConfirm={withAmount => confirmPay(b, withAmount)}
-              onCancelPay={() => setPayingId(null)}
-            />
-          ))}
-        </div>
+        <section key={g.id} aria-label={g.label}>
+          <SectionHeader title={g.label} />
+          <Card style={{ padding: `${S.xs}px ${S.lg}px` }}>
+            {grouped[g.id].map((b, i) => (
+              <BillRow
+                key={b.id}
+                first={i === 0}
+                bill={b}
+                now={now}
+                paying={payingId === b.id}
+                highlight={highlightId === b.id}
+                payAmount={payAmount}
+                setPayAmount={setPayAmount}
+                onOpen={() => setView({ kind: "edit", bill: b })}
+                onPay={() => startPay(b)}
+                onConfirm={withAmount => confirmPay(b, withAmount)}
+                onCancelPay={() => setPayingId(null)}
+              />
+            ))}
+          </Card>
+        </section>
       ))}
 
       {paidList.length > 0 && (
-        <div>
-          <button onClick={() => setShowPaid(s => !s)} aria-expanded={showPaid}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", textAlign: "left" }}>
-            <SectionHeading color={T.sage}>{showPaid ? "▾" : "▸"} Paid this month · {paidList.length}</SectionHeading>
-          </button>
-          {showPaid && paidList.map(({ bill, payment }) => (
-            <div key={`${bill.id}_${payment.due}`} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 14, marginBottom: 6 }}>
-              <span style={{ fontFamily: F.sans, fontSize: 14, color: T.bark }}>✓ {bill.name}</span>
-              <span style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe }}>
-                {payment.amount ? formatMoney(payment.amount) + " · " : ""}{payment.auto ? "autopay" : new Date(`${payment.paidOn}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              </span>
-            </div>
-          ))}
-        </div>
+        <section aria-label="Paid this month">
+          <SectionHeader title={`Paid this month · ${paidList.length}`} action={showPaid ? "Hide" : "Show"} onAction={() => setShowPaid(s => !s)} />
+          {showPaid && (
+            <Card style={{ padding: `${S.xs}px ${S.lg}px` }}>
+              {paidList.map(({ bill, payment }, i) => {
+                const when = new Date(`${payment.paidOn}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                return (
+                  <ListRow key={`${bill.id}_${payment.due}`} divider={i > 0}
+                    title={bill.name}
+                    detail={payment.auto ? `Autopay ran ${when}` : `Paid ${when}`}
+                    trailing={
+                      <div style={{ textAlign: "right" }}>
+                        {payment.amount ? <div style={amountStyle}>{formatMoney(payment.amount)}</div> : null}
+                        <div style={{ marginTop: 4 }}>
+                          {/* Autopay is not shown as confirmed: only a payment someone marked is "Paid". */}
+                          {payment.auto ? <StatusChip status="autopay">Autopay</StatusChip> : <StatusChip status="paid">Paid</StatusChip>}
+                        </div>
+                      </div>
+                    } />
+                );
+              })}
+            </Card>
+          )}
+        </section>
       )}
 
       {bills.length > 0 && (
-        <div style={{ textAlign: "center", padding: "18px 0 8px" }}>
+        <div style={{ textAlign: "center", padding: `${S.xl}px 0 ${S.sm}px` }}>
           {monthly > 0 && (
-            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 2px" }}>
-              Bills each month: about <strong style={{ color: T.esp }}>{formatMoney(monthly)}</strong>
+            <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text2, margin: "0 0 2px" }}>
+              Bills each month: about <strong style={{ color: T.text }}>{formatMoney(monthly)}</strong>
             </p>
           )}
-          <TextLink onClick={() => setView({ kind: "setup" })}>Add more common bills</TextLink>
+          <TextButton onClick={() => setView({ kind: "setup" })}>Add more common bills</TextButton>
         </div>
       )}
     </div>
   );
 }
 
-function SummaryCard({ overdue, count, total }: { overdue: number; count: number; total: number }) {
-  const title = overdue > 0
-    ? `${overdue} bill${overdue === 1 ? "" : "s"} overdue`
-    : count > 0 ? `${count} bill${count === 1 ? "" : "s"} in the next 7 days` : "Nothing due this week";
-  const sub = overdue > 0
-    ? "Tap Paid once it's sorted."
-    : count > 0 && total > 0 ? `About ${formatMoney(total)} going out` : count > 0 ? "We'll remind you before each one." : "You're all caught up.";
-  // Overdue is shown calmly (a soft tint), not as an alarm.
-  const tone = overdue > 0
-    ? { bg: `${T.red}14`, border: `1px solid ${T.red}40`, eyebrow: T.red, title: T.esp, sub: T.bark }
-    : { bg: `linear-gradient(135deg, ${T.esp}, ${T.esp}dd)`, border: "none", eyebrow: "rgba(255,255,255,.6)", title: "#fff", sub: "rgba(255,255,255,.8)" };
+const addBtn: React.CSSProperties = { flex: 1, minWidth: 0, width: "auto", padding: "0 10px" };
+const amountStyle: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+
+// Sage when things are on track; a soft red tint with the word "Overdue"
+// when a bill is late. Calm, never an alarm.
+function SummaryCard({ overdue, count, total, autopay }: { overdue: number; count: number; total: number; autopay: number }) {
+  const late = overdue > 0;
+  const bg = late ? T.dangerBg : T.householdBg;
+  const ink = late ? T.danger : T.householdInk;
+  const detail = count === 0
+    ? "You're all caught up."
+    : `${count} bill${count === 1 ? "" : "s"} coming up${autopay ? ` · ${autopay} on autopay` : ""}`;
   return (
-    <div style={{ background: tone.bg, border: tone.border, borderRadius: 24, padding: "20px", marginBottom: 14 }}>
-      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: tone.eyebrow, margin: "0 0 6px" }}>THIS WEEK</p>
-      <p style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color: tone.title, margin: "0 0 4px" }}>{title}</p>
-      <p style={{ fontFamily: F.sans, fontSize: 13, color: tone.sub, margin: 0 }}>{sub}</p>
-    </div>
+    <section aria-label="This week" style={{ background: bg, borderRadius: 22, padding: S.xl, marginBottom: S.md }}>
+      <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: ink, margin: 0 }}>
+        {late ? `${overdue} bill${overdue === 1 ? " is" : "s are"} overdue` : "Due in the next 7 days"}
+      </p>
+      <p style={{ fontFamily: F.sans, fontSize: 36, fontWeight: 800, letterSpacing: "-0.03em", color: T.text, margin: "4px 0 2px", fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>
+        {count === 0 ? "Nothing due" : total > 0 ? formatMoney(total) : `${count} bill${count === 1 ? "" : "s"}`}
+      </p>
+      <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text, opacity: 0.8, margin: 0 }}>
+        {late ? "Tap Mark as paid once it's sorted." : detail}
+      </p>
+    </section>
   );
 }
 
-function AddTile({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 6px", cursor: "pointer", minHeight: 64, touchAction: "manipulation" }}>
-      <div style={{ fontSize: 20, marginBottom: 2 }} aria-hidden>{icon}</div>
-      <div style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 600, color: T.bark }}>{label}</div>
-    </button>
-  );
-}
-
-function BillRow({ bill, now, paying, highlight, payAmount, setPayAmount, onOpen, onPay, onConfirm, onCancelPay }: {
-  bill: Bill; now: Date; paying: boolean; highlight?: boolean; payAmount: string; setPayAmount: (v: string) => void;
+function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount, onOpen, onPay, onConfirm, onCancelPay }: {
+  bill: Bill; now: Date; first: boolean; paying: boolean; highlight?: boolean; payAmount: string; setPayAmount: (v: string) => void;
   onOpen: () => void; onPay: () => void; onConfirm: (withAmount: boolean) => void; onCancelPay: () => void;
 }) {
   const group = groupOf(bill, now);
   const { amount, estimate } = displayAmount(bill);
   const label = dueLabel(bill, now);
-  const urgent = group === "overdue" || (daysUntilDue(bill, now) ?? 99) <= 1;
+  const soon = group === "overdue" || group === "week";
   const canPay = group !== "nodate" && group !== "done";
 
+  // Status in words. Autopay is "scheduled", never "paid", until it runs.
+  const chip = group === "overdue" ? <StatusChip status="overdue">Overdue</StatusChip>
+    : group === "nodate" ? <StatusChip status="neutral">No date</StatusChip>
+    : bill.autopay ? <StatusChip status="autopay">{soon ? "Autopay scheduled" : "Autopay"}</StatusChip>
+    : soon ? <StatusChip status="unpaid">Unpaid</StatusChip>
+    : null;
+
   return (
-    <div id={`bill-${bill.id}`} style={{ background: "#fff", border: `1px solid ${group === "overdue" ? `${T.red}55` : T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 8, boxShadow: highlight ? `0 0 0 2px ${T.esp}` : "none", transition: "box-shadow .4s ease" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={onOpen} aria-label={`Edit ${bill.name}`}
-          style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-          <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.esp, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bill.name}</p>
-          <p style={{ fontFamily: F.sans, fontSize: 12.5, color: urgent ? T.red : T.taupe, margin: 0 }}>
-            {label}{amount ? ` · ${estimate ? "about " : ""}${formatMoney(amount)}` : ""}
-          </p>
-        </button>
-        {bill.autopay && canPay ? (
-          <span style={{ fontFamily: F.sans, fontSize: 11.5, fontWeight: 700, color: T.sage, background: T.sageP, borderRadius: 10, padding: "6px 10px" }}>Autopay</span>
-        ) : canPay && !paying ? (
-          <button onClick={onPay}
-            style={{ background: urgent ? T.esp : T.sand, color: urgent ? "#fff" : T.esp, border: "none", borderRadius: 12, padding: "10px 16px", fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation" }}>
-            Paid
-          </button>
-        ) : group === "nodate" ? (
-          <button onClick={onOpen}
-            style={{ background: T.sand, color: T.esp, border: "none", borderRadius: 12, padding: "10px 14px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>
-            Add date
-          </button>
-        ) : null}
-      </div>
+    <div id={`bill-${bill.id}`} style={{ borderRadius: 12, boxShadow: highlight ? `0 0 0 2px ${T.action}` : "none", transition: "box-shadow .4s ease" }}>
+      <ListRow divider={!first}
+        onClick={paying ? undefined : onOpen}
+        ariaLabel={`Edit ${bill.name}`}
+        title={bill.name}
+        detail={label}
+        trailing={
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            {amount ? <div style={amountStyle}>{estimate ? "about " : ""}{formatMoney(amount)}</div> : null}
+            {chip && <div style={{ marginTop: 4 }}>{chip}</div>}
+          </div>
+        } />
+      {canPay && !bill.autopay && !paying && (
+        <div style={{ display: "flex", justifyContent: "flex-end", margin: "-4px 0 12px" }}>
+          <Button size="sm" variant={soon ? "primary" : "secondary"} onClick={onPay} style={{ width: "auto" }} ariaLabel={`Mark ${bill.name} as paid`}>Mark as paid</Button>
+        </div>
+      )}
+      {group === "nodate" && (
+        <div style={{ display: "flex", justifyContent: "flex-end", margin: "-4px 0 12px" }}>
+          <Button size="sm" variant="gentle" onClick={onOpen} style={{ width: "auto" }}>Add a due date</Button>
+        </div>
+      )}
 
       {paying && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.linen}` }}>
-          <label style={{ display: "block", fontFamily: F.sans, fontSize: 12.5, color: T.bark, margin: "0 0 6px" }}>How much was it? (optional)</label>
-          <input value={payAmount} onChange={e => setPayAmount(e.target.value)} type="number" inputMode="decimal" placeholder="Amount" autoFocus
-            style={{ ...inputStyle, marginBottom: 8 }} />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => onConfirm(true)}
-              style={{ flex: 2, background: T.esp, color: "#fff", border: "none", borderRadius: 12, padding: "11px", fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 44 }}>
-              Mark paid
-            </button>
-            <button onClick={() => onConfirm(false)}
-              style={{ flex: 1, background: T.sand, color: T.bark, border: "none", borderRadius: 12, padding: "11px", fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>
-              Skip amount
-            </button>
-            <button onClick={onCancelPay} aria-label="Cancel"
-              style={{ background: "none", color: T.taupe, border: "none", padding: "0 6px", fontSize: 18, cursor: "pointer", minHeight: 44 }}>
-              ✕
-            </button>
+        <div style={{ padding: `0 0 ${S.md}px` }}>
+          <label htmlFor={`pay-${bill.id}`} style={{ display: "block", fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>How much was it? (optional)</label>
+          <input id={`pay-${bill.id}`} value={payAmount} onChange={e => setPayAmount(e.target.value)} type="number" inputMode="decimal" placeholder="Amount" autoFocus
+            style={{ ...inputStyle, marginBottom: S.sm }} />
+          <div style={{ display: "flex", gap: S.sm }}>
+            <Button size="sm" onClick={() => onConfirm(true)} style={{ flex: 2 }}>Mark as paid</Button>
+            <Button size="sm" variant="secondary" onClick={() => onConfirm(false)} style={{ flex: 1.3 }}>Skip amount</Button>
+            <Button size="sm" variant="ghost" onClick={onCancelPay} ariaLabel="Cancel" style={{ width: 44, padding: 0, border: "none" }}>✕</Button>
           </div>
         </div>
       )}

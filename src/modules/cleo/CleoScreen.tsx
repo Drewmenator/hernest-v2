@@ -399,15 +399,15 @@ export function CleoScreen() {
 
       {/* Header */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
-        <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
+        <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
         <div>
           <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Cleo</p>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>
+          <p style={{ fontFamily:F.sans, fontSize: 12, color:T.sage, margin:0 }}>
             ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
           </p>
         </div>
         <button onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
-          style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
+          style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize: 12, color:T.taupe, cursor:"pointer", minHeight:32 }}>
           New chat
         </button>
       </div>
@@ -421,7 +421,7 @@ export function CleoScreen() {
             )}
             <div style={{ maxWidth:"82%", display:"flex", flexDirection:"column", gap:4 }}>
               <div style={{
-                background: m.role==="user" ? `linear-gradient(135deg,${T.esp},#4a3020)` : m.type==="crisis" ? `${T.blush}15` : "#fff",
+                background: m.role==="user" ? `linear-gradient(135deg,${T.esp},#2B4A6E)` : m.type==="crisis" ? `${T.blush}15` : "#fff",
                 borderRadius: m.role==="user" ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
                 padding: "12px 16px",
                 border: m.role==="assistant" ? `1px solid ${m.type==="crisis"?T.blush:T.linen}` : "none",
@@ -445,7 +445,7 @@ export function CleoScreen() {
 
               {m.type==="task-suggestion" && m.tasks && pendingTasks.length>0 && i===msgs.length-1 && (
                 <div style={{ background:`${T.gold}10`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"12px 14px" }}>
-                  <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.gold, margin:"0 0 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Add to Plan?</p>
+                  <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:T.gold, margin:"0 0 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Add to Plan?</p>
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={confirmTasks} style={{ flex:1, padding:"8px", background:T.gold, color:"#fff", border:"none", borderRadius:10, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>✓ Yes, add {pendingTasks.length > 1 ? "all" : "it"}</button>
                     <button onClick={dismissTasks} style={{ flex:1, padding:"8px", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, fontFamily:F.sans, fontSize:12, color:T.taupe, cursor:"pointer", minHeight:36 }}>Not now</button>
@@ -471,7 +471,7 @@ export function CleoScreen() {
 
         {msgs.length === 1 && !loading && (
           <div style={{ marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", textAlign:"center" }}>Quick start</p>
+            <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 8px", textAlign:"center" }}>Quick start</p>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
               {QUICK_REPLIES.map(q=>(
                 <button key={q} onClick={()=>send(q)} style={{ padding:"8px 14px", borderRadius:20, border:`1px solid ${T.linen}`, background:T.ivory, fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
@@ -498,11 +498,11 @@ export function CleoScreen() {
           <button onClick={startVoice} disabled={loading} style={{ width:48, height:48, borderRadius:16, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:20, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
             {recording?"⏹":"🎤"}
           </button>
-          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:48, height:48, borderRadius:16, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:18, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
+          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:48, height:48, borderRadius:16, background:input.trim()?`linear-gradient(135deg,${T.esp},#2B4A6E)`:T.linen, border:"none", color:"#fff", fontSize:18, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
             {loading?<Spinner size={16} color="#fff"/>:"→"}
           </button>
         </div>
-        <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, textAlign:"center", margin:"6px 0 0" }}>Enter to send · Shift+Enter for new line</p>
+        <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, textAlign:"center", margin:"6px 0 0" }}>Enter to send · Shift+Enter for new line</p>
       </div>
     </div>
   );

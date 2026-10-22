@@ -73,7 +73,7 @@ function scoreTask(t: Task, energyPattern: string): number {
 }
 
 const OWNERSHIP_COLORS: Record<string, string> = { ask: T.gold, waiting: T.taupe, warn: T.blush, ok: T.sage, done: T.sage };
-const smallBtn = (bg: string, fg: string, border = bg): React.CSSProperties => ({ background: bg, color: fg, border: `1.5px solid ${border}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, fontWeight: 700, cursor: "pointer", minHeight: 30, flexShrink: 0 });
+const smallBtn = (bg: string, fg: string, border = bg): React.CSSProperties => ({ background: bg, color: fg, border: `1.5px solid ${border}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 30, flexShrink: 0 });
 
 export function PlanScreen() {
   const { user, profile } = useStore();
@@ -353,7 +353,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       {unconfirmedCount > 0 && (
         <div style={{ background:`${T.gold}15`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.gold, margin:0 }}>{unconfirmedCount} task{unconfirmedCount>1?"s":""} from Cleo need your confirmation</p>
-          <button onClick={()=>setFilter("unconfirmed")} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"4px 10px", fontFamily:F.sans, fontSize:11, cursor:"pointer", minHeight:28 }}>Review</button>
+          <button onClick={()=>setFilter("unconfirmed")} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"4px 10px", fontFamily:F.sans, fontSize: 12, cursor:"pointer", minHeight:28 }}>Review</button>
         </div>
       )}
 
@@ -403,7 +403,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
           {/* Category + date row */}
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
             {CATS.map(c=>(
-              <button key={c} onClick={()=>setCat(c)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${cat===c?T.gold:T.linen}`, background:cat===c?T.goldP:"#fff", color:cat===c?T.gold:T.bark, fontFamily:F.sans, fontSize:11, fontWeight:cat===c?700:400, cursor:"pointer" }}>
+              <button key={c} onClick={()=>setCat(c)} style={{ padding:"6px 12px", borderRadius:20, border:`1.5px solid ${cat===c?T.gold:T.linen}`, background:cat===c?T.goldP:"#fff", color:cat===c?T.gold:T.bark, fontFamily:F.sans, fontSize: 12, fontWeight:cat===c?700:400, cursor:"pointer" }}>
                 {c}
               </button>
             ))}
@@ -411,13 +411,13 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
           </div>
           {/* Who does it: another adult is asked first; kids and "Everyone" make a family chore */}
           {who.startsWith("uid:") && (
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"8px 0 0" }}>They'll be asked to accept or decline. It shows as waiting until they say yes.</p>
+            <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0" }}>They'll be asked to accept or decline. It shows as waiting until they say yes.</p>
           )}
           {whoOptions.length > 1 && (
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginTop:10 }}>
-              <span style={{ fontFamily:F.sans, fontSize:11, color:T.taupe }}>Who:</span>
+              <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}>Who:</span>
               {whoOptions.map(o=>(
-                <button key={o.value||"me"} onClick={()=>setWho(o.value)} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${who===o.value?T.sky:T.linen}`, background:who===o.value?`${T.sky}15`:"#fff", color:who===o.value?T.sky:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>
+                <button key={o.value||"me"} onClick={()=>setWho(o.value)} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${who===o.value?T.sky:T.linen}`, background:who===o.value?`${T.sky}15`:"#fff", color:who===o.value?T.sky:T.bark, fontFamily:F.sans, fontSize: 12, cursor:"pointer" }}>
                   {o.label}
                 </button>
               ))}
@@ -442,16 +442,16 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
             <div style={{ flex:1 }}>
               <p style={{ fontFamily:F.sans, fontSize:13, color:t.status==="completed"?T.taupe:T.esp, margin:0, textDecoration:t.status==="completed"?"line-through":"none" }}>{t.title}</p>
               <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap", alignItems:"center" }}>
-                <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:t.priority==="must"?T.esp:T.sage, padding:"2px 8px", borderRadius:10, background:t.priority==="must"?`${T.esp}10`:`${T.sage}10` }}>{t.priority==="must"?"✦ must":t.priority==="nice"?"◦ nice":t.priority}</span>
-                {t.who || (t.assigneeUid && t.assigneeUid !== uid) ? <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:T.sky }}>→ {t.who || t.assigneeName}</span> : <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>{t.category}</span>}
-                {own && <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:OWNERSHIP_COLORS[own.tone], padding:"2px 8px", borderRadius:10, background:`${OWNERSHIP_COLORS[own.tone]}15` }}>{own.label}</span>}
-                {t.dueDate && <span style={{ fontFamily:F.sans, fontSize:10, color:t.dueDate<today?T.taupe:T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?`was due ${fmtDate(t.dueDate)}`:`due ${fmtDate(t.dueDate)}`}</span>}
-                {t.source!=="manual" && t.source!=="chore" && <span style={{ fontFamily:F.sans, fontSize:10, color:T.gold }}>✦ {t.source}</span>}
+                <span style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:t.priority==="must"?T.esp:T.sage, padding:"2px 8px", borderRadius:10, background:t.priority==="must"?`${T.esp}10`:`${T.sage}10` }}>{t.priority==="must"?"✦ must":t.priority==="nice"?"◦ nice":t.priority}</span>
+                {t.who || (t.assigneeUid && t.assigneeUid !== uid) ? <span style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:T.sky }}>→ {t.who || t.assigneeName}</span> : <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}>{t.category}</span>}
+                {own && <span style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:OWNERSHIP_COLORS[own.tone], padding:"2px 8px", borderRadius:10, background:`${OWNERSHIP_COLORS[own.tone]}15` }}>{own.label}</span>}
+                {t.dueDate && <span style={{ fontFamily:F.sans, fontSize: 12, color:t.dueDate<today?T.taupe:T.taupe, fontWeight:t.dueDate<today?700:400 }}>{t.dueDate<today?`was due ${fmtDate(t.dueDate)}`:`due ${fmtDate(t.dueDate)}`}</span>}
+                {t.source!=="manual" && t.source!=="chore" && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.gold }}>✦ {t.source}</span>}
               </div>
             </div>
             {/* Confirm button for unconfirmed tasks per blueprint */}
             {!t.userConfirmed && (
-              <button onClick={()=>confirmTask(t.id)} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"5px 10px", fontFamily:F.sans, fontSize:11, cursor:"pointer", flexShrink:0, minHeight:30 }}>Confirm</button>
+              <button onClick={()=>confirmTask(t.id)} style={{ background:T.gold, color:"#fff", border:"none", borderRadius:8, padding:"5px 10px", fontFamily:F.sans, fontSize: 12, cursor:"pointer", flexShrink:0, minHeight:30 }}>Confirm</button>
             )}
             {own?.needsMyAnswer && (
               <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
@@ -484,7 +484,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
       {/* ── SCHOOL TAB ─────────────────────────────────────────────── */}
       {tab==="school" && <>
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>PASTE NEWSLETTER TEXT</p>
+          <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>PASTE NEWSLETTER TEXT</p>
           <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
           <Button onClick={extractFromNewsletter} disabled={!newsletterText.trim()||extracting} variant="gold">
             {extracting?"✦ Cleo is reading...":"✦ Extract Events & Actions"}
@@ -494,7 +494,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
         {schoolEvents.length>0 && (
           <Card>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>SCHOOL EVENTS ({schoolEvents.length})</p>
+              <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>SCHOOL EVENTS ({schoolEvents.length})</p>
               <AIBadge label="Extracted by Cleo"/>
             </div>
             {schoolEvents.map(e=>{
@@ -504,17 +504,17 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
                     <div style={{ flex:1 }}>
                       <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{e.title}</p>
-                      <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>
+                      <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"2px 0 0" }}>
                         {new Date((e.date||"").includes("T")?e.date:(e.date||"")+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
                         {e.child?` · ${e.child}`:""}
                         {e.type && <span style={{ color:typeColors[e.type]||T.taupe }}> · {e.type}</span>}
                       </p>
                       {e.actionDeadline && e.actionDeadline!==e.date && (
-                        <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>Needs action by {fmtDate(e.actionDeadline)}</p>
+                        <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"2px 0 0" }}>Needs action by {fmtDate(e.actionDeadline)}</p>
                       )}
                     </div>
                     {e.requiresAction && (
-                      <span style={{ background:`${T.blush}20`, color:T.blush, fontFamily:F.sans, fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>
+                      <span style={{ background:`${T.blush}20`, color:T.blush, fontFamily:F.sans, fontSize: 12, fontWeight:700, padding:"3px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>
                         {e.actionType||"action"}
                       </span>
                     )}
@@ -544,7 +544,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
               <Card key={i}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <p style={{ fontFamily:F.sans, fontSize:12, fontWeight:700, color:isToday?T.gold:T.taupe, margin:0, textTransform:"uppercase", letterSpacing:"0.08em" }}>{day.dayName}{isToday?" · TODAY":""}</p>
-                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize:10, color:T.taupe }}>⏱ {day.prepTime}min</span>}
+                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}>⏱ {day.prepTime}min</span>}
                 </div>
                 {[
                   { label:"B", meal:day.breakfast, color:T.gold },
@@ -553,11 +553,11 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                   { label:"S", meal:day.snack,     color:T.taupe },
                 ].filter(m=>m.meal).map(m=>(
                   <div key={m.label} style={{ display:"flex", gap:10, padding:"4px 0" }}>
-                    <span style={{ fontFamily:F.sans, fontSize:10, fontWeight:700, color:m.color, width:14, flexShrink:0 }}>{m.label}</span>
+                    <span style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:m.color, width:14, flexShrink:0 }}>{m.label}</span>
                     <span style={{ fontFamily:F.sans, fontSize:13, color:T.esp }}>{m.meal}</span>
                   </div>
                 ))}
-                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>💡 {day.prepNotes}</p>}
+                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>💡 {day.prepNotes}</p>}
               </Card>
             );
           })}
@@ -575,7 +575,7 @@ Consider: easier meals on busy weekdays, more elaborate on weekends.`;
                 const catLabels = { produce:"🥦 Produce", protein:"🥩 Protein", pantry:"🥫 Pantry", dairy:"🥛 Dairy", frozen:"🧊 Frozen", other:"📦 Other" };
                 return (
                   <div key={cat} style={{ marginBottom:12 }}>
-                    <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.taupe, margin:"0 0 6px", textTransform:"uppercase", letterSpacing:"0.08em" }}>{catLabels[cat]}</p>
+                    <p style={{ fontFamily:F.sans, fontSize: 12, fontWeight:700, color:T.taupe, margin:"0 0 6px", textTransform:"uppercase", letterSpacing:"0.08em" }}>{catLabels[cat]}</p>
                     {items.map((item,idx)=>{
                       const globalIdx = mealPlan.shoppingList.indexOf(item);
                       return (

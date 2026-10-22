@@ -35,7 +35,7 @@ export function TripDetailTabs({
         <>
           {/* Readiness breakdown */}
           <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRIP READINESS</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRIP READINESS</p>
             {[
               { label: "Documents",  value: readiness.documents, icon: "◎" },
               { label: "Budget set", value: readiness.budget,    icon: "💰" },
@@ -55,13 +55,13 @@ export function TripDetailTabs({
 
           {/* Travellers */}
           <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRAVELLERS</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRAVELLERS</p>
             {trip.travellers.map((t, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${T.linen}` }}>
                 <span style={{ fontSize: 20 }}>{t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"}</span>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{t.name}</p>
-                  <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0, textTransform: "capitalize" }}>{t.role || t.type} · {t.age}y</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, textTransform: "capitalize" }}>{t.role || t.type} · {t.age}y</p>
                 </div>
               </div>
             ))}
@@ -69,7 +69,7 @@ export function TripDetailTabs({
 
           {/* Documents */}
           <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>DOCUMENTS</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>DOCUMENTS</p>
             {trip.documents.map((doc, i) => {
               const statusColor = { needed: T.blush, ready: T.sage, expired: "#dc2626" }[doc.status];
               return (
@@ -82,13 +82,13 @@ export function TripDetailTabs({
                       {doc.type}{doc.traveller ? ` — ${doc.traveller}` : ""}
                     </p>
                   </div>
-                  <span style={{ background: `${statusColor}20`, color: statusColor, fontFamily: F.sans, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, textTransform: "capitalize" }}>
+                  <span style={{ background: `${statusColor}20`, color: statusColor, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, textTransform: "capitalize" }}>
                     {doc.status}
                   </span>
                 </div>
               );
             })}
-            <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "8px 0 0", textAlign: "center" }}>Tap to update status</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "8px 0 0", textAlign: "center" }}>Tap to update status</p>
           </Card>
 
           {/* Generate buttons */}
@@ -114,10 +114,10 @@ export function TripDetailTabs({
             <Card key={i}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 2px" }}>DAY {day.day}</p>
-                  <p style={{ fontFamily: F.serif, fontSize: 16, fontStyle: "italic", color: T.esp, margin: 0 }}>{day.theme}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 2px" }}>DAY {day.day}</p>
+                  <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: T.esp, margin: 0 }}>{day.theme}</p>
                 </div>
-                <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe }}>{day.date}</span>
+                <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{day.date}</span>
               </div>
               {[
                 { label: "Morning",   value: day.morning,   icon: "☀" },
@@ -127,19 +127,19 @@ export function TripDetailTabs({
                 <div key={slot.label} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.linen}` }}>
                   <span style={{ fontSize: 14, width: 20, flexShrink: 0 }}>{slot.icon}</span>
                   <div>
-                    <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{slot.label}</p>
+                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{slot.label}</p>
                     <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.5 }}>{slot.value}</p>
                   </div>
                 </div>
               ))}
               {day.mumMoment && (
                 <div style={{ marginTop: 10, padding: "10px 12px", background: `${T.gold}10`, borderRadius: 10, borderLeft: `3px solid ${T.gold}` }}>
-                  <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.gold, margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.08em" }}>✦ MUM MOMENT</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.gold, margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.08em" }}>✦ MUM MOMENT</p>
                   <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0, lineHeight: 1.5 }}>{day.mumMoment}</p>
                 </div>
               )}
               {day.tip && (
-                <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "10px 0 0", fontStyle: "italic" }}>💡 {day.tip}</p>
+                <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "10px 0 0", fontStyle: "italic" }}>💡 {day.tip}</p>
               )}
             </Card>
           )) : (
@@ -169,7 +169,7 @@ export function TripDetailTabs({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <AIBadge label="Packed by Cleo" />
                 <button onClick={() => generatePackingList(trip)} disabled={packingLoading}
-                  style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer" }}>
+                  style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 10, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer" }}>
                   {packingLoading ? "..." : "↻ Redo"}
                 </button>
               </div>
@@ -178,10 +178,10 @@ export function TripDetailTabs({
                 return (
                   <Card key={si}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: 0 }}>
+                      <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: 0 }}>
                         {sec.name}
                       </p>
-                      <span style={{ fontFamily: F.sans, fontSize: 11, color: T.gold }}>{secChecked}/{sec.items.length}</span>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, color: T.gold }}>{secChecked}/{sec.items.length}</span>
                     </div>
                     <ProgressBar value={secChecked} max={sec.items.length} color={T.gold} height={4} />
                     <div style={{ marginTop: 10 }}>
@@ -195,7 +195,7 @@ export function TripDetailTabs({
                           <p style={{ fontFamily: F.sans, fontSize: 13, color: item.checked ? T.taupe : T.esp, margin: 0, flex: 1, textDecoration: item.checked ? "line-through" : "none" }}>
                             {item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}
                           </p>
-                          {item.essential && !item.checked && <span style={{ fontFamily: F.sans, fontSize: 9, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em" }}>essential</span>}
+                          {item.essential && !item.checked && <span style={{ fontFamily: F.sans, fontSize: 12, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em" }}>essential</span>}
                           {item.weatherDependent && <span style={{ fontSize: 12 }}>🌤</span>}
                         </div>
                       ))}
@@ -220,7 +220,7 @@ export function TripDetailTabs({
       ══════════════════════════════════════════════════════════════ */}
       {detailTab === "checklist" && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 4px" }}>PRE-DEPARTURE</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 4px" }}>PRE-DEPARTURE</p>
           <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 16px" }}>{completedTasks} of {trip.preDeparture.length} complete</p>
           <ProgressBar value={completedTasks} max={trip.preDeparture.length} color={T.sage} height={6} />
           <div style={{ marginTop: 16 }}>
@@ -233,7 +233,7 @@ export function TripDetailTabs({
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontFamily: F.sans, fontSize: 13, color: task.completed ? T.taupe : T.esp, margin: "0 0 2px", textDecoration: task.completed ? "line-through" : "none" }}>{task.task}</p>
-                  <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: 0 }}>{CATEGORY_ICONS[task.category]} {task.deadline}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>{CATEGORY_ICONS[task.category]} {task.deadline}</p>
                 </div>
               </div>
             ))}
@@ -247,9 +247,9 @@ export function TripDetailTabs({
       {detailTab === "budget" && (
         <>
           <Card>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRIP BUDGET</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>TRIP BUDGET</p>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 16 }}>
-              <span style={{ fontFamily: F.serif, fontSize: 34, fontWeight: 700, color: T.esp }}>{trip.budget.currency}{trip.budget.total.toLocaleString()}</span>
+              <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 34, fontWeight: 700, color: T.esp }}>{trip.budget.currency}{trip.budget.total.toLocaleString()}</span>
               <span style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe }}>total</span>
             </div>
             {Object.entries(trip.budget.breakdown).map(([key, val]) => {
@@ -273,25 +273,25 @@ export function TripDetailTabs({
       ══════════════════════════════════════════════════════════════ */}
       {detailTab === "edit" && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 16px" }}>EDIT TRIP</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 16px" }}>EDIT TRIP</p>
           <input defaultValue={trip.destination}
             onBlur={async e => { const updated = { ...trip, destination: e.target.value }; const all = trips.map(t => t.id === updated.id ? updated : t); await persist(all); setActiveTrip(normTrip(updated)); }}
             style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" as any }} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Departure</p>
               <input type="date" defaultValue={trip.departureDate}
                 onBlur={async e => { const updated = { ...trip, departureDate: e.target.value }; const all = trips.map(t => t.id === updated.id ? updated : t); await persist(all); setActiveTrip(normTrip(updated)); }}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", boxSizing: "border-box" as any }} />
             </div>
             <div>
-              <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
+              <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Return</p>
               <input type="date" defaultValue={trip.returnDate}
                 onBlur={async e => { const updated = { ...trip, returnDate: e.target.value }; const all = trips.map(t => t.id === updated.id ? updated : t); await persist(all); setActiveTrip(normTrip(updated)); }}
                 style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "10px 12px", fontFamily: F.sans, fontSize: 14, color: T.esp, outline: "none", boxSizing: "border-box" as any }} />
             </div>
           </div>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Budget</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.taupe, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Budget</p>
           <input type="number" defaultValue={trip.budget.total}
             onBlur={async e => { const total = parseFloat(e.target.value) || 0; const updated = { ...trip, budget: { ...trip.budget, total, breakdown: estimateBudgetBreakdown(total) } }; const all = trips.map(t => t.id === updated.id ? updated : t); await persist(all); setActiveTrip(normTrip(updated)); }}
             style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16, boxSizing: "border-box" as any }} />

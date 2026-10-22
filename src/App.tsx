@@ -107,6 +107,17 @@ const globalStyles = `
   }
   .scroll-x::-webkit-scrollbar { display: none; }
 
+  /* Loading placeholders (Skeleton) */
+  .hn-skeleton {
+    background: linear-gradient(90deg, #ECE5D6 0%, #F6F1E6 50%, #ECE5D6 100%);
+    background-size: 200% 100%;
+    animation: hnShimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes hnShimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+
+  /* Press feedback on buttons, instant on touch-down */
+  button:active:not(:disabled) { transform: scale(0.98); }
+
   /* Animations */
   @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
   @keyframes spin { to { transform:rotate(360deg) } }
@@ -267,10 +278,10 @@ export default function App() {
 
   if (screen === "loading") {
     return (
-      <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.esp }}>
+      <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 40, color: T.gold, fontWeight: 400 }}>HerNest</h1>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 8 }}>Loading...</p>
+          <h1 style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 40, color: T.text, fontWeight: 800 }}>HerNest</h1>
+          <p style={{ fontFamily: F.sans, fontSize: 14, color: T.text2, marginTop: 8 }}>Loading…</p>
         </div>
       </div>
     );
@@ -327,19 +338,19 @@ export default function App() {
       <style>{globalStyles}</style>
       <BrowserRouter>
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          <div style={{ padding: "16px 16px calc(160px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
+          <div style={{ padding: "16px 20px calc(120px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
             {backTo && (
               <button onClick={() => setActiveTab(backTo)} style={{ background: "none", border: "none", padding: "4px 0", marginBottom: 4, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 44 }}>
                 ‹ {TAB_LABEL[backTo] || "Back"}
               </button>
             )}
-            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #C9A96130",borderTop:"2px solid #C9A961",animation:"spin 0.8s linear infinite"}}/></div>}>
+            <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #5E4A8C30",borderTop:"2px solid #5E4A8C",animation:"spin 0.8s linear infinite"}}/></div>}>
               {renderScreen()}
             </React.Suspense>
           </div>
           <TabBar />
           <CrisisSheet />
-          <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
+          <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
         </div>
       </BrowserRouter>
     </ErrorBoundary>

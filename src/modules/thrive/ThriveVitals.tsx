@@ -38,9 +38,9 @@ function Sparkline({ points, color }: { points: (number | null)[]; color: string
 function Tile({ label, value, sub, color = T.esp }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div style={{ flex: 1, background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
-      <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{value}</p>
       <p style={{ fontFamily: F.sans, fontSize: 8.5, color: T.taupe, margin: "5px 0 0", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</p>
-      {sub && <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: "1px 0 0" }}>{sub}</p>}
+      {sub && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" }}>{sub}</p>}
     </div>
   );
 }
@@ -58,12 +58,12 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
       {/* Readiness hero */}
       <button onClick={onToggle} aria-label="Readiness detail" style={{ width: "100%", textAlign: "left", background: `linear-gradient(135deg,${r.color}14,${T.ivory})`, border: `1.5px solid ${r.color}40`, borderRadius: 20, padding: "18px 20px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 16, touchAction: "manipulation" }}>
         <div style={{ width: 68, height: 68, borderRadius: "50%", border: `5px solid ${r.color}`, borderBottomColor: `${r.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, color: T.esp }}>{w.readiness ?? "—"}</span>
+          <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 26, fontWeight: 700, color: T.esp }}>{w.readiness ?? "—"}</span>
         </div>
         <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "0 0 3px" }}>Readiness today</p>
-          <p style={{ fontFamily: F.serif, fontSize: 21, fontStyle: "italic", color: r.color, margin: "0 0 2px" }}>{r.word}</p>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: 0 }}>Tap for what's driving it {expanded ? "▲" : "▾"}</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "0 0 3px" }}>Readiness today</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 21, color: r.color, margin: "0 0 2px" }}>{r.word}</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>Tap for what's driving it {expanded ? "▲" : "▾"}</p>
         </div>
       </button>
 
@@ -76,7 +76,7 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
           {w.readinessContributors && Object.entries(w.readinessContributors).filter(([, v]) => typeof v === "number").slice(0, 5).map(([k, v]) => (
             <Row key={k} label={k.replace(/_/g, " ")} value={String(v)} valueColor={(v as number) >= 80 ? T.sage : (v as number) >= 60 ? T.goldText : T.blush} />
           ))}
-          <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "8px 0 0", fontStyle: "italic" }}>From your {w.source === "oura" ? "Oura ring" : "wearable"} · updates each morning</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "8px 0 0", fontStyle: "italic" }}>From your {w.source === "oura" ? "Oura ring" : "wearable"} · updates each morning</p>
         </div>
       )}
 
@@ -95,7 +95,7 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
       {/* 7-day trends */}
       {hist.length >= 2 && (
         <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>Last 7 days</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>Last 7 days</p>
           <TrendRow label="Sleep" points={trend("sleepHours")} color={T.navy} last={w.sleepHours != null ? `${w.sleepHours}h` : "—"} />
           <TrendRow label="Readiness" points={trend("readiness")} color={T.sage} last={w.readiness != null ? String(w.readiness) : "—"} />
           <TrendRow label="HRV" points={trend("hrv")} color={T.goldText} last={w.avgHrv != null ? `${w.avgHrv}ms` : "—"} />
@@ -109,7 +109,7 @@ function Row({ label, value, valueColor = T.esp }: { label: string; value: strin
   return (
     <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.linen}` }}>
       <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textTransform: "capitalize" }}>{label}</span>
-      <span style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: valueColor }}>{value}</span>
+      <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 14, fontWeight: 700, color: valueColor }}>{value}</span>
     </div>
   );
 }
@@ -117,9 +117,9 @@ function Row({ label, value, valueColor = T.esp }: { label: string; value: strin
 function TrendRow({ label, points, color, last }: { label: string; points: (number | null)[]; color: string; last: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-      <span style={{ fontFamily: F.sans, fontSize: 11, color: T.esp, width: 66, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, width: 66, flexShrink: 0 }}>{label}</span>
       <div style={{ flex: 1 }}><Sparkline points={points} color={color} /></div>
-      <span style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: T.esp, width: 44, textAlign: "right", flexShrink: 0 }}>{last}</span>
+      <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 14, fontWeight: 700, color: T.esp, width: 44, textAlign: "right", flexShrink: 0 }}>{last}</span>
     </div>
   );
 }

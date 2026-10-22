@@ -36,7 +36,7 @@ async function fetchWearable(uid: string): Promise<{ wearable: WearableDay | nul
   }
 }
 
-const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
+const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
 const chip = (on: boolean): React.CSSProperties => ({
   padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
@@ -214,9 +214,9 @@ export function ThriveScreen() {
       <PageTitle eyebrow="JUST FOR YOU" title="Wellness" />
 
       {/* 1. Check-in */}
-      <div style={{ background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 24, padding: "20px 18px", marginBottom: 12 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>CHECK-IN</p>
-        <p style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: "rgba(255,255,255,0.92)", margin: "0 0 14px", lineHeight: 1.55 }}>
+      <div style={{ background: `linear-gradient(135deg,${T.esp},#2B4A6E)`, borderRadius: 24, padding: "20px 18px", marginBottom: 12 }}>
+        <p style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>CHECK-IN</p>
+        <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 16, color: "rgba(255,255,255,0.92)", margin: "0 0 14px", lineHeight: 1.55 }}>
           {checkinText || "How are you feeling today?"}
         </p>
 
@@ -239,7 +239,7 @@ export function ThriveScreen() {
               <button key={m.id} onClick={() => logMood({ face: m.id })} aria-label={`Feeling ${m.label}`} aria-pressed={on}
                 style={{ flex: 1, padding: "10px 6px", borderRadius: 14, border: `1.5px solid ${on ? T.gold : "rgba(255,255,255,0.22)"}`, background: on ? "rgba(201,169,97,0.22)" : "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minHeight: 56, touchAction: "manipulation" }}>
                 <span style={{ fontSize: 22 }}>{m.emoji}</span>
-                <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 600, color: "#fff" }}>{m.label}</span>
+                <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: "#fff" }}>{m.label}</span>
               </button>
             );
           })}
@@ -256,7 +256,7 @@ export function ThriveScreen() {
             );
           })}
         </div>
-        {(face || energy) && <p style={{ fontFamily: F.sans, fontSize: 11, color: T.gold, margin: "10px 0 0" }}>Saved for today ✦ tap to change</p>}
+        {(face || energy) && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.gold, margin: "10px 0 0" }}>Saved for today ✦ tap to change</p>}
       </div>
 
       {wearable?.source === "oura" && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
@@ -291,7 +291,7 @@ export function ThriveScreen() {
                     border: d.state === "moved" ? `2px solid ${T.sage}` : d.state === "today" ? `2px solid ${T.esp}` : `2px ${d.state === "future" ? "dashed" : "solid"} ${T.linen}`,
                     display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13,
                   }}>{d.state === "moved" ? "✓" : ""}</div>
-                  <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: d.date === today ? 700 : 500, color: d.date === today ? T.esp : T.taupe }}>{d.letter}</span>
+                  <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: d.date === today ? 700 : 500, color: d.date === today ? T.esp : T.taupe }}>{d.letter}</span>
                 </div>
               ))}
             </div>
@@ -303,7 +303,7 @@ export function ThriveScreen() {
                 </button>
               )}
             </div>
-            <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "8px 0 0" }}>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "8px 0 0" }}>
               {sourceName ? `Fills in from ${sourceName}${wearable?.source === "apple_health" ? ", including workouts" : ""}.` : "Tap \"I moved today\" on days you move."}
             </p>
           </>
@@ -349,7 +349,7 @@ export function ThriveScreen() {
                 <span style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${done ? T.sage : T.linen}`, background: done ? T.sage : "#fff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{done ? "✓" : ""}</span>
                 <span style={{ fontSize: 16 }}>{h.icon}</span>
                 <span style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, flex: 1, textDecoration: done ? "line-through" : "none" }}>{h.name}</span>
-                {h.streak >= 2 && <span style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe }}>{h.streak} days</span>}
+                {h.streak >= 2 && <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{h.streak} days</span>}
               </button>
             );
           })}
@@ -364,7 +364,7 @@ export function ThriveScreen() {
         <p style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, margin: "0 0 12px", lineHeight: 1.55 }}>
           {summary || "Check in for a few days and your week will show here."}
         </p>
-        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: `linear-gradient(135deg,${T.esp},#4a2e18)`, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: `linear-gradient(135deg,${T.esp},#2B4A6E)`, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
           ✦ Ask Cleo about this
         </button>
       </Card>

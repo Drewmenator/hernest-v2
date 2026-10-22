@@ -30,7 +30,7 @@ export function MemorySuggestionCard({ suggestions, onAnswer }: Props) {
           </button>
         </div>
       ))}
-      <p style={{ fontFamily: F.sans, fontSize: 10, color: T.taupe, margin: "6px 0 0" }}>
+      <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "6px 0 0" }}>
         You can change this anytime in What Cleo knows.
       </p>
     </div>

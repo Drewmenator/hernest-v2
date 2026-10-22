@@ -40,7 +40,7 @@ const OUTFIT_SCHEMA = s.object({
   tip: s.nullable(s.string()),
 });
 
-const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
+const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
 const chip = (on: boolean): React.CSSProperties => ({
   padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
@@ -48,14 +48,14 @@ const chip = (on: boolean): React.CSSProperties => ({
 });
 const actionBtn = (primary: boolean): React.CSSProperties => ({
   flex: 1, padding: "11px 8px", borderRadius: 12, border: primary ? "none" : `1.5px solid ${T.linen}`,
-  background: primary ? `linear-gradient(135deg,${T.esp},#4a2e18)` : "#fff", color: primary ? "#fff" : T.esp,
+  background: primary ? `linear-gradient(135deg,${T.esp},#2B4A6E)` : "#fff", color: primary ? "#fff" : T.esp,
   fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
 });
 
 function OutfitView({ outfit }: { outfit: Outfit }) {
   return (
     <>
-      <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
+      <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 10px" }}>
         {outfit.pieces.map((p, i) => (
           <li key={i} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, padding: "5px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
@@ -302,7 +302,7 @@ export function StyleScreen() {
               return (
                 <div key={l.id} style={{ display: "flex", gap: 8, padding: "10px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 2px" }}>
+                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 2px" }}>
                       {v.title}{l.savedAt ? ` · ${new Date(l.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                     </p>
                     <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: 0 }}>{v.headline || "Saved look"}</p>

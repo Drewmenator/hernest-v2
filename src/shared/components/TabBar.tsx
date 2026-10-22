@@ -1,9 +1,8 @@
 // ─── HerNest V2 Tab Bar ───────────────────────────────────────────
 // Five tabs, nothing hidden in "More" (simplification plan, section 3).
 // Old tab ids still work: each screen lights up the tab it lives under.
-import React from "react";
 import { T, F } from "../../config/theme";
-import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, HeartIcon } from "./Icons";
+import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, MeIcon } from "./Icons";
 import { useStore } from "../../core/store";
 import { tabFor } from "./tabParents";
 
@@ -12,9 +11,11 @@ const TABS = [
   { id: "plan",   label: "Plan",  IC: PlanIcon },
   { id: "cleo",   label: "Cleo",  IC: CleoIcon },
   { id: "budget", label: "Bills", IC: BudgetIcon },   // "budget" id shows Bills
-  { id: "me",     label: "Me",    IC: HeartIcon },
+  { id: "me",     label: "Me",    IC: MeIcon },
 ];
 
+// Wisteria tab bar: frosted ivory, deep violet for the selected tab with a
+// filled icon, always a text label. Sits above the iPhone home indicator.
 export function TabBar() {
   const activeTab = useStore(s => s.activeTab);
   const setActiveTab = useStore(s => s.setActiveTab);
@@ -25,15 +26,14 @@ export function TabBar() {
       position: "fixed", bottom: 0, left: "50%",
       transform: "translateX(-50%)",
       width: "100%", maxWidth: 430,
-      background: "rgba(255,252,248,.97)",
-      backdropFilter: "blur(24px)",
-      WebkitBackdropFilter: "blur(24px)",
-      borderTop: `1px solid rgba(229,217,201,.8)`,
+      background: "rgba(244,238,224,.88)",
+      backdropFilter: "blur(22px) saturate(170%)",
+      WebkitBackdropFilter: "blur(22px) saturate(170%)",
+      borderTop: `1px solid ${T.divider}`,
       zIndex: 100,
-      boxShadow: "0 -4px 24px rgba(46,31,20,.06)",
-      paddingBottom: "env(safe-area-inset-bottom, 16px)",
+      paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)",
     }}>
-      <div style={{ display: "flex", padding: "8px 4px 10px" }}>
+      <div style={{ display: "flex", padding: "6px 4px 2px" }}>
         {TABS.map(t => {
           const on = current === t.id;
           return (
@@ -42,24 +42,15 @@ export function TabBar() {
               onClick={() => setActiveTab(t.id)}
               aria-current={on ? "page" : undefined}
               style={{
-                display: "flex", flexDirection: "column", alignItems: "center",
-                gap: 2, background: "none", border: "none", cursor: "pointer",
-                padding: "6px 8px", borderRadius: 14, flex: 1,
-                minHeight: 44, touchAction: "manipulation",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 3, background: "none", border: "none", cursor: "pointer",
+                padding: "4px 6px", flex: 1,
+                minHeight: 48, touchAction: "manipulation",
+                color: on ? T.action : T.text2,
               }}
             >
-              <div style={{
-                width: 4, height: 4, borderRadius: 99,
-                background: on ? T.gold : "transparent",
-                marginBottom: 1, transition: "all .2s",
-              }} />
-              <t.IC size={20} color={on ? T.gold : T.taupe} strokeWidth={on ? 1.8 : 1.3}/>
-              <span style={{
-                fontFamily: F.sans, fontSize: 10,
-                fontWeight: on ? 700 : 500,
-                color: on ? T.goldText : T.taupe,
-                letterSpacing: 0.4,
-              }}>
+              <t.IC size={25} color={on ? T.action : T.text2} filled={on} strokeWidth={1.8} />
+              <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: on ? 700 : 500, letterSpacing: 0.1 }}>
                 {t.label}
               </span>
             </button>

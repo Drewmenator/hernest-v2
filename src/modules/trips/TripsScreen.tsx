@@ -307,13 +307,13 @@ Weather: pack for typical ${trip.destination} conditions.`;
       </button>
 
       {/* ── HERO ─────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(135deg, ${T.esp}, #3D2E22)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
+      <div style={{ background: `linear-gradient(135deg, ${T.esp}, #2B4A6E)`, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
+            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
               {cfg.emoji} {cfg.label}
             </span>
-            <p style={{ fontFamily: F.serif, fontSize: 28, fontStyle: "italic", color: "#fff", margin: "8px 0 4px", fontWeight: 500 }}>{trip.destination}</p>
+            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: "#fff", margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.6)", margin: 0 }}>
               {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
@@ -341,7 +341,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           { id: "edit",      label: "✎ Edit" },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setDetailTab(t.id as any)}
-            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 11, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>
+            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>
             {t.label}
           </button>
         ))}
