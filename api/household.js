@@ -7,6 +7,7 @@
 import crypto from "crypto";
 import { adminDb, adminAuth, applyCors, verifyAuthClaims } from "./_lib/secure.js";
 import { deleteAccount } from "./_lib/accountDeletion.js";
+import { safeShareCategories } from "./_lib/shareScope.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -20,7 +21,7 @@ async function inviteSend(req, res, fromUid) {
 
   await adminDb.doc(`invites/${token}`).set({
     fromUid, fromName: fromName || "Your partner", toEmail,
-    shareCategories: shareCategories || ["tasks", "calendar", "budget"],
+    shareCategories: shareCategories ? safeShareCategories(shareCategories) : ["tasks", "calendar", "bills"],
     status: "pending", createdAt: Date.now(), expiresAt,
   });
   await adminDb.doc(`users/${fromUid}/data/partner_invite`).set({
@@ -97,7 +98,7 @@ async function inviteAccept(req, res, claims) {
 
   const { fromUid, shareCategories, fromName } = invite;
   await adminDb.doc(`users/${partnerUid}/data/household_link`).set({
-    primaryUid: fromUid, primaryName: fromName, shareCategories,
+    primaryUid: fromUid, primaryName: fromName, shareCategories: safeShareCategories(shareCategories),
     linkedAt: Date.now(), role: "partner",
   });
   await adminDb.doc(`users/${fromUid}/data/partner_invite`).update({
@@ -112,9 +113,11 @@ async function inviteAccept(req, res, claims) {
 async function partnerData(req, res, uid) {
   const linkDoc = await adminDb.doc(`users/${uid}/data/household_link`).get();
   if (!linkDoc.exists) return res.status(404).json({ error: "Not linked to a household" });
-  const { primaryUid, shareCategories } = linkDoc.data();
+  const { primaryUid } = linkDoc.data();
+  // Re-checked on every read, so an older invite can't expose private records.
+  const shareCategories = safeShareCategories(linkDoc.data().shareCategories);
   const sharedData = {};
-  await Promise.all((shareCategories || []).map(async (cat) => {
+  await Promise.all(shareCategories.map(async (cat) => {
     try {
       const doc = await adminDb.doc(`users/${primaryUid}/data/${cat}`).get();
       if (doc.exists) sharedData[cat] = doc.data();

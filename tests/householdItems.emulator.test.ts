@@ -67,11 +67,11 @@ describe("one-time migration", () => {
     expect(await isMigrated(as(ALICE), ALICE, "tasks")).toBe(true);
   });
 
-  it("migrates chores out of the family doc and bills (the partner can run the bills copy)", async () => {
-    // The old family doc is readable by the owner only (rules), so the
-    // partner's phone can't copy chores; it retries and the owner's does it.
-    await expect(migrateKind(as(BOB), ALICE, "chores", BOB)).rejects.toThrow();
-    await migrateKind(as(ALICE), ALICE, "chores", ALICE);
+  it("migrates chores out of the family doc and bills (either phone can run the copy)", async () => {
+    // The family list is household-shared (rules fixed in the privacy pass),
+    // so the partner's phone can copy chores too; the owner's later run is a no-op.
+    await migrateKind(as(BOB), ALICE, "chores", BOB);
+    expect((await migrateKind(as(ALICE), ALICE, "chores", ALICE)).migrated).toBe(false);
     await migrateKind(as(BOB), ALICE, "bills", BOB);
     expect((await readItems(as(ALICE), ALICE, "chores"))[0]).toMatchObject({ id: "c1", assignedTo: "Mia" });
     expect((await readItems(as(ALICE), ALICE, "bills"))[0]).toMatchObject({ id: "b1", name: "Rent" });

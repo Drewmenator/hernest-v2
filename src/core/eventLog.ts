@@ -6,7 +6,7 @@
 // timeline + replay. All ops are non-fatal: if persistence fails, the live
 // event fan-out is unaffected.
 
-import { collection, doc, setDoc, getDocs, query, orderBy, limit as fblimit } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, query, where, orderBy, limit as fblimit } from "firebase/firestore";
 import { db as fdb } from "./firebase";
 import { db as localDb, type LoggedEvent } from "./db";
 
@@ -17,11 +17,15 @@ export async function appendEvent(event: LoggedEvent): Promise<void> {
   } catch (e) {
     console.warn("[EventLog] local append failed (non-fatal):", e);
   }
+  // Private events never leave this device: the cloud log is readable by
+  // every household member (see effectiveVisibility in events/index.ts).
+  if (event.visibility !== "household" && event.visibility !== "partners") return;
   // Cloud mirror is fire-and-forget so the live event loop never waits on the
   // network. Requires Firestore rules allowing members to write households/{id}/events.
   setDoc(
     doc(fdb, "households", event.householdId, "events", event.id),
-    event as unknown as Record<string, unknown>,
+    // `shared: true` is what the read rule and pullCloudEvents' query check.
+    { ...event, shared: true } as unknown as Record<string, unknown>,
   ).catch((e) => console.warn("[EventLog] cloud mirror failed (non-fatal):", e));
 }
 
@@ -55,6 +59,8 @@ export async function pullCloudEvents(householdId: string, max = 200): Promise<n
     const snap = await getDocs(
       query(
         collection(fdb, "households", householdId, "events"),
+        // Only shared events: the rules hide everything else from this query.
+        where("shared", "==", true),
         orderBy("occurredAt", "desc"),
         fblimit(max),
       ),

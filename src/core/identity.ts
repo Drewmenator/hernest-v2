@@ -31,10 +31,8 @@ export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "school",
   "circle",
   "family",
-  "alerts",
-  "decisions_v2",
-  "household_insights",
-  "household_graph",
+  // "alerts" is personal (it holds crisis flags and sleep alerts), and the
+  // old decisions/insights/graph collections were removed in simplify phase 3.
 ]);
 
 export function isHouseholdCollection(collection: string): boolean {

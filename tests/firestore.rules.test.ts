@@ -10,7 +10,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
 
@@ -38,7 +38,9 @@ beforeEach(async () => {
     await setDoc(doc(db, "users", ALICE, "data", "thrive"), { sleepLog: [{ date: "2026-07-10", hours: 7 }] });
     await setDoc(doc(db, "users", ALICE, "integrations", "oura"), { accessToken: "enc:secret" });
     await setDoc(doc(db, "households", ALICE), { createdAt: 1 });
-    await setDoc(doc(db, "households", ALICE, "events", "e1"), { actorUserId: ALICE, type: "seed" });
+    await setDoc(doc(db, "households", ALICE, "events", "e1"), { actorUserId: ALICE, type: "plan.task.created", visibility: "household", shared: true, occurredAt: 1 });
+    // Written before the privacy fix: a private chat copied into the shared log.
+    await setDoc(doc(db, "households", ALICE, "events", "leak1"), { actorUserId: ALICE, type: "cleo.conversation.ended", visibility: "household", payload: { messages: [{ role: "user", content: "secret" }] } });
     await setDoc(doc(db, "invites", "tok123"), { fromUid: ALICE, status: "pending" });
     await setDoc(doc(db, "ai_usage", "2026-10-21", "households", ALICE), { calls: 60, costUsd: 0.4 });
     await setDoc(doc(db, "ai_burst", ALICE), { minute: "2026-10-21T14:03", count: 10 });
@@ -69,6 +71,18 @@ describe("household sharing", () => {
 
   it("partner CANNOT read owner's personal thrive data (not in shared list)", async () => {
     await assertFails(getDoc(doc(as(BOB), "users", ALICE, "data", "thrive")));
+  });
+
+  it("partner reads the shared family list and synced calendar", async () => {
+    await assertSucceeds(getDoc(doc(as(BOB), "users", ALICE, "data", "family")));
+    await assertSucceeds(getDoc(doc(as(BOB), "users", ALICE, "data", "calendar_synced")));
+  });
+
+  it("partner CANNOT read owner's private records", async () => {
+    for (const col of ["alerts", "cleo_memory_v2", "profile", "push_state", "gmail_receipts", "partner_invite", "style"]) {
+      await assertFails(getDoc(doc(as(BOB), "users", ALICE, "data", col)));
+      await assertFails(setDoc(doc(as(BOB), "users", ALICE, "data", col), { x: 1 }));
+    }
   });
 
   it("partner CANNOT read owner's integration tokens", async () => {
@@ -141,10 +155,31 @@ describe("household roster + event log", () => {
   });
 
   it("event log is append-only, actor must be self", async () => {
-    await assertSucceeds(setDoc(doc(as(BOB), "households", ALICE, "events", "e2"), { actorUserId: BOB, type: "task" }));
-    await assertFails(setDoc(doc(as(BOB), "households", ALICE, "events", "e3"), { actorUserId: ALICE, type: "spoof" }));
+    await assertSucceeds(setDoc(doc(as(BOB), "households", ALICE, "events", "e2"), { actorUserId: BOB, type: "plan.task.created", visibility: "household", shared: true }));
+    await assertFails(setDoc(doc(as(BOB), "households", ALICE, "events", "e3"), { actorUserId: ALICE, type: "plan.task.created", visibility: "household", shared: true }));
     await assertFails(updateDoc(doc(as(ALICE), "households", ALICE, "events", "e1"), { type: "rewrite" }));
     await assertFails(deleteDoc(doc(as(ALICE), "households", ALICE, "events", "e1")));
+  });
+
+  it("partner reads shared household events", async () => {
+    await assertSucceeds(getDoc(doc(as(BOB), "households", ALICE, "events", "e1")));
+  });
+
+  it("private events can't be written to the shared log, whatever they claim", async () => {
+    for (const type of ["cleo.conversation.ended", "cleo.crisis.detected", "thrive.mood.logged", "profile.updated", "style.preference.updated", "made.up.type"]) {
+      await assertFails(setDoc(doc(as(ALICE), "households", ALICE, "events", `p_${type}`), { actorUserId: ALICE, type, visibility: "household", shared: true }));
+    }
+    await assertFails(setDoc(doc(as(ALICE), "households", ALICE, "events", "p_vis"), { actorUserId: ALICE, type: "plan.task.created", visibility: "private", shared: true }));
+  });
+
+  it("the partner's whole-log query (shared events only) is allowed", async () => {
+    await assertSucceeds(getDocs(query(collection(as(BOB), "households", ALICE, "events"), where("shared", "==", true), orderBy("occurredAt", "desc"), limit(50))));
+    await assertFails(getDocs(collection(as(BOB), "households", ALICE, "events")));
+  });
+
+  it("a private event already in the log is hidden from the partner but not the writer", async () => {
+    await assertFails(getDoc(doc(as(BOB), "households", ALICE, "events", "leak1")));
+    await assertSucceeds(getDoc(doc(as(ALICE), "households", ALICE, "events", "leak1")));
   });
 
   it("stranger cannot read the event log", async () => {

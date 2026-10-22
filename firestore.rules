@@ -25,9 +25,8 @@ service cloud.firestore {
     // until per-member consent lands in migration Step 5.)
     function householdShared() {
       return [
-        'budget', 'budget_v2', 'bills', 'tasks', 'calendar', 'trips',
-        'school', 'circle', 'household_insights', 'household_graph',
-        'items_migration'
+        'budget', 'budget_v2', 'bills', 'tasks', 'calendar', 'calendar_synced',
+        'trips', 'school', 'circle', 'family', 'items_migration'
       ];
     }
 
@@ -42,6 +41,13 @@ service cloud.firestore {
     // True if the signed-in user belongs to household {ownerUid}: either they
     // ARE the owner, or the trusted invite flow wrote them a household_link
     // pointing at it. (get/exists in rules are privileged — they bypass rules.)
+    // Event types about shared household things. KEEP IN SYNC with
+    // isSharedEventType() in src/core/events/index.ts.
+    function sharedEventType(t) {
+      return t is string
+        && (t.matches('^(plan|trips|family|calendar|circle)[.].*') || t == 'partner.invite.accepted');
+    }
+
     function isMember(ownerUid) {
       return isSignedIn() && (
         request.auth.uid == ownerUid ||
@@ -127,10 +133,20 @@ service cloud.firestore {
       }
 
       // Shared, append-only household event log (migration Step 2).
+      // PRIVACY: only shared-household event types, marked household/partners,
+      // may be written. Older private events written before this rule (chats,
+      // crisis alerts, mood) stay readable only by the person who wrote them.
       match /events/{eventId} {
-        allow read: if isMember(hid);
+        // `shared == true` (rather than checking the type) so the app's
+        // whole-log query can be allowed; create guarantees shared events have
+        // a shared type, and older docs without the flag stay hidden.
+        allow read: if isMember(hid)
+                    && (resource.data.get('shared', false) == true || resource.data.actorUserId == request.auth.uid);
         allow create: if isMember(hid)
-                      && request.resource.data.actorUserId == request.auth.uid;
+                      && request.resource.data.actorUserId == request.auth.uid
+                      && request.resource.data.get('shared', false) == true
+                      && sharedEventType(request.resource.data.type)
+                      && request.resource.data.visibility in ['household', 'partners'];
         allow update, delete: if false; // append-only
       }
     }
