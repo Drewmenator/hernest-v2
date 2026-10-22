@@ -4,7 +4,9 @@
 //
 // Core rules:
 //   1. Save only useful, durable, explainable, editable memories
-//   2. Ask confirmation for sensitive or low-confidence memories
+//   2. Ask first: anything Cleo inferred waits for the user's yes
+//      ("needs_confirmation"). Only what the user typed in herself is
+//      active straight away. Moods and health are never suggested.
 //   3. AI can only PROPOSE — Memory Service decides what gets saved
 //   4. Users can view, edit, delete, and correct all memories
 //   5. Memories decay or expire when no longer useful
@@ -17,6 +19,13 @@ import { saveData, loadData } from "./firebase";
 import { invalidateCache } from "./contextRetrieval";
 import type { MemoryFact } from "./memory";
 import { todayLocal } from "./dateAwareness";
+import {
+  isSensitiveState, initialStatusFor, initialConfirmationFor,
+  isUsableInContext, blocksResuggestion, pickChatSuggestions,
+  type MemoryOrigin, type MemoryVisibility, type MemoryConfirmation,
+} from "./memoryRules";
+
+export type { MemoryOrigin, MemoryVisibility, MemoryConfirmation } from "./memoryRules";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -36,7 +45,9 @@ export type MemoryType =
 
 export type MemorySensitivity = "low" | "medium" | "high";
 export type MemoryConfidence  = "low" | "medium" | "high";
-export type MemoryStatus      = "active" | "needs_confirmation" | "deprecated" | "contradicted" | "expired" | "deleted";
+// "rejected": the user said no to a suggestion. "deleted": she asked Cleo to
+// forget it. Neither reaches Cleo, and neither is suggested again.
+export type MemoryStatus      = "active" | "needs_confirmation" | "rejected" | "deprecated" | "contradicted" | "expired" | "deleted";
 export type DecayRate         = "slow" | "medium" | "fast";
 
 export type MemorySourceModule =
@@ -85,6 +96,14 @@ export interface HouseholdMemory {
   createdAt:         string;
   updatedAt:         string;
   lastConfirmedAt?:  string;
+  // Trust fields (added Oct 2026). Optional so older records still load;
+  // normalizeMemory fills them in when read.
+  ownerId?:      string;               // the user this memory belongs to
+  origin?:       MemoryOrigin;         // typed by her, inferred, or imported
+  visibility?:   MemoryVisibility;     // private by default
+  confirmation?: MemoryConfirmation;   // her say-so
+  declinedAt?:   string;
+  replacesId?:   string;               // memory this would replace once confirmed
   // Internal: normalized for deduplication
   _normalizedTitle?: string;
 }
@@ -98,8 +117,9 @@ export interface MemoryCandidate {
   sensitivity:         MemorySensitivity;
   evidenceDescription: string;
   linkedEntities?:     LinkedEntity[];
-  suggestedStatus?:    "active" | "needs_confirmation";
+  suggestedStatus?:    "active" | "needs_confirmation"; // ignored: origin decides
   expiresAt?:          string;
+  origin?:             MemoryOrigin;  // defaults to "inferred"
 }
 
 export interface MemoryProposalResult {
@@ -172,6 +192,7 @@ export interface MemorySettingsView {
 // ═══════════════════════════════════════════════════════════════════
 
 const MIN_CONTENT_LENGTH = 15;
+const MIN_USER_TYPED_LENGTH = 3;
 
 const NEVER_SAVE_PATTERNS = [
   /bad with money/i,
@@ -182,12 +203,16 @@ const NEVER_SAVE_PATTERNS = [
   /feels (sad|angry|upset)/i,
 ];
 
-const ALWAYS_CONFIRM_TYPES: MemoryType[] = ["stress_pattern", "warning"];
-const ALWAYS_CONFIRM_SENSITIVITY: MemorySensitivity[] = ["high"];
-
 function validateCandidate(candidate: MemoryCandidate): { valid: boolean; reason: string } {
-  if (candidate.content.length < MIN_CONTENT_LENGTH) {
+  const userTyped = candidate.origin === "user_typed";
+  if (candidate.content.trim().length < (userTyped ? MIN_USER_TYPED_LENGTH : MIN_CONTENT_LENGTH)) {
     return { valid: false, reason: "Content too short to be useful" };
+  }
+  // She can tell Cleo anything she likes; the checks below are for what
+  // Cleo picks up on her own.
+  if (userTyped) return { valid: true, reason: "Typed by the user" };
+  if (isSensitiveState(`${candidate.title} ${candidate.content}`, candidate.type)) {
+    return { valid: false, reason: "Moods and health are never suggested as lasting memories" };
   }
   for (const pattern of NEVER_SAVE_PATTERNS) {
     if (pattern.test(candidate.content)) {
@@ -200,14 +225,6 @@ function validateCandidate(candidate: MemoryCandidate): { valid: boolean; reason
   return { valid: true, reason: "Passes validation" };
 }
 
-function shouldAutoSave(candidate: MemoryCandidate): boolean {
-  if (ALWAYS_CONFIRM_TYPES.includes(candidate.type)) return false;
-  if (ALWAYS_CONFIRM_SENSITIVITY.includes(candidate.sensitivity)) return false;
-  const isLowConfidence = (candidate.confidence as string) === "low";
-  if (isLowConfidence) return false;
-  if (candidate.sensitivity === "medium" && isLowConfidence) return false;
-  return true;
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // DECAY CONFIG
@@ -243,15 +260,20 @@ function stringSimilarity(a: string, b: string): number {
   return union > 0 ? intersection / union : 0;
 }
 
+// Statuses a new candidate is matched against. Rejected and deleted are
+// included so a "no" sticks; expired and replaced ones are not, so a fact
+// that comes back is asked about again.
+const DEDUP_STATUSES: MemoryStatus[] = ["active", "needs_confirmation", "rejected", "deleted"];
+
 function checkDuplicate(
   candidate: MemoryCandidate,
   existing: HouseholdMemory[]
 ): DeduplicationResult {
   const normalTitle = normalizeTitle(candidate.title);
+  const pool = existing.filter(m => DEDUP_STATUSES.includes(m.status));
 
   // Exact title match
-  const exact = existing.find(m =>
-    m.status !== "deleted" &&
+  const exact = pool.find(m =>
     m.type === candidate.type &&
     normalizeTitle(m.title) === normalTitle
   );
@@ -265,8 +287,7 @@ function checkDuplicate(
   }
 
   // High similarity match (>70%)
-  const similar = existing.find(m =>
-    m.status !== "deleted" &&
+  const similar = pool.find(m =>
     m.type === candidate.type &&
     stringSimilarity(m.content, candidate.content) > 0.7
   );
@@ -325,10 +346,32 @@ function detectConflict(
 // PERSISTENCE
 // ═══════════════════════════════════════════════════════════════════
 
+// Fill in the trust fields on records saved before they existed, so every
+// memory read has an owner, origin, visibility and confirmation state.
+export function normalizeMemory(m: HouseholdMemory, userId?: string): HouseholdMemory {
+  const confirmation: MemoryConfirmation = m.confirmation ?? (
+    m.status === "needs_confirmation" ? "pending"
+    : m.status === "rejected" ? "declined"
+    : m.lastConfirmedAt ? "confirmed"
+    : "legacy"
+  );
+  return {
+    ...m,
+    ownerId: m.ownerId ?? m.householdId ?? userId,
+    origin: m.origin ?? "inferred",
+    visibility: m.visibility ?? "private",
+    confirmation,
+    usage: m.usage ?? { timesUsed: 0 },
+    evidence: Array.isArray(m.evidence) ? m.evidence : [],
+    decay: m.decay ?? { shouldDecay: false, decayRate: "slow" },
+  };
+}
+
 async function loadAllMemories(userId: string): Promise<HouseholdMemory[]> {
   try {
     const data = await loadData(userId, "cleo_memory_v2");
-    return (data?.memories as HouseholdMemory[]) || [];
+    const raw = (data?.memories as HouseholdMemory[]) || [];
+    return raw.filter(m => m && typeof m === "object" && m.id).map(m => normalizeMemory(m, userId));
   } catch {
     return [];
   }
@@ -359,49 +402,66 @@ export async function proposeMemory(
   }
 
   const existing = await loadAllMemories(userId);
+  const userTyped = candidate.origin === "user_typed";
+  const now = new Date().toISOString();
 
   // Step 2: Check duplicate
   const dedup = checkDuplicate(candidate, existing);
-  if (dedup.isDuplicate && dedup.action === "merge") {
-    // Merge evidence into existing memory
+  if (dedup.isDuplicate && dedup.existingMemory) {
+    const match = dedup.existingMemory;
+
+    // She said no (or asked Cleo to forget it): don't ask again. If she
+    // types it in herself later, that is her yes.
+    if (blocksResuggestion(match.status) && !userTyped) {
+      return { action: "rejected", reason: "The user already said no to this" };
+    }
+
+    const newEvidence: MemoryEvidence = {
+      description: candidate.evidenceDescription,
+      observedAt: todayLocal(),
+      sourceModule: candidate.sourceModule,
+    };
+    // Boost confidence if repeated
+    const confidenceMap = { low: 0, medium: 1, high: 2 };
+    const promote = userTyped && match.status !== "active";
+
     const updated = existing.map(m => {
-      if (m.id !== dedup.existingMemory?.id) return m;
-      const newEvidence: MemoryEvidence = {
-        description: candidate.evidenceDescription,
-        observedAt: todayLocal(),
-        sourceModule: candidate.sourceModule,
-      };
-      // Boost confidence if repeated
-      const confidenceMap = { low: 0, medium: 1, high: 2 };
+      if (m.id !== match.id) return m;
       const newConfidence = confidenceMap[m.confidence] < confidenceMap[candidate.confidence]
         ? candidate.confidence : m.confidence;
-
       return {
         ...m,
         confidence: newConfidence,
         evidence: [...m.evidence, newEvidence].slice(-10), // keep last 10
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
+        // Her own words make it active. Repeats of an inferred fact never
+        // change its status.
+        ...(promote ? {
+          status: "active" as MemoryStatus,
+          origin: "user_typed" as MemoryOrigin,
+          confirmation: "user_typed" as MemoryConfirmation,
+          content: candidate.content,
+          title: candidate.title,
+          _normalizedTitle: normalizeTitle(candidate.title),
+        } : {}),
       };
     });
     await saveAllMemories(userId, updated);
-    return {
-      action: "saved",
-      memory: updated.find(m => m.id === dedup.existingMemory?.id),
-      reason: "Merged with existing memory — confidence updated",
-    };
+    const memory = updated.find(m => m.id === match.id);
+    if (memory?.status === "needs_confirmation") {
+      return { action: "needs_confirmation", memory, reason: "Already waiting for the user's OK" };
+    }
+    return { action: "saved", memory, reason: "Merged with existing memory" };
   }
 
-  // Step 3: Check conflict
+  const status = initialStatusFor(candidate.origin);
+
+  // Step 3: Check conflict. The old memory is left alone until she confirms
+  // the new one (confirmMemory retires it then).
   const conflict = detectConflict(candidate, existing);
-  if (conflict.hasConflict) {
-    // Mark conflicting memory + save new as needs_confirmation
-    const memory = buildMemory(userId, candidate, "needs_confirmation");
-    const updated = existing.map(m =>
-      m.id === conflict.conflictingMemory?.id
-        ? { ...m, status: "contradicted" as MemoryStatus, updatedAt: new Date().toISOString() }
-        : m
-    );
-    await saveAllMemories(userId, [...updated, memory]);
+  if (conflict.hasConflict && !userTyped) {
+    const memory = { ...buildMemory(userId, candidate, "needs_confirmation"), replacesId: conflict.conflictingMemory?.id };
+    await saveAllMemories(userId, [...existing, memory]);
     return {
       action: "needs_confirmation",
       memory,
@@ -410,21 +470,26 @@ export async function proposeMemory(
     };
   }
 
-  // Step 4: Decide auto-save vs confirmation
-  if (shouldAutoSave(candidate)) {
-    const memory = buildMemory(userId, candidate, "active");
-    await saveAllMemories(userId, [...existing, memory]);
-    return { action: "saved", memory, reason: "Auto-saved — low sensitivity, sufficient confidence" };
-  } else {
-    const memory = buildMemory(userId, candidate, "needs_confirmation");
-    await saveAllMemories(userId, [...existing, memory]);
-    return {
-      action: "needs_confirmation",
-      memory,
-      reason: "Requires user confirmation before activating",
-      prompt: buildConfirmationPrompt(memory, "new_pattern"),
-    };
+  // Step 4: Save. Only her own words are active straight away.
+  const memory = buildMemory(userId, candidate, status);
+  let rest = existing;
+  if (conflict.hasConflict && userTyped) {
+    rest = existing.map(m =>
+      m.id === conflict.conflictingMemory?.id
+        ? { ...m, status: "contradicted" as MemoryStatus, updatedAt: now }
+        : m
+    );
   }
+  await saveAllMemories(userId, [...rest, memory]);
+  if (status === "active") {
+    return { action: "saved", memory, reason: "Typed in by the user" };
+  }
+  return {
+    action: "needs_confirmation",
+    memory,
+    reason: "Waiting for the user's OK",
+    prompt: buildConfirmationPrompt(memory, "new_pattern"),
+  };
 }
 
 // ── buildMemory ───────────────────────────────────────────────────
@@ -462,6 +527,10 @@ function buildMemory(
     expiresAt,
     createdAt: now,
     updatedAt: now,
+    ownerId: userId,
+    origin: candidate.origin ?? "inferred",
+    visibility: "private",
+    confirmation: initialConfirmationFor(candidate.origin),
     _normalizedTitle: normalizeTitle(candidate.title),
   };
 }
@@ -489,23 +558,35 @@ function buildConfirmationPrompt(
 }
 
 // ── confirmMemory ─────────────────────────────────────────────────
+// She said yes. If this suggestion would replace an older memory, retire
+// the older one now.
 export async function confirmMemory(userId: string, memoryId: string): Promise<HouseholdMemory | null> {
   const memories = await loadAllMemories(userId);
-  const updated = memories.map(m =>
-    m.id === memoryId
-      ? { ...m, status: "active" as MemoryStatus, lastConfirmedAt: new Date().toISOString(), confidence: "high" as MemoryConfidence, updatedAt: new Date().toISOString() }
-      : m
-  );
+  const target = memories.find(m => m.id === memoryId);
+  if (!target) return null;
+  const now = new Date().toISOString();
+  const updated = memories.map(m => {
+    if (m.id === memoryId) {
+      return { ...m, status: "active" as MemoryStatus, confirmation: "confirmed" as MemoryConfirmation, lastConfirmedAt: now, confidence: "high" as MemoryConfidence, updatedAt: now };
+    }
+    if (target.replacesId && m.id === target.replacesId && m.status === "active") {
+      return { ...m, status: "contradicted" as MemoryStatus, updatedAt: now };
+    }
+    return m;
+  });
   await saveAllMemories(userId, updated);
   return updated.find(m => m.id === memoryId) ?? null;
 }
 
 // ── rejectMemory ──────────────────────────────────────────────────
+// She said no to a suggestion. Kept (as "rejected") only so the same thing
+// is not suggested again; it never reaches Cleo.
 export async function rejectMemory(userId: string, memoryId: string): Promise<void> {
   const memories = await loadAllMemories(userId);
+  const now = new Date().toISOString();
   const updated = memories.map(m =>
     m.id === memoryId
-      ? { ...m, status: "deleted" as MemoryStatus, updatedAt: new Date().toISOString() }
+      ? { ...m, status: "rejected" as MemoryStatus, confirmation: "declined" as MemoryConfirmation, declinedAt: now, updatedAt: now }
       : m
   );
   await saveAllMemories(userId, updated);
@@ -528,8 +609,58 @@ export async function updateMemory(
 }
 
 // ── deleteMemory ──────────────────────────────────────────────────
+// "Forget this." Kept as "deleted" so Cleo does not pick it up again.
 export async function deleteMemory(userId: string, memoryId: string): Promise<void> {
-  return rejectMemory(userId, memoryId);
+  const memories = await loadAllMemories(userId);
+  const updated = memories.map(m =>
+    m.id === memoryId
+      ? { ...m, status: "deleted" as MemoryStatus, updatedAt: new Date().toISOString() }
+      : m
+  );
+  await saveAllMemories(userId, updated);
+}
+
+// ── rememberFromUser ──────────────────────────────────────────────
+// "Tell Cleo something": her own words, so active straight away.
+export async function rememberFromUser(userId: string, text: string): Promise<MemoryProposalResult> {
+  const content = text.trim().replace(/\s+/g, " ");
+  return proposeMemory(userId, {
+    type: "fact",
+    title: content.slice(0, 60),
+    content,
+    sourceModule: "cleo",
+    confidence: "high",
+    sensitivity: isSensitiveState(content) ? "medium" : "low",
+    evidenceDescription: "Told to Cleo by the user",
+    origin: "user_typed",
+  });
+}
+
+// ── Suggestions waiting for an OK ─────────────────────────────────
+export async function loadPendingMemories(userId: string): Promise<HouseholdMemory[]> {
+  const all = await loadAllMemories(userId);
+  return all
+    .filter(m => m.status === "needs_confirmation")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+// New suggestions to ask about in chat: from this chat only, never shown
+// before, one or two at a time. Marks them shown so chat never asks twice;
+// anything unanswered keeps waiting in "What Cleo knows".
+export async function takeChatSuggestions(
+  userId: string,
+  sinceIso: string,
+  limit = 2,
+): Promise<HouseholdMemory[]> {
+  const all = await loadAllMemories(userId);
+  const picked = pickChatSuggestions(all, sinceIso, limit);
+  if (!picked.length) return [];
+  const ids = new Set(picked.map(m => m.id));
+  const now = new Date().toISOString();
+  await saveAllMemories(userId, all.map(m =>
+    ids.has(m.id) ? { ...m, usage: { ...m.usage, lastShownToUserAt: now } } : m
+  ));
+  return picked;
 }
 
 // ── markMemoryIncorrect ───────────────────────────────────────────
@@ -593,8 +724,11 @@ export async function retrieveMemories(
   const all = await loadAllMemories(userId);
   const minConfidenceRank = CONFIDENCE_RANK[request.minConfidence ?? "low"];
 
+  const now = Date.now();
   const eligible = all.filter(m => {
-    if (m.status !== "active") return false;
+    // Only active, unexpired memories. Suggestions waiting for an OK,
+    // rejected and forgotten ones never reach Cleo.
+    if (!isUsableInContext(m, now)) return false;
     if (CONFIDENCE_RANK[m.confidence] < minConfidenceRank) return false;
     if (!request.includeSensitive && m.sensitivity === "high") return false;
     if (request.memoryTypes?.length && !request.memoryTypes.includes(m.type)) return false;
@@ -733,7 +867,7 @@ export async function explainMemory(userId: string, memoryId: string): Promise<M
 
 export async function getMemorySettingsView(userId: string): Promise<MemorySettingsView> {
   const all = await loadAllMemories(userId);
-  const active = all.filter(m => m.status !== "deleted");
+  const active = all.filter(m => m.status !== "deleted" && m.status !== "rejected");
 
   const byType = active.reduce((acc, m) => {
     acc[m.type] = (acc[m.type] ?? 0) + 1;
@@ -767,7 +901,7 @@ export async function loadMemoriesV2(userId: string): Promise<HouseholdMemory[]>
 // migration so V2 becomes the single memory store of record.
 // ═══════════════════════════════════════════════════════════════════
 
-export function v1FactToCandidate(f: MemoryFact): MemoryCandidate {
+export function v1FactToCandidate(f: MemoryFact, origin: MemoryOrigin = "inferred"): MemoryCandidate {
   const typeMap: Record<string, MemoryType> = {
     family: "fact", health: "fact", preference: "preference",
     goal: "goal_context", schedule: "routine", temporary: "fact",
@@ -777,11 +911,12 @@ export function v1FactToCandidate(f: MemoryFact): MemoryCandidate {
     title: f.statement.slice(0, 60),
     content: f.statement,
     sourceModule: "cleo",
-    // Already accepted in V1 → migrate at medium confidence so it auto-saves.
+    // Still needs her OK unless origin says she typed it.
     confidence: f.confidence >= 0.8 ? "high" : "medium",
     sensitivity: "low",
     evidenceDescription: `Migrated from V1 memory (${f.source})`,
     expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : undefined,
+    origin,
   };
 }
 
@@ -793,8 +928,9 @@ export async function migrateV1MemoriesToV2(userId: string): Promise<{ migrated:
     const facts = ((v1.facts as MemoryFact[]) || []);
     let migrated = 0;
     for (const f of facts) {
-      const res = await proposeMemory(userId, v1FactToCandidate(f));
-      if (res.action === "saved") migrated++;
+      // Old facts were never confirmed, so they come over as suggestions.
+      const res = await proposeMemory(userId, v1FactToCandidate(f, "imported"));
+      if (res.action !== "rejected") migrated++;
     }
     await saveData(userId, "cleo_memory", { _migratedToV2: true }); // merge — keeps facts
     return { migrated };

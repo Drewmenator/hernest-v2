@@ -57,7 +57,8 @@ export function connectIntelligenceLayer(userId: string): () => void {
       .map((m: any) => m.content as string)
       .join(" ");
 
-    // Simple preference detection — propose if strong signal
+    // Simple preference detection — propose if strong signal. Proposals are
+    // inferred, so they wait for the user's yes before Cleo uses them.
     const prefPatterns: Array<{ pattern: RegExp; title: string; content: string }> = [
       {
         pattern: /prefer.*sunday|sunday.*planning|plan.*sunday/i,
@@ -123,7 +124,7 @@ export function connectIntelligenceLayer(userId: string): () => void {
     invalidateCache(userId, ["thrive"]);
   }));
 
-  // ── Style preference → memory ────────────────────────────────────
+  // ── Style preference → memory (a suggestion until she says yes) ──
   unsubs.push(bus.subscribe("style.preference.updated", async (e: any) => {
     const { vibe, colorSeason } = e.payload ?? {};
     if (vibe || colorSeason) {

@@ -22,6 +22,7 @@ import type { OrchestratorFeature, AIIntent } from "./aiOrchestrator";
 import { todayLocal } from "./dateAwareness";
 import { summariseBills } from "./contextBuilder";
 import type { Bill } from "./bills";
+import { isUsableInContext } from "./memoryRules";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -243,6 +244,32 @@ interface MemoryFact {
   confidence: number;
   createdAt: number;
   expiresAt?: number;
+}
+
+// Cleo's memories live in cleo_memory_v2. Only active, unexpired, not-highly-
+// sensitive ones are turned into facts for ranking: suggestions waiting for
+// the user's OK, rejected and forgotten memories never reach the prompt.
+// V2 types are mapped onto the older type names the intent table uses.
+const V2_TO_LEGACY_TYPE: Record<string, string> = {
+  preference: "preference", decision: "preference", pattern: "preference",
+  goal_context: "goal", financial_context: "goal",
+  routine: "schedule", obligation: "schedule",
+  fact: "family",
+};
+
+export function usableMemoryFacts(doc: Record<string, unknown> | null, now: number = Date.now()): MemoryFact[] {
+  const memories = (doc?.memories as any[]) || [];
+  const confidence: Record<string, number> = { low: 0.4, medium: 0.7, high: 0.9 };
+  return memories
+    .filter(m => m && typeof m === "object" && typeof m.content === "string")
+    .filter(m => isUsableInContext(m, now))
+    .filter(m => m.sensitivity !== "high")
+    .map(m => ({
+      statement: m.content,
+      type: V2_TO_LEGACY_TYPE[m.type] ?? "other",
+      confidence: confidence[m.confidence] ?? 0.5,
+      createdAt: new Date(m.createdAt).getTime() || now,
+    }));
 }
 
 function rankMemories(
@@ -471,8 +498,11 @@ export async function retrieve(params: {
     .map(async (module) => {
       // "budget" means bills since the Oct 2026 Bills redesign. Read fresh
       // (not from the 5-minute cache) so a bill just marked paid is seen.
+      // "memory" means Cleo's memory store (cleo_memory_v2).
       const data = module === "budget"
         ? await loadData(userId, "bills")
+        : module === "memory"
+        ? await loadWithCache(userId, "cleo_memory_v2")
         : await loadWithCache(userId, module);
       raw[module] = data;
 
@@ -487,8 +517,7 @@ export async function retrieve(params: {
 
   if (reqs.modules.includes("memory") && raw.memory) {
     const now = Date.now();
-    const allFacts = ((raw.memory as any)?.facts as MemoryFact[]) || [];
-    const activeFacts = allFacts.filter(f => !f.expiresAt || f.expiresAt > now);
+    const activeFacts = usableMemoryFacts(raw.memory, now);
     totalMemoriesAvailable = activeFacts.length;
 
     relevantMemories = rankMemories(

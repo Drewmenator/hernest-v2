@@ -29,8 +29,9 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
   const loadMemories = async () => {
     if (!user?.uid) return;
     try {
+      // Only what Cleo actually uses; suggestions wait in What Cleo knows.
       const mems = await loadMemoriesV2(user.uid);
-      setMemoryV2List(mems);
+      setMemoryV2List(mems.filter(m => m.status === "active"));
       setShowMemoryV2(true);
     } catch { setMemoryV2List([]); setShowMemoryV2(true); }
   };
