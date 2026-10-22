@@ -36,7 +36,7 @@ export function SettingsScreen() {
   const SHARE_OPTIONS = [
     { id:"tasks",    label:"Tasks & Plan",       icon:"✓" },
     { id:"calendar", label:"Family Calendar",     icon:"◈" },
-    { id:"budget",   label:"Budget Overview",     icon:"◎" },
+    { id:"budget",   label:"Bills",               icon:"◎" },
     { id:"trips",    label:"Trip Plans",          icon:"✈️" },
     { id:"school",   label:"School Events",       icon:"🏫" },
     { id:"circle",   label:"Circle Check-ins",    icon:"◉" },
@@ -260,10 +260,10 @@ export function SettingsScreen() {
         {/* Data export */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 8px" }}>Export your data</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px", lineHeight:1.6 }}>You have the right to receive a copy of all data we hold about you (GDPR Article 20).</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px", lineHeight:1.6 }}>You can download a copy of all the data HerNest holds about you.</p>
           <button onClick={async()=>{
             if (!user?.uid) return;
-            const collections = ["profile","budget","tasks","thrive","trips","circle","cleo_memory","style"];
+            const collections = ["profile","bills","tasks","calendar","calendar_synced","school","meals","family","thrive","trips","circle","style","cleo_memory","cleo_memory_v2","cleo_feedback","budget","budget_v2"];
             const allData: Record<string,unknown> = {};
             await Promise.all(collections.map(async c => { allData[c] = await loadData(user.uid!, c); }));
             const blob = new Blob([JSON.stringify(allData, null, 2)], { type:"application/json" });
@@ -307,8 +307,8 @@ export function SettingsScreen() {
           <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 16px" }}>Last updated: May 2026</p>
           {[
             { title:"Data Controller", body:"HerNest Ltd is the data controller for personal data collected through this app. Contact: privacy@hernest.app" },
-            { title:"Data We Collect", body:"Account data (email, name), app usage data (tasks, budget, wellness logs), AI conversation summaries, and device information." },
-            { title:"How We Use It", body:"To provide and improve the service, personalise your Cleo experience, send important account notifications, and ensure security." },
+            { title:"Data We Collect", body:"Account data (email, name), app usage data (tasks, bills, wellness logs), AI conversation summaries, and device information." },
+            { title:"How We Use It", body:"To provide and improve the service, personalize your Cleo experience, send important account notifications, and ensure security." },
             { title:"Legal Basis (GDPR)", body:"We process your data under: contract performance (providing the service), legitimate interests (improving the service), and consent (marketing communications)." },
             { title:"Data Retention", body:"We retain your data for as long as your account is active. Upon deletion, data is removed within 30 days. Anonymised analytics may be retained longer." },
             { title:"Your Rights (GDPR)", body:"You have the right to: access your data, correct inaccuracies, request deletion, restrict processing, data portability, and object to processing. Contact privacy@hernest.app to exercise these rights." },
@@ -404,23 +404,20 @@ export function SettingsScreen() {
 
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>NOTIFICATIONS</p>
+          {/* What HerNest actually sends. (Replaced five switches that looked
+              real but did nothing; per-type on/off can come back once the
+              server reads a preference.) */}
           {[
-            { label:"Birthday reminders", desc:"7 days before", default:true },
-            { label:"Check-in nudges",    desc:"When overdue by 14+ days", default:true },
-            { label:"Budget alerts",      desc:"When nearing category limit", default:true },
-            { label:"School events",      desc:"3 days before", default:true },
-            { label:"Weekly score ready", desc:"Every Sunday", default:false },
+            { label:"Morning briefing", desc:"Around 7am your time" },
+            { label:"Bill reminders",   desc:"Before each bill is due. Change them on each bill in the Bills tab" },
+            { label:"Birthdays",        desc:"On the day" },
           ].map(n=>(
-            <div key={n.label} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
-              <div style={{ flex:1 }}>
-                <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{n.label}</p>
-                <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{n.desc}</p>
-              </div>
-              <div style={{ width:44, height:26, borderRadius:13, background:n.default?T.sage:T.linen, position:"relative", cursor:"pointer" }}>
-                <div style={{ width:20, height:20, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:n.default?21:3, transition:"left .2s", boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}/>
-              </div>
+            <div key={n.label} style={{ padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
+              <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:0 }}>{n.label}</p>
+              <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>{n.desc}</p>
             </div>
           ))}
+          <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"10px 0 0", lineHeight:1.5 }}>To turn notifications off, go to iPhone Settings, then Notifications, then HerNest.</p>
         </Card>
 
         <Card>

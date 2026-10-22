@@ -1,25 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { T, F } from "../../config/theme";
-import toast from "react-hot-toast";
 import { useStore } from "../../core/store";
-import { useAdaptiveUX, filterInsightsForDisplay, getStateBannerProps, getAdaptiveGreeting } from "../../core/household/adaptiveUX";
 import { loadData } from "../../core/firebase";
-import { db } from "../../core/db";
 import { Spinner } from "../../shared/components";
-import { createActionsFromInsight, executeRecommendedAction } from "../../core/recommendationActions";
-import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
-import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
-import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
+import { computeHouseholdScores, type AttentionSeverity } from "../../core/intelligence/householdScores";
 import { SEV_COLOR, SEV_RANK, SOURCE_TAB, cc_str } from "./homeShared";
 import { onEnterSpace } from "../../shared/utils/a11y";
-import { loadHomeDocs } from "./homeData";
 
 // ── Today's Intelligence Card (unchanged) ─────────────────────────
 // ── Phase 4: Household Intelligence scores + Risk Radar ──────────
 
 // ── Phase 6: Command Center — the unified "what needs you today" ──
-// Pure consumer of the intelligence outputs: merges the Risk Radar, proactive
-// alerts, and any recommended actions into ONE ranked queue at the top of home.
+// Merges the Risk Radar (bills, tasks, school, trips, sleep) and proactive
+// alerts into ONE ranked queue at the top of home. Old budget alerts and the
+// stored "recommended actions" are skipped: both came from the Budget screen,
+// which was replaced by Bills in Oct 2026, so they can no longer update.
 interface CCItem { id: string; severity: AttentionSeverity; label: string; detail: string; tab: string; }
 
 export function CommandCenterCard() {
@@ -46,7 +41,7 @@ export function CommandCenterCard() {
         const alerts = ((await loadData(user.uid, "alerts"))?.alerts as any[]) || [];
         // Relationship nudges are gentle by design — surface at most one, as info.
         let circleShown = false;
-        for (const al of alerts.slice(0, 6)) {
+        for (const al of alerts.filter(a => cc_str(a?.type) !== "budget").slice(0, 6)) {
           const isCircle = cc_str(al?.type) === "circle";
           if (isCircle && circleShown) continue;
           if (isCircle) circleShown = true;
@@ -58,15 +53,6 @@ export function CommandCenterCard() {
           if (label) out.push({ id: `alert_${cc_str(al?.type)}_${label.slice(0, 12)}`, severity: sev, label, detail: "", tab: SOURCE_TAB[cc_str(al?.type)] || "home" });
         }
       } catch { /* non-fatal */ }
-      try {
-        const actions = ((await loadData(user.uid, "recommended_actions"))?.actions as any[]) || [];
-        for (const ac of actions.filter(a => a?.status === "pending" || a?.status === "active").slice(0, 4)) {
-          const sev: AttentionSeverity = ac?.priority === "high" ? "alert" : ac?.priority === "medium" ? "watch" : "info";
-          const label = cc_str(ac?.label);
-          if (label) out.push({ id: `rec_${cc_str(ac?.id)}`, severity: sev, label, detail: cc_str(ac?.description), tab: SOURCE_TAB[cc_str(ac?.targetModule)] || "cleo" });
-        }
-      } catch { /* non-fatal */ }
-
       // Dedup by label, rank by severity, keep the top few.
       const seen = new Set<string>();
       const ranked = out
@@ -94,7 +80,7 @@ export function CommandCenterCard() {
         {allClear ? "You're all caught up ✦" : `${items.length} thing${items.length > 1 ? "s" : ""} need${items.length > 1 ? "" : "s"} you today`}
       </p>
       {allClear ? (
-        <p style={{ fontFamily: F.sans, fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.5 }}>Nothing pressing across your finances, schedule, tasks or people. I'll flag anything that needs a decision.</p>
+        <p style={{ fontFamily: F.sans, fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0, lineHeight: 1.5 }}>Nothing pressing across your bills, schedule, tasks or people. I'll flag anything that needs a decision.</p>
       ) : (
         items.map(it => {
           const color = SEV_COLOR[it.severity];

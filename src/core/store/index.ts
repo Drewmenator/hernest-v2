@@ -9,7 +9,7 @@ export interface SchoolInfo {
   district?: string;
   schoolName?: string;
   termDates?: Array<{ term: string; start: string; end: string }>;
-  calendarEvents?: Array<{ id: string; title: string; date: string; endDate?: string; type: "holiday" | "inset" | "exam" | "event" | "other" }>;
+  calendarEvents?: Array<{ id: string; title: string; date: string; endDate?: string; type: "holiday" | "no_school" | "inset" | "exam" | "event" | "other" }>;
 }
 
 export interface FamilyMember {

@@ -21,6 +21,8 @@ import { currencySymbol } from "../shared/utils/money";
 import { createContextGraph, getRelevantContextForAI } from "./graph/GraphService";
 import type { OrchestratorFeature, AIIntent } from "./aiOrchestrator";
 import { todayLocal } from "./dateAwareness";
+import { summariseBills } from "./contextBuilder";
+import type { Bill } from "./bills";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -328,39 +330,20 @@ function buildContextString(
     return lines.join("\n");
   }
 
-  // Budget (standard + full)
+  // Bills (standard + full). The "budget" module now means the household's
+  // bills: the old Budget record (replaced Oct 2026) never reset, so its
+  // spending, income and debt figures are no longer given to Cleo.
   if (raw.budget) {
-    const b = raw.budget as any;
-    const cats = (b.categories as any[]) || [];
-    const spent = cats.reduce((a: number, c: any) => a + (c.spent || 0), 0);
-    const limit = cats.reduce((a: number, c: any) => a + (c.budget || 0), 0);
-    const incomes = (b.incomes as any[]) || [];
-    const income = incomes.reduce((a: number, inc: any) => {
-      const m: Record<string, number> = { monthly: 1, biweekly: 26/12, weekly: 52/12, annual: 1/12 };
-      return a + (inc.amount || 0) * (m[inc.frequency] || 1);
-    }, 0);
-
-    lines.push(`\nFINANCES:`);
-    if (income > 0) lines.push(`Income: ${currencySymbol()}${Math.round(income).toLocaleString()}/mo`);
-    lines.push(`Spent: ${currencySymbol()}${spent.toLocaleString()} / ${currencySymbol()}${limit.toLocaleString()} budget`);
-    lines.push(`Remaining: ${currencySymbol()}${Math.max(0, limit - spent).toLocaleString()}`);
-
-    if (budget === "full") {
-      const debts = (b.debts as any[]) || [];
-      const totalDebt = debts.reduce((a: number, d: any) => a + (d.balance || 0), 0);
-      if (totalDebt > 0) lines.push(`Total debt: ${currencySymbol()}${totalDebt.toLocaleString()}`);
-
-      const goals = (b.goals as any[]) || [];
-      if (goals.length) {
-        const goalSummary = goals.map((g: any) => {
-          const pct = g.targetAmount > 0 ? Math.round(g.currentAmount / g.targetAmount * 100) : 0;
-          return `${g.name} (${pct}%)`;
-        }).join(", ");
-        lines.push(`Goals: ${goalSummary}`);
-      }
-
-      const overBudget = cats.filter((c: any) => c.spent > c.budget).map((c: any) => c.label);
-      if (overBudget.length) lines.push(`Over budget: ${overBudget.join(", ")}`);
+    const bills = summariseBills(((raw.budget as any).bills as Bill[]) || []);
+    const amt = (n: number | null) => (n ? ` ${currencySymbol()}${Math.round(n).toLocaleString()}` : "");
+    lines.push(`\nBILLS:`);
+    if (!bills.total) {
+      lines.push(`No bills set up yet. If money comes up, suggest adding bills on the Bills tab so HerNest can remind them.`);
+    } else {
+      lines.push(`${bills.total} regular bills tracked.`);
+      if (bills.overdue.length) lines.push(`OVERDUE: ${bills.overdue.map(x => `${x.name}${amt(x.amount)} (${-x.days}d late)`).join(", ")}`);
+      if (bills.dueSoon.length) lines.push(`Due in the next 7 days: ${bills.dueSoon.map(x => `${x.name}${amt(x.amount)} in ${x.days}d${x.autopay ? " (autopay)" : ""}`).join(", ")}`);
+      if (budget === "full" && bills.noDate) lines.push(`${bills.noDate} bill(s) still need a due date.`);
     }
   }
 
@@ -508,16 +491,12 @@ export async function retrieve(params: {
   const loadPromises = reqs.modules
     .filter(m => m !== "profile") // profile already set
     .map(async (module) => {
-      const collection = module === "budget" ? "budget_v2" : module;
-      const data = await loadWithCache(userId, collection);
-
-      // Fallback for budget
-      if (module === "budget" && !data) {
-        const fallback = await loadWithCache(userId, "budget");
-        raw.budget = fallback;
-      } else {
-        raw[module] = data;
-      }
+      // "budget" means bills since the Oct 2026 Bills redesign. Read fresh
+      // (not from the 5-minute cache) so a bill just marked paid is seen.
+      const data = module === "budget"
+        ? await loadData(userId, "bills")
+        : await loadWithCache(userId, module);
+      raw[module] = data;
 
       if (data) modulesLoaded.push(module);
     });
@@ -544,7 +523,7 @@ export async function retrieve(params: {
 
   // ── Note missing critical data ───────────────────────────────────
   if (reqs.modules.includes("budget") && !raw.budget) {
-    assumptions.push("Budget data unavailable — financial estimates may be incomplete");
+    assumptions.push("No bills set up yet");
   }
   if (!raw.profile || !(profile as any).name) {
     assumptions.push("Profile incomplete");

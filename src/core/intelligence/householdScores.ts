@@ -62,16 +62,14 @@ function weighted(components: ScoreComponent[]): number {
 // ═══════════════════════════════════════════════════════════════════
 
 export function computeResilienceScore(ctx: AppContext): HouseholdScore {
-  // 1. Financial buffer — savings rate up, debt + spending pressure down.
-  const savingsRate = ctx.budget.savingsRate || 0;
-  const dti = ctx.budget.monthlyIncome > 0
-    ? (ctx.budget.totalDebt / (ctx.budget.monthlyIncome * 12)) * 100
-    : 0;
-  let buffer = 50;
-  buffer += savingsRate >= 20 ? 40 : savingsRate >= 10 ? 25 : savingsRate >= 5 ? 10 : -10;
-  buffer -= dti > 40 ? 30 : dti > 20 ? 15 : 0;
-  buffer -= ctx.budget.status === "critical" ? 25 : ctx.budget.status === "warning" ? 12 : 0;
-  const financialBuffer = clamp(buffer);
+  // 1. Bills on track — overdue bills and bills due in the next 2 days that
+  // aren't on autopay. (Replaced the savings/debt buffer: the old Budget data
+  // stopped updating in the Oct 2026 Bills redesign.)
+  const bills = ctx.bills ?? { total: 0, overdue: [], dueSoon: [], noDate: 0 };
+  const dueVerySoon = bills.dueSoon.filter(b => b.days <= 2 && !b.autopay).length;
+  const billsOnTrack = bills.total
+    ? clamp(95 - bills.overdue.length * 30 - dueVerySoon * 8)
+    : 60;
 
   // 2. Schedule slack — inverse of calendar pressure, conflicts, and backlog.
   const densityScore = { light: 90, moderate: 65, heavy: 35, extreme: 10 }[ctx.calendar.density] ?? 60;
@@ -89,21 +87,15 @@ export function computeResilienceScore(ctx: AppContext): HouseholdScore {
   reserve += avgMood >= 4 ? 20 : avgMood >= 3 ? 5 : avgMood < 2.5 ? -25 : 0;
   const wellbeingReserve = clamp(reserve);
 
-  // 4. Goal safety — savings goals progressing, few off-track.
-  const goals = ctx.budget.savingsGoals;
-  const goalAvg = goals.length ? avg(goals.map(g => Math.min(100, g.pct))) : 60;
-  const atRisk = (ctx.householdSnapshot?.activeGoals || []).filter(g => g.riskStatus !== "on_track").length;
-  const goalSafety = clamp(goalAvg - atRisk * 12);
-
   const components: ScoreComponent[] = [
-    { key: "buffer", label: "Financial buffer", score: financialBuffer, weight: 0.35,
-      detail: `${savingsRate.toFixed(0)}% savings rate${dti > 20 ? `, ${dti.toFixed(0)}% debt-to-income` : ""}; spending ${ctx.budget.status}.` },
-    { key: "slack", label: "Schedule slack", score: slack, weight: 0.25,
+    { key: "bills", label: "Bills on track", score: billsOnTrack, weight: 0.30,
+      detail: !bills.total ? "No bills set up yet."
+        : bills.overdue.length ? `${bills.overdue.length} overdue bill(s).`
+        : dueVerySoon ? `${dueVerySoon} bill(s) due in the next 2 days.` : "No bills overdue." },
+    { key: "slack", label: "Schedule slack", score: slack, weight: 0.35,
       detail: `${ctx.calendar.density} calendar${ctx.calendar.conflicts.length ? `, ${ctx.calendar.conflicts.length} conflict(s)` : ""}${ctx.tasks.overdue.length ? `, ${ctx.tasks.overdue.length} overdue` : ""}.` },
-    { key: "reserve", label: "Wellbeing reserve", score: wellbeingReserve, weight: 0.20,
+    { key: "reserve", label: "Wellbeing reserve", score: wellbeingReserve, weight: 0.35,
       detail: avgSleep > 0 ? `~${avgSleep.toFixed(1)}h sleep, mood ${avgMood.toFixed(1)}/5.` : "Not enough wellbeing data logged." },
-    { key: "goals", label: "Goal safety", score: goalSafety, weight: 0.20,
-      detail: goals.length ? `${goals.length} goal(s), ${atRisk} at risk.` : "No savings goals set." },
   ];
 
   const score = weighted(components);
@@ -186,13 +178,27 @@ export function rankAttention(ctx: AppContext): AttentionItem[] {
     });
   }
 
-  if (ctx.budget.status === "critical" || ctx.budget.status === "warning") {
+  const bills = ctx.bills ?? { total: 0, overdue: [], dueSoon: [], noDate: 0 };
+  if (bills.overdue.length > 0) {
+    const names = bills.overdue.map(b => b.name);
     items.push({
-      id: "budget_pressure",
-      title: `Spending is ${ctx.budget.status}`,
-      severity: ctx.budget.status === "critical" ? "alert" : "watch", source: "budget",
-      why: `At ${Math.round(ctx.budget.pct * 100)}% of budget with ${ctx.budget.daysUntilReset} days left.`,
-      suggestedAction: ctx.budget.topOverspend ? `Set a soft cap on ${ctx.budget.topOverspend} for the rest of the month.` : "Set a soft cap on the top category for the rest of the month.",
+      id: "bills_overdue",
+      title: bills.overdue.length === 1 ? `${names[0]} is overdue` : `${bills.overdue.length} bills are overdue`,
+      severity: "alert", source: "bills",
+      why: `${names.slice(0, 3).join(", ")} ${bills.overdue.length > 1 ? "are" : "is"} past the due date.`,
+      suggestedAction: "Pay it, then tap Paid on the Bills tab.",
+    });
+  }
+  const dueVerySoon = bills.dueSoon.filter(b => b.days <= 2 && !b.autopay);
+  if (dueVerySoon.length > 0) {
+    const first = dueVerySoon[0];
+    const when = first.days === 0 ? "today" : first.days === 1 ? "tomorrow" : `in ${first.days} days`;
+    items.push({
+      id: "bills_due_soon",
+      title: dueVerySoon.length === 1 ? `${first.name} is due ${when}` : `${dueVerySoon.length} bills due in the next 2 days`,
+      severity: first.days === 0 ? "alert" : "watch", source: "bills",
+      why: "Bills you pay yourself, coming up soon.",
+      suggestedAction: "Pay it, then tap Paid on the Bills tab.",
     });
   }
 
@@ -213,17 +219,6 @@ export function rankAttention(ctx: AppContext): AttentionItem[] {
       severity: ctx.trips.next.daysUntil <= 5 ? "alert" : "watch", source: "trips",
       why: "Travel prep compresses fast and disrupts routines if left late.",
       suggestedAction: "Block 20 minutes to finish the packing/prep list.",
-    });
-  }
-
-  const offTrack = (ctx.householdSnapshot?.activeGoals || []).filter(g => g.riskStatus === "off_track");
-  if (offTrack.length > 0) {
-    items.push({
-      id: "goals_offtrack",
-      title: `${offTrack.length} goal${offTrack.length > 1 ? "s" : ""} off track`,
-      severity: "watch", source: "goals",
-      why: `${offTrack.map(g => g.name).slice(0, 2).join(", ")} ${offTrack.length > 1 ? "are" : "is"} drifting from target.`,
-      suggestedAction: "Adjust the monthly contribution or the deadline so it's realistic.",
     });
   }
 

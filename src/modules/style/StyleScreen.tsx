@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
+import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Pill, Button, Input, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
@@ -45,9 +46,9 @@ const MOODS = [
 ];
 
 const BODY_SHAPES   = ["Hourglass","Pear","Apple","Rectangle","Inverted triangle","Petite","Plus size"];
-const VIBES         = ["Classic elegant","Boho casual","Minimalist","Bold & colourful","Smart casual","Athleisure","Feminine romantic","Edgy cool"];
+const VIBES         = ["Classic elegant","Boho casual","Minimalist","Bold & colorful","Smart casual","Athleisure","Feminine romantic","Edgy cool"];
 const DRESS_CODES   = ["Casual","Business casual","Formal","Creative","Black tie","Beach/resort"];
-const BUDGETS       = ["Budget (high street)","Mid-range","Premium","Luxury"];
+const BUDGETS       = ["Budget-friendly","Mid-range","Premium","Luxury"];
 const HEIGHTS       = ["Petite (under 5'4)","Average (5'4–5'7)","Tall (5'7+)"];
 
 // ── Body shape tips per blueprint ─────────────────────────────────
@@ -140,9 +141,9 @@ STYLING RULES:
 6. End with a confidence boost — she should feel amazing
 7. Suggest alternatives for key items
 8. Use null for outfit pieces she doesn't need (bag, outerwear, dress, bottom) and for weatherAdaptation if weather isn't relevant
-9. estimatedCost.total is the whole outfit in GBP`;
+9. estimatedCost.total is the whole outfit in ${getCurrency()}`;
 
-    const stressNote = householdSnapshot?.householdStressLevel === "high" ? " The user is having a high-stress week — prioritise comfort and ease." : "";
+    const stressNote = householdSnapshot?.householdStressLevel === "high" ? " The user is having a high-stress week — prioritize comfort and ease." : "";
     const prompt = `Occasion: ${occasion}. Mood: ${mood}. ${context?`Context: ${context}.`:""} ${weather?`Weather: ${weather}.`:""} ${include?`Must include: ${include}.`:""}${stressNote}`;
     const item = s.object({ name: s.string(), color: s.string(), material: s.string(), fit: s.string(), whyItWorks: s.string() });
     const schema = s.object({
@@ -391,7 +392,7 @@ STYLING RULES:
             {rec.estimatedCost && rec.estimatedCost.total > 0 && (
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:T.sand, borderRadius:14, marginBottom:12, border:`1px solid ${T.linen}` }}>
                 <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0 }}>Estimated cost</p>
-                <p style={{ fontFamily:F.serif, fontSize:20, fontWeight:700, color:T.esp, margin:0 }}>£{rec.estimatedCost.total}</p>
+                <p style={{ fontFamily:F.serif, fontSize:20, fontWeight:700, color:T.esp, margin:0 }}>{currencySymbol(getCurrency())}{rec.estimatedCost.total}</p>
               </div>
             )}
 
@@ -448,7 +449,7 @@ STYLING RULES:
             ))}
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            <Input value={size} onChange={setSize} placeholder="Clothing size (e.g. UK 12)" style={{ flex:1 }}/>
+            <Input value={size} onChange={setSize} placeholder="Clothing size (e.g. 8 or M)" style={{ flex:1 }}/>
             <Input value={colorSeason} onChange={setColorSeason} placeholder="Color season (optional)" style={{ flex:1 }}/>
           </div>
         </Card>
@@ -461,7 +462,7 @@ STYLING RULES:
       {/* ── SAVED OUTFITS ─────────────────────────────────────────── */}
       {tab==="saved" && <>
         {saved.length===0
-          ? <EmptyState icon="♥" title="Your future favourites" body="When Cleo styles something you love, tap Save and it lives here — ready for the next busy morning." />
+          ? <EmptyState icon="♥" title="Your future favorites" body="When Cleo styles something you love, tap Save and it lives here — ready for the next busy morning." />
           : saved.map(s=>(
             <Card key={s.id}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
@@ -470,7 +471,7 @@ STYLING RULES:
                     {(OCCASIONS as any[]).find(o=>o.id===s.occasion)?.icon} {(OCCASIONS as any[]).find(o=>o.id===s.occasion)?.label}
                   </p>
                   <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"2px 0 0" }}>
-                    {MOODS.find(m=>m.id===s.mood)?.label} · {new Date(s.savedAt||Date.now()).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+                    {MOODS.find(m=>m.id===s.mood)?.label} · {new Date(s.savedAt||Date.now()).toLocaleDateString("en-US",{day:"numeric",month:"short"})}
                   </p>
                 </div>
                 <button onClick={async()=>{ const u=saved.filter(i=>i.id!==s.id); setSaved(u); await persist({saved:u,wishlist,bodyShape,size,height,vibe,dressCode,budget,colorSeason}); }} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, minHeight:44, padding:"0 8px" }}>×</button>

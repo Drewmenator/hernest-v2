@@ -267,10 +267,6 @@ export function TripDetailTabs({
               );
             })}
           </Card>
-          <button onClick={() => askCFO(`Can we afford a ${trip.nights}-night trip to ${trip.destination} costing ${trip.budget.currency}${trip.budget.total}?`)}
-            style={{ width: "100%", padding: "12px", background: T.esp, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 8 }}>
-            ✦ Ask CFO: Can we afford this?
-          </button>
         </>
       )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
+import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Button, Input } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
@@ -225,7 +226,7 @@ export function ProfileScreen() {
         {/* Focus word theme per blueprint */}
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>FOCUS WORD THEME</p>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalise your morning focus word</p>
+          <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalize your morning focus word</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {FOCUS_THEMES.map(t=>(
               <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:"#fff", color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
@@ -391,13 +392,13 @@ export function ProfileScreen() {
           <Input value={biggestChallenge} onChange={setBiggestChallenge} placeholder="Biggest challenge right now" style={{ marginBottom:8 }}/>
           <Input value={nextTrip} onChange={setNextTrip} placeholder="Next trip goal (e.g. Bali in December)" style={{ marginBottom:8 }}/>
           <Input value={fitnessGoal} onChange={setFitnessGoal} placeholder="Fitness goal" style={{ marginBottom:8 }}/>
-          <Input value={savingsGoal} onChange={setSavingsGoal} placeholder="Savings goal (e.g. Emergency fund £10k)"/>
+          <Input value={savingsGoal} onChange={setSavingsGoal} placeholder={`Savings goal (e.g. Emergency fund ${currencySymbol(getCurrency())}10k)`}/>
         </Card>
 
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>ACTIVE GOALS</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
-            {["Get promoted","Run 5k","Save £5k","Travel more","Read 12 books","Learn to cook","Better sleep","More self-care","Make new friends","Work-life balance"].map(g=>(
+            {["Get promoted","Run 5k",`Save ${currencySymbol(getCurrency())}5k`,"Travel more","Read 12 books","Learn to cook","Better sleep","More self-care","Make new friends","Work-life balance"].map(g=>(
               <button key={g} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${activeGoals.includes(g)?T.esp:T.linen}`, background:activeGoals.includes(g)?T.esp:"#fff", color:activeGoals.includes(g)?"#fff":T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{g}</button>
             ))}
           </div>

@@ -119,7 +119,7 @@ export function CleoScreen() {
 
         // Check calendar load
         if (snap?.calendarLoad === "critical" || snap?.calendarLoad === "heavy") {
-          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritise?`);
+          observations.push(`Your calendar looks ${snap.calendarLoad} this week — want me to help you simplify or prioritize?`);
         }
 
         // Check upcoming trip
@@ -186,7 +186,7 @@ export function CleoScreen() {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = "en-GB";
+    recognition.lang = "en-US";
     recognition.onstart  = () => setRecording(true);
     recognition.onend    = () => setRecording(false);
     recognition.onerror  = () => setRecording(false);

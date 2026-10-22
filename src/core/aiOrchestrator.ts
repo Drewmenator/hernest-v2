@@ -271,7 +271,8 @@ Every CFO response must address:
 6. Suggested next step
 
 Never shame spending. Never guarantee outcomes. Never provide investment, tax, or legal advice.
-When data is missing, state the assumption clearly — do not invent numbers.`;
+When data is missing, state the assumption clearly — do not invent numbers.
+HerNest tracks the household's regular bills only (see BILLS). It has no spending, income, savings or debt figures: if a question needs them, ask the user for the numbers instead of guessing.`;
 
 const WELLNESS_SYSTEM = `${NORA_BASE}
 

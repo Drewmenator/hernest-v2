@@ -314,7 +314,7 @@ export function CalendarScreen() {
                 title: s.string(),
                 date: s.string("YYYY-MM-DD"),
                 endDate: s.nullable(s.string("YYYY-MM-DD")),
-                type: s.enum(["holiday", "exam", "event", "inset", "other"]),
+                type: s.enum(["holiday", "exam", "event", "no_school", "other"]),
               })),
             }),
             messages: [{
@@ -453,15 +453,6 @@ export function CalendarScreen() {
           </div>
         ) : null;
       })()}
-      {householdSnapshot && (householdSnapshot.financial?.topOverspendCategories?.length ?? 0) > 0 && (
-        <div style={{ background:`${T.blush}10`, border:`1px solid ${T.blush}25`, borderRadius:12, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:16 }}>💰</span>
-          <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
-            <strong>{householdSnapshot.financial.topOverspendCategories[0]}</strong> is running higher than planned this month — you've still got room to steer it.
-          </p>
-        </div>
-      )}
-
       {/* Household state banner */}
       {householdSnapshot?.householdStressLevel === "high" && (
         <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>

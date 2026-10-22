@@ -72,24 +72,8 @@ export function initConnectivity(userId: string) {
     }
   });
 
-  // ── 3. BUDGET THRESHOLD → Home alert + Cleo context ───────────
-  bus.subscribe("budget.threshold.hit", async (e: any) => {
-    const { category, percentUsed, amount } = e.payload;
-    dlog("[Connectivity] budget threshold hit:", category, percentUsed);
-
-    // Store budget alert in a way Cleo can read
-    const existing = await loadData(userId, "alerts") || {};
-    const alerts = (existing.alerts as any[]) || [];
-    const newAlert = {
-      id: crypto.randomUUID(),
-      type: "budget",
-      message: `${category} at ${percentUsed}% of budget`,
-      severity: percentUsed >= 95 ? "critical" : "warning",
-      createdAt: Date.now(),
-      read: false,
-    };
-    await saveData(userId, "alerts", { alerts: [newAlert, ...alerts.slice(0, 9)] });
-  });
+  // (3. Budget threshold alerts removed: the Budget screen was replaced by
+  // Bills in Oct 2026 and its stored alerts could never update or clear.)
 
   // ── 4. TRIP CREATED → Calendar blocked ────────────────────────
   bus.subscribe("trips.trip.created", async (e: any) => {
@@ -158,24 +142,6 @@ export function initConnectivity(userId: string) {
     dlog("[Connectivity] task completed:", e.payload);
     // Trigger a subtle store update so Home re-renders
     window.dispatchEvent(new CustomEvent("hernest:data_updated", { detail: { module: "plan" } }));
-  });
-
-  // ── 8. EXPENSE LOGGED → Check thresholds ──────────────────────
-  bus.subscribe("budget.expense.logged", async (e: any) => {
-    const budgetData = await loadData(userId, "budget");
-    const categories = (budgetData?.categories as any[]) || [];
-
-    for (const cat of categories) {
-      if (cat.budget > 0) {
-        const pct = Math.round((cat.spent / cat.budget) * 100);
-        if (pct >= 80) {
-          await bus.publish("budget.threshold.hit",
-            { category: cat.label, percentUsed: pct, amount: cat.spent },
-            { userId, source: "connectivity" }
-          );
-        }
-      }
-    }
   });
 
   // ── 9. PROFILE UPDATED → Clear briefing cache ─────────────────

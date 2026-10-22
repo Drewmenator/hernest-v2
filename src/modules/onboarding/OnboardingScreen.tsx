@@ -21,7 +21,7 @@ type SetupStep = "intro" | "name" | "kids" | "kidDates" | "challenge" | "done";
 const NORA_QUESTIONS: Record<SetupStep, (data: SetupData) => string> = {
   intro:     () => "",
   name:      () => "First things first — what's your name?",
-  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalise your experience. If not, just say 'no kids'.`,
+  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalize your experience. If not, just say 'no kids'.`,
   kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate 🎂 — totally optional, tap Continue to skip.",
   challenge: () => "Almost done.\n\nWhat's the biggest thing weighing on you right now — the thing that takes up most of your mental energy?",
   done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you keep on top of your bills, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,

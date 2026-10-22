@@ -162,8 +162,10 @@ export async function loadHouseholdInsights(userId: string): Promise<HouseholdIn
 
 // ── Build household snapshot from Firestore ───────────────────────
 export async function buildHouseholdSnapshot(userId: string): Promise<HouseholdSnapshot> {
-  const [budgetData, thriveData, calendarData, tripsData] = await Promise.all([
-    loadData(userId, "budget_v2"),
+  // The old Budget record is no longer read (replaced by Bills, Oct 2026; its
+  // totals never reset). Money fields in the snapshot are therefore empty.
+  const budgetData = null as Record<string, unknown> | null;
+  const [thriveData, calendarData, tripsData] = await Promise.all([
     loadData(userId, "thrive"),
     loadData(userId, "calendar"),
     loadData(userId, "trips"),

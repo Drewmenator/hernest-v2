@@ -185,12 +185,12 @@ function scoreWellnessPressure(ctx: AppContext): number {
 }
 
 function scoreDecisionHeavy(ctx: AppContext): number {
-  // Proxy: multiple goals at risk + upcoming major events + financial uncertainty
+  // Proxy: multiple goals at risk + upcoming major events. (Income is no
+  // longer collected, so "income not set" no longer counts as uncertainty.)
   const goalsAtRisk = ctx.budget.savingsGoals.filter(g => g.pct < 30).length;
   const hasTrip     = !!ctx.trips.next;
-  const financialUncertainty = ctx.budget.monthlyIncome === 0 ? 20 : 0;
 
-  let score = goalsAtRisk * 15 + (hasTrip ? 10 : 0) + financialUncertainty;
+  const score = goalsAtRisk * 15 + (hasTrip ? 10 : 0);
   return Math.min(100, score);
 }
 
@@ -304,11 +304,10 @@ function buildSignals(ctx: AppContext, state: HouseholdState): string[] {
 
     case "decision_heavy":
       signals.push("Multiple unresolved priorities");
-      if (ctx.budget.monthlyIncome === 0) signals.push("Income not set — financial picture incomplete");
       break;
 
     case "calm":
-      signals.push("Balanced schedule and finances");
+      signals.push("Balanced schedule");
       break;
   }
 

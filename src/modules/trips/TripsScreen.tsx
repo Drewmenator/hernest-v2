@@ -170,7 +170,7 @@ Generate exactly ${days} days. Keep each field under 12 words. Make it feel achi
     const prompt = `${days} nights in ${trip.destination}.
 Party: ${adults.map(a => a.name).join(", ")} (adults)${kids.length ? `, ${kids.map(k => `${k.name} age ${k.age}`).join(", ")} (kids)` : ""}.
 Budget: ${trip.budget.currency}${trip.budget.total}.
-Make it family-friendly but include a mum moment each day.`;
+Make it family-friendly but include a mom moment each day.`;
 
     const schema = s.object({
       days: s.array(s.object({
@@ -198,7 +198,7 @@ Make it family-friendly but include a mum moment each day.`;
     const kids = trip.travellers.filter(t => t.type === "child");
     const hasKids = kids.length > 0;
 
-    const sys = `You are Cleo. Generate a smart family packing list in these sections, in order: Mum, ${hasKids ? "Kids" : "Partner"}, Everyone, Documents, Tech.
+    const sys = `You are Cleo. Generate a smart family packing list in these sections, in order: Mom, ${hasKids ? "Kids" : "Partner"}, Everyone, Documents, Tech.
 Each item: name, quantity, essential, weatherDependent. Max 12 items per section.`;
 
     const prompt = `Trip to ${trip.destination}, ${trip.nights} nights.
@@ -207,7 +207,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
 
     const schema = s.object({
       sections: s.array(s.object({
-        name: s.enum(["Mum", hasKids ? "Kids" : "Partner", "Everyone", "Documents", "Tech"]),
+        name: s.enum(["Mom", hasKids ? "Kids" : "Partner", "Everyone", "Documents", "Tech"]),
         items: s.array(s.object({ name: s.string(), quantity: s.integer(), essential: s.boolean(), weatherDependent: s.boolean() })),
       })),
     });
@@ -356,7 +356,6 @@ Weather: pack for typical ${trip.destination} conditions.`;
           { id: "packing",   label: `🧳 Pack${totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}` },
           { id: "checklist", label: `✓ Prep${completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}` },
           { id: "budget",    label: "💰 Budget" },
-          { id: "ask",       label: "✦ Ask CFO" },
           { id: "edit",      label: "✎ Edit" },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setDetailTab(t.id as any)}

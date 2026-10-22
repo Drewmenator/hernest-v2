@@ -45,7 +45,7 @@ const ENERGY_ICONS: Record<string,string> = { high:"⚡", medium:"◦", low:"�
 const DAYS_OF_WEEK = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
 // Friendly short date (e.g. "Jul 3") from an ISO yyyy-mm-dd string.
-const fmtDate = (d: string) => { try { return new Date(d+"T00:00:00").toLocaleDateString("en-GB",{month:"short",day:"numeric"}); } catch { return d; } };
+const fmtDate = (d: string) => { try { return new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}); } catch { return d; } };
 
 // ── Priority scoring per blueprint ─────────────────────────────────
 function scoreTask(t: Task, energyPattern: string): number {

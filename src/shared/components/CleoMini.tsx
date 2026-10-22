@@ -49,7 +49,7 @@ export function CleoMini() {
     const r = new SR();
     r.continuous = false;
     r.interimResults = false;
-    r.lang = "en-GB";
+    r.lang = "en-US";
     r.onstart = () => setRecording(true);
     r.onend = () => setRecording(false);
     r.onerror = () => setRecording(false);

@@ -156,6 +156,8 @@ export default function App() {
           localStorage.setItem("hn_last_uid", u.uid);
         } catch { /* non-fatal */ }
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
+        // Usage tracking (off unless VITE_POSTHOG_KEY is set): the uid only.
+        import("./core/analytics").then(m => m.identifyUser(u.uid)).catch(() => {});
         await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
         // ── Household identity (migration Step 1) ──
         // Accept any pending invite, then resolve + provision the household so
@@ -256,6 +258,13 @@ export default function App() {
     return () => window.removeEventListener("hn_limit_reached", handler);
   }, []);
 
+
+  // Count which tabs people open, so cut/keep decisions use real numbers.
+  // (The "budget" tab id shows the Bills screen.)
+  useEffect(() => {
+    if (screen !== "app") return;
+    import("./core/analytics").then(m => m.trackScreen(activeTab === "budget" ? "bills" : activeTab)).catch(() => {});
+  }, [screen, activeTab]);
 
   if (screen === "loading") {
     return (

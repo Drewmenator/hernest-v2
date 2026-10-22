@@ -177,15 +177,16 @@ export async function buildAppContext(
 
   console.log("[Context] starting buildAppContext v2 for", userId);
 
-  // Load all modules in parallel — now includes budget_v2
+  // Load all modules in parallel. The old Budget record (budget_v2 / budget)
+  // is no longer read: Budget was replaced by Bills in Oct 2026 and its totals
+  // never reset, so they were wrong. ctx.budget stays in the shape for older
+  // code but is always empty; money context comes from ctx.bills.
   const [
-    tasksData, budgetDataV2, budgetDataV1, thriveData,
+    tasksData, thriveData,
     tripsData, schoolData, circleData, calendarData,
     memoryFacts, wearable, billsData
   ] = await Promise.all([
     loadData(userId, "tasks"),
-    loadData(userId, "budget_v2"),   // NEW: try v2 first
-    loadData(userId, "budget"),      // fallback to v1
     loadData(userId, "thrive"),
     loadData(userId, "trips"),
     loadData(userId, "school"),
@@ -196,23 +197,21 @@ export async function buildAppContext(
     loadData(userId, "bills"),
   ]);
 
-  // Use v2 if available, otherwise fall back to v1
-  const budgetData = budgetDataV2 || budgetDataV1;
-  const isV2 = !!budgetDataV2;
+  const budgetData = null as Record<string, unknown> | null;
+  const isV2 = true;
 
-  console.log("[Context] data loaded:", {
-    budgetV2: !!budgetDataV2, budgetV1: !!budgetDataV1,
-    tasks: !!tasksData, thrive: !!thriveData
-  });
+  console.log("[Context] data loaded:", { tasks: !!tasksData, thrive: !!thriveData });
 
   const memoryCtx = await buildMemoryContextV2(userId, { maxResults: 10 }).catch(() => buildMemoryContext(userId));
 
   // ── Tasks ───────────────────────────────────────────────────────
   const allTasks = (tasksData?.tasks as any[]) || [];
-  const pendingTasks = allTasks.filter((t:any) => !t.done);
+  // Plan stores status "completed"; older tasks used done: true.
+  const isDone = (t:any) => t.status === "completed" || t.done === true;
+  const pendingTasks = allTasks.filter((t:any) => !isDone(t));
   const dueToday = pendingTasks.filter((t:any) => t.dueDate === todayStr);
   const overdue  = pendingTasks.filter((t:any) => t.dueDate && t.dueDate < todayStr);
-  const doneTasks = allTasks.filter((t:any) => t.done);
+  const doneTasks = allTasks.filter(isDone);
   const completionRate = allTasks.length ? doneTasks.length / allTasks.length : 0;
 
   // ── Calendar ────────────────────────────────────────────────────
@@ -483,16 +482,12 @@ export function buildBriefingPrompt(ctx: AppContext): string {
     lines.push(ctx.memory);
   }
 
-  // NEW: household snapshot context for briefing AI
+  // Household snapshot context for briefing AI (calendar and stress only)
   if (ctx.householdSnapshot) {
     const snap = ctx.householdSnapshot;
     lines.push(``);
     lines.push(`=== HOUSEHOLD INTELLIGENCE ===`);
     lines.push(`Calendar load: ${snap.calendarLoad}. Stress level: ${snap.householdStressLevel}.`);
-    if (snap.activeGoals.some(g => g.riskStatus !== "on_track")) {
-      const atRisk = snap.activeGoals.filter(g => g.riskStatus !== "on_track");
-      lines.push(`Goals at risk: ${atRisk.map(g => g.name).join(", ")}.`);
-    }
   }
 
   return lines.join("\n");

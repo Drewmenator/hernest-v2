@@ -31,8 +31,8 @@ const CONNECTORS: Connector[] = [
   { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
   { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
   { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
-  { id: "gmail", name: "Gmail", category: "Email", blurb: "Receipts → budget · school & travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
-  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Live transactions, auto-categorized — connect in Budget", icon: "◎", kind: "deeplink", tab: "budget", statusDoc: "plaid", statusField: "connected" },
+  { id: "gmail", name: "Gmail", category: "Email", blurb: "School and travel emails → calendar", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
+  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Find your bills automatically. Coming soon.", icon: "◎", kind: "soon", statusDoc: "plaid", statusField: "connected" },
   { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
   { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];
@@ -40,8 +40,7 @@ const CONNECTORS: Connector[] = [
 // Manual data sources already built into other screens — surfaced here so this
 // screen is the complete inventory of what feeds Cleo.
 const MANUAL_SOURCES = [
-  { id: "csv", name: "Bank CSV import", blurb: "Upload statements into the budget", icon: "◎", tab: "budget" },
-  { id: "receipts", name: "Receipt scanner", blurb: "Snap receipts, Cleo logs the expense", icon: "◉", tab: "budget" },
+  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: "◎", tab: "budget" },
   { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "calendar" },
 ];
 
@@ -150,7 +149,7 @@ export function ConnectionsScreen() {
       const r = await scanGmail(user.uid);
       if (r.error === "reauth_required") toast.error("Gmail needs reconnecting");
       else if (r.error) toast.error("Scan failed — try again");
-      else if (r.eventsAdded || r.receiptsFound) toast.success(`Found ${r.eventsAdded} event${r.eventsAdded === 1 ? "" : "s"} · ${r.receiptsFound} receipt${r.receiptsFound === 1 ? "" : "s"} ✓`);
+      else if (r.eventsAdded) toast.success(`Found ${r.eventsAdded} event${r.eventsAdded === 1 ? "" : "s"} ✓`);
       else toast(`Scanned ${r.scanned} emails — nothing new`, { icon: "✉" });
       await loadHealth(user.uid);
     } catch {

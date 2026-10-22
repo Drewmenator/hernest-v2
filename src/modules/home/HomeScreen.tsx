@@ -1,83 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { daysUntilDue, type Bill } from "../../core/bills";
 import { T, F } from "../../config/theme";
-import toast from "react-hot-toast";
 import { useStore } from "../../core/store";
-import { useAdaptiveUX, filterInsightsForDisplay, getStateBannerProps, getAdaptiveGreeting } from "../../core/household/adaptiveUX";
-import { loadData } from "../../core/firebase";
-import { db } from "../../core/db";
 import { Spinner } from "../../shared/components";
-import { createActionsFromInsight, executeRecommendedAction } from "../../core/recommendationActions";
-import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
-import { buildHouseholdSnapshot, generateHouseholdInsights, getTopInsight, loadHouseholdInsights, saveHouseholdInsights } from "../../core/household";
-import { computeHouseholdScores, type HouseholdScores, type ScoreBand, type AttentionSeverity } from "../../core/intelligence/householdScores";
 
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { loadHomeDocs } from "./homeData";
-import { BAND_COLOR, SEV_COLOR, SEV_RANK, SOURCE_TAB, cc_str } from "./homeShared";
 import { BriefingHero } from "./BriefingHero";
-import { HouseholdPulseCard } from "./HouseholdPulseCard";
 import { CommandCenterCard } from "./CommandCenterCard";
-
-function ScoreDial({ label, score, band, headline }: { label: string; score: number; band: ScoreBand; headline: string }) {
-  const color = BAND_COLOR[band];
-  return (
-    <div style={{ flex: 1, background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 12px 14px" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontFamily: F.sans, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: T.taupe }}>{label}</span>
-        <span style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color }}>{score}</span>
-      </div>
-      <div style={{ height: 4, background: T.linen, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
-        <div style={{ width: `${score}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.6s ease" }} />
-      </div>
-      <p style={{ fontFamily: F.sans, fontSize: 10.5, color: T.bark, margin: 0, lineHeight: 1.4 }}>
-        <span style={{ fontWeight: 700, color, textTransform: "capitalize" }}>{band}</span> · {headline}
-      </p>
-    </div>
-  );
-}
-
-function HouseholdScoresCard() {
-  const { user, profile } = useStore();
-  const [scores, setScores] = useState<HouseholdScores | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    let alive = true;
-    (async () => {
-      try {
-        const { buildAppContext } = await import("../../core/contextBuilder");
-        const appCtx = await buildAppContext(user.uid, (profile ?? {}) as unknown as Record<string, unknown>);
-        if (alive) setScores(computeHouseholdScores(appCtx));
-      } catch (e) {
-        console.warn("[Home] scores failed:", e);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [user?.uid]);
-
-  if (loading) return (
-    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12, display: "flex", justifyContent: "center" }}>
-      <Spinner size={20} />
-    </div>
-  );
-  if (!scores) return null;
-
-  return (
-    <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
-      <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>HOUSEHOLD INTELLIGENCE</p>
-
-      {/* Resilience + Productivity dials (the Risk Radar lives in the Command Center) */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <ScoreDial label="Resilience" score={scores.resilience.score} band={scores.resilience.band} headline={scores.resilience.headline} />
-        <ScoreDial label="Productivity" score={scores.productivity.score} band={scores.productivity.band} headline={scores.productivity.headline} />
-      </div>
-    </div>
-  );
-}
 
 function IntelligenceCard() {
   const { user } = useStore();
@@ -371,8 +301,6 @@ export function HomeScreen() {
       <GetStartedCard />
       <CommandCenterCard />
       <BriefingHero onExpand={() => setActiveTab("briefing")} />
-      <HouseholdPulseCard />
-      <HouseholdScoresCard />
       <IntelligenceCard />
       <FamilyHQCard />
 

@@ -51,10 +51,7 @@ export function connectIntelligenceLayer(userId: string): () => void {
         .catch(() => {}); // non-fatal
     }
 
-    // Auto-trigger insight generation for critical overspend
-    if (percentUsed >= 100) {
-      bus.publish("budget.threshold.hit", { trigger: "budget_overspend", category, percentUsed }, { userId, source: "intelligence" }).catch(() => {});
-    }
+    // (Removed: re-publishing budget.threshold.hit from its own handler looped forever.)
   }));
 
   // ── 3. Trip created → invalidate trips + calendar cache ──────────

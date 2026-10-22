@@ -19,7 +19,7 @@ interface Briefing {
   priorities:   { rank: number; text: string; emoji: string; source: string; urgency: string; whyToday: string; estimatedMinutes?: number }[];
   calendar:     { highlights: { time: string; title: string; icon: string }[]; densityNote?: string; conflicts?: string[] };
   tasks:        { aiSuggestion: string; completionNote: string };
-  budget:       { status: string; keyMessage: string; forecastMessage: string; categoryAlert?: string; savingsUpdate?: string };
+  bills?:       { message: string } | null;  // replaced the old Budget pulse (Oct 2026)
   trips?:       { statusMessage: string; urgentActions: string[]; excitementNote: string; packingStatus?: string };
   circle:       { checkinMessage?: string; birthdayAlert?: string; communityNote?: string };
   energy:       { predictedLevel: string; predictionBasis: string; tip: string; scheduleSuggestion: string };
@@ -35,7 +35,7 @@ const BRIEFING_SCHEMA = js.object({
   greeting: js.string(),
   priorities: js.array(js.object({
     rank: js.integer(), text: js.string(), emoji: js.string(),
-    source: js.enum(["task", "calendar", "school", "budget", "trip", "circle", "health"]),
+    source: js.enum(["task", "calendar", "school", "bills", "trip", "circle", "health"]),
     urgency: js.enum(["critical", "high", "medium", "low"]),
     whyToday: js.string(), estimatedMinutes: js.nullable(js.integer()),
   })),
@@ -44,10 +44,7 @@ const BRIEFING_SCHEMA = js.object({
     densityNote: opt, conflicts: js.array(js.string()),
   }),
   tasks: js.object({ aiSuggestion: js.string(), completionNote: js.string() }),
-  budget: js.object({
-    status: js.enum(["healthy", "watch", "warning", "critical"]),
-    keyMessage: js.string(), forecastMessage: js.string(), categoryAlert: opt, savingsUpdate: opt,
-  }),
+  bills: js.nullable(js.object({ message: js.string() })),
   trips: js.nullable(js.object({
     statusMessage: js.string(), urgentActions: js.array(js.string()), excitementNote: js.string(), packingStatus: opt,
   })),
@@ -72,7 +69,7 @@ const URGENCY_COLORS: Record<string,string> = {
 };
 
 const SOURCE_EMOJIS: Record<string,string> = {
-  task:"✓", calendar:"◈", school:"◆", budget:"◎", trip:"→", circle:"✦", health:"◦"
+  task:"✓", calendar:"◈", school:"◆", budget:"◎", bills:"◎", trip:"→", circle:"✦", health:"◦"
 };
 
 export function BriefingScreen() {
@@ -170,10 +167,10 @@ Answer in this shape (null for anything you have no data for):
 {
   "focusWord": {"word":"${focusData.word}","emoji":"${focusData.emoji}","why":"one personal sentence why this word today"},
   "greeting": "warm personal greeting using her name and today ${date}",
-  "priorities": [{"rank":1,"text":"specific action","emoji":"emoji","source":"task|calendar|school|budget|trip|circle","urgency":"critical|high|medium|low","whyToday":"why now","estimatedMinutes":5}],
+  "priorities": [{"rank":1,"text":"specific action","emoji":"emoji","source":"task|calendar|school|bills|trip|circle","urgency":"critical|high|medium|low","whyToday":"why now","estimatedMinutes":5}],
   "calendar": {"highlights":[{"time":"","title":"","icon":""}],"densityNote":"optional note if heavy","conflicts":[]},
   "tasks": {"aiSuggestion":"one specific task suggestion","completionNote":"encouraging note on completion rate"},
-  "budget": {"status":"healthy|watch|warning|critical","keyMessage":"positive or actionable message — focus on cash remaining and savings progress, NOT total debt","forecastMessage":"month end forecast","categoryAlert":"optional — only if overspending","savingsUpdate":"optional — celebrate progress"},
+  "bills": {"message":"one short, calm line about bills that are overdue or due in the next few days, using only the BILLS data"} or null if no bills are overdue or due soon,
   "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
   "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
   "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest signals you have — body readiness if present, else sleep + mood (e.g. \"readiness 62 + 5.8h sleep\")","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
@@ -189,7 +186,6 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
         if (!parsed.priorities) parsed.priorities = [];
         if (!parsed.calendar) parsed.calendar = { highlights: [] };
         if (!parsed.tasks) parsed.tasks = { aiSuggestion: "", completionNote: "" };
-        if (!parsed.budget) parsed.budget = { status: "healthy", keyMessage: "", forecastMessage: "" };
         if (!parsed.energy) parsed.energy = { predictedLevel: "medium", predictionBasis: "", tip: "", scheduleSuggestion: "" };
         if (!parsed.affirmation) parsed.affirmation = { text: "", theme: "" };
         if (!parsed.circle) parsed.circle = {};
@@ -213,7 +209,7 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
     // Same safety net as Cleo chat: a crisis message never goes to the AI.
     if (detectCrisis(askInput)) { setAskResp(crisisResponse().replace(/\*\*/g, "")); return; }
     setAsking(true);
-    const ctxStr = ctx ? `Today's tone: ${ctx.tone}. Focus: ${briefing?.focusWord?.word}. Tasks: ${ctx.tasks.total} pending. Budget: ${ctx.budget?.status}.` : "";
+    const ctxStr = ctx ? `Today's tone: ${ctx.tone}. Focus: ${briefing?.focusWord?.word}. Tasks: ${ctx.tasks.total} pending. Bills: ${ctx.bills?.overdue.length ?? 0} overdue, ${ctx.bills?.dueSoon.length ?? 0} due in the next 7 days.` : "";
     const result = await ai(`You are Cleo. ${ctxStr} Answer in 2-3 warm, specific sentences. Never generic. CRITICAL: Only reference facts explicitly provided in the context above — never invent events, names, amounts, or dates.`, askInput, "briefing_ask");
     if (!result.error) setAskResp(result.text);
     setAsking(false);
@@ -368,23 +364,11 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
           </Card>
         )}
 
-        {/* Budget pulse — per blueprint */}
-        {briefing.budget && (
+        {/* Bills (replaced the Budget pulse, Oct 2026) */}
+        {briefing.bills?.message && (
           <Card>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:0 }}>BUDGET PULSE</p>
-              <span style={{ background:briefing.budget.status==="critical"?"#dc262615":briefing.budget.status==="warning"?`${T.gold}20`:`${T.sage}20`, color:briefing.budget.status==="critical"?"#dc2626":briefing.budget.status==="warning"?T.gold:T.sage, fontFamily:F.sans, fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, textTransform:"uppercase" }}>
-                {briefing.budget.status}
-              </span>
-            </div>
-            <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:"0 0 6px", lineHeight:1.5 }}>{briefing.budget.keyMessage}</p>
-            <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0, lineHeight:1.5 }}>{briefing.budget.forecastMessage}</p>
-            {briefing.budget.categoryAlert && (
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.blush, margin:"8px 0 0", padding:"8px 12px", background:`${T.blush}10`, borderRadius:10 }}>⚠ {briefing.budget.categoryAlert}</p>
-            )}
-            {briefing.budget.savingsUpdate && (
-              <p style={{ fontFamily:F.sans, fontSize:12, color:T.sage, margin:"8px 0 0" }}>✦ {briefing.budget.savingsUpdate}</p>
-            )}
+            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>BILLS</p>
+            <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.5 }}>{briefing.bills.message}</p>
           </Card>
         )}
 
@@ -457,7 +441,7 @@ Return exactly 5 priorities. Set trips and travelBrief to null unless that data 
             </div>
           )}
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
-            {["What should I tackle first?","How's my budget?","What's urgent?"].map(q=>(
+            {["What should I tackle first?","Which bills are due soon?","What's urgent?"].map(q=>(
               <button key={q} onClick={()=>setAskInput(q)} style={{ padding:"5px 10px", borderRadius:20, border:`1px solid ${T.linen}`, background:"#fff", fontFamily:F.sans, fontSize:11, color:T.bark, cursor:"pointer", touchAction:"manipulation" }}>{q}</button>
             ))}
           </div>
