@@ -13,6 +13,8 @@ import { connectOAuth, disconnectOAuth, getConnectorHealth, syncAllConnectors, t
 import toast from "react-hot-toast";
 import { appleHealthSupported, connectAppleHealth, appleHealthState, disconnectAppleHealth, syncAppleHealth } from "../../core/appleHealth";
 import { PLAN_TAB_KEY } from "../plan/planHelpers";
+import { CalendarPicker } from "./CalendarPicker";
+import { deviceCalendarSupported, deviceCalendarConnected } from "../../core/deviceCalendar";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
 
@@ -71,6 +73,9 @@ export function ConnectionsScreen() {
   const [managing, setManaging] = useState<string | null>(null);
   const [confirmOff, setConfirmOff] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // iPhone calendars allowed (native app): shows Choose calendars under Apple Calendar.
+  const [deviceCal, setDeviceCal] = useState(false);
+  useEffect(() => { if (deviceCalendarSupported()) deviceCalendarConnected().then(setDeviceCal).catch(() => {}); }, []);
 
   const loadHealth = async (uid: string) => {
     const checks = CONNECTORS.filter(c => c.statusDoc);
@@ -304,6 +309,8 @@ export function ConnectionsScreen() {
                       </button>
                     </div>
                   )}
+                  {c.id === "google_calendar" && isConnected && !hasError && user?.uid && <CalendarPicker uid={user.uid} source="google" />}
+                  {c.id === "apple_calendar" && deviceCal && user?.uid && <CalendarPicker uid={user.uid} source="device" />}
                   {c.id === "gmail" && isConnected && !hasError && (
                     <button onClick={onScanGmail} disabled={scanningGmail}
                       style={{ width: "100%", marginTop: 10, padding: "10px", background: `${alpha(T.gold, 0.07)}`, border: `1.5px solid ${alpha(T.gold, 0.19)}`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>

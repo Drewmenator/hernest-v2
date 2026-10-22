@@ -27,7 +27,14 @@ async function idToken(): Promise<string | null> {
   try { return (await auth.currentUser?.getIdToken()) || null; } catch { return null; }
 }
 
-const SOURCE_OF: Record<string, string> = { google: "google", outlook: "work", apple: "apple" };
+// Which saved events each sync owns (iPhone calendar events have device_ ids;
+// web iCloud events share the "apple" source but not the prefix).
+const OWNS: Record<string, (e: SyncedEvent) => boolean> = {
+  google: e => e.source === "google",
+  outlook: e => e.source === "work",
+  apple: e => e.source === "apple" && !e.id?.startsWith("device_"),
+  device: e => !!e.id?.startsWith("device_"),
+};
 
 export interface SyncMeta { complete?: boolean; range?: { from: string; to: string } | null }
 
@@ -35,15 +42,19 @@ export interface SyncMeta { complete?: boolean; range?: { from: string; to: stri
 // calendar_synced is shared with the household, so each event records who
 // synced it. When the server says it sent the full list for a date range,
 // events this user synced earlier in that range that are no longer there
-// (cancelled or moved) are dropped. Other people's events are never touched.
+// (cancelled, moved, or from a calendar they unticked) are dropped. Events
+// another person synced are never touched.
 export interface SyncedEvent { id?: string; date?: string; source?: string; syncedBy?: string }
 
+// Events saved before syncs were tagged (no syncedBy) count as anyone's: a
+// partner's untagged ones come back at their next sync, tagged.
 export function mergeSyncedEvents(existing: SyncedEvent[], events: SyncedEvent[], uid: string, provider: string, meta: SyncMeta = {}, cutoff = ""): SyncedEvent[] {
-  const source = SOURCE_OF[provider];
+  const owns = OWNS[provider];
   const range = meta.complete ? meta.range : null;
   const inRange = (e: SyncedEvent) => !!range && !!e.date && e.date >= range.from && e.date < range.to;
-  const kept = range && source
-    ? existing.filter(e => !(e?.source === source && e?.syncedBy === uid && inRange(e)))
+  const mine = (e: SyncedEvent) => !e.syncedBy || e.syncedBy === uid;
+  const kept = range && owns
+    ? existing.filter(e => !(e && owns(e) && mine(e) && inRange(e)))
     : existing;
   const byId = new Map<string, SyncedEvent>();
   kept.forEach(e => { if (e?.id) byId.set(e.id, e); });
@@ -84,31 +95,47 @@ export async function syncOuraNow(uid: string): Promise<void> {
 
 // ── Sync all connected calendar sources. Fire-and-forget from App boot. ──
 let lastRun = 0;
-export async function syncAllConnectors(uid: string): Promise<void> {
-  if (Date.now() - lastRun < 10 * 60 * 1000) return; // at most every 10 min
+export async function syncAllConnectors(uid: string, force = false): Promise<void> {
+  if (!force && Date.now() - lastRun < 10 * 60 * 1000) return; // at most every 10 min
   lastRun = Date.now();
 
   const token = await idToken();
   if (!token) return;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  await Promise.all(CALENDAR_PROVIDERS.map(async ({ provider, doc: docName, field }) => {
-    if (!(await isConnected(uid, docName, field))) return;
+  // Fetch every source at once, then save one after another: each save
+  // reads and rewrites the same calendar_synced doc.
+  type Pulled = { provider: string; events: SyncedEvent[]; meta: SyncMeta };
+  const pulled: (Pulled | null)[] = await Promise.all(CALENDAR_PROVIDERS.map(async ({ provider, doc: docName, field }) => {
+    if (!(await isConnected(uid, docName, field))) return null;
     try {
       const res = await fetch(`/api/calendar/${provider}?tz=${encodeURIComponent(tz)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return; // health written server-side (incl. reauth_required)
+      if (!res.ok) return null; // health written server-side (incl. reauth_required)
       const data = await res.json();
-      const events = Array.isArray(data.events) ? data.events : [];
-      await saveSyncedEvents(uid, provider, events, { complete: data.complete === true, range: data.range });
-      if (events.length) {
-        bus.publish("calendar.synced", { source: provider, count: events.length }, { userId: uid, source: "connectorSync" }).catch(() => {});
-      }
+      return { provider, events: Array.isArray(data.events) ? data.events : [], meta: { complete: data.complete === true, range: data.range } };
     } catch (e) {
       console.warn("[ConnectorSync]", provider, "failed:", e);
+      return null;
     }
   }));
+  // iPhone calendars (native app): read on the phone, only the chosen ones.
+  try {
+    const dc = await import("./deviceCalendar");
+    if (dc.deviceCalendarSupported()) {
+      const r = await dc.readDeviceCalendar(uid);
+      if (r) pulled.push({ provider: "device", events: r.events, meta: { complete: true, range: r.range } });
+    }
+  } catch (e) { console.warn("[ConnectorSync] iPhone calendars failed:", e); }
+
+  for (const p of pulled) {
+    if (!p) continue;
+    try {
+      await saveSyncedEvents(uid, p.provider, p.events, p.meta);
+      if (p.events.length) bus.publish("calendar.synced", { source: p.provider, count: p.events.length }, { userId: uid, source: "connectorSync" }).catch(() => {});
+    } catch (e) { console.warn("[ConnectorSync] saving", p.provider, "failed:", e); }
+  }
 
   // Oura: refresh sleep/readiness server-side, then auto-log wellness so
   // Thrive/briefing see it without the user ever opening a form.

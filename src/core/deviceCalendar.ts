@@ -13,6 +13,7 @@ export interface DeviceEvent {
   color: string;
   allDay: boolean;
   location?: string;
+  calendarId?: string;
 }
 
 const DAYS_BACK = 1;
@@ -51,7 +52,7 @@ export async function connectDeviceCalendar(): Promise<boolean> {
 const pad = (n: number) => String(n).padStart(2, "0");
 const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export function toDeviceEvent(e: { id: string; title: string; startDate: number; isAllDay: boolean; color: string | null; location: string | null }): DeviceEvent {
+export function toDeviceEvent(e: { id: string; title: string; startDate: number; isAllDay: boolean; color: string | null; location: string | null; calendarId?: string | null }): DeviceEvent {
   const start = new Date(e.startDate);
   return {
     // Recurring events share an id, so the start time keeps each one distinct.
@@ -63,15 +64,56 @@ export function toDeviceEvent(e: { id: string; title: string; startDate: number;
     color: e.color || "#6E6E73",
     allDay: e.isAllDay,
     ...(e.location ? { location: e.location } : {}),
+    ...(e.calendarId ? { calendarId: e.calendarId } : {}),
   };
 }
 
-export async function fetchDeviceEvents(): Promise<DeviceEvent[]> {
-  if (!(await deviceCalendarConnected())) return [];
+// ── Which calendars ──
+// Calendars on the phone, for Choose calendars. "own" = the default answer:
+// ones the person can add events to. Read-only calendars (usually shared by
+// a colleague), subscriptions (holidays, sports) and Birthdays start unticked.
+export interface DeviceCalendarInfo { id: string; name: string; color: string; account: string; own: boolean }
+
+const SUBSCRIPTION = 3, BIRTHDAY = 4; // the plugin's CalendarType values
+
+export function isOwnDeviceCalendar(c: { allowsContentModifications?: boolean | null; isSubscribed?: boolean | null; type?: number | null }): boolean {
+  return c.allowsContentModifications !== false && !c.isSubscribed && c.type !== SUBSCRIPTION && c.type !== BIRTHDAY;
+}
+
+export async function listDeviceCalendars(): Promise<DeviceCalendarInfo[] | null> {
+  if (!(await deviceCalendarConnected())) return null;
+  try {
+    const { result } = await (await plugin()).CapacitorCalendar.listCalendars();
+    return result.map(c => ({
+      id: c.id, name: c.title || "Calendar", color: c.color || "#6E6E73",
+      account: c.source?.title || c.accountName || "", own: isOwnDeviceCalendar(c),
+    }));
+  } catch { return null; }
+}
+
+// The chosen calendars' events, as the full list for [range.from, range.to)
+// (so events from unticked or removed calendars can be cleared). Null when
+// the calendars can't be read: then nothing is cleared.
+export async function readDeviceCalendar(uid?: string): Promise<{ events: DeviceEvent[]; range: { from: string; to: string } } | null> {
+  const calendars = await listDeviceCalendars();
+  if (!calendars) return null;
+  const { loadCalendarChoice, isPicked } = await import("./calendarChoice");
+  const choice = uid ? (await loadCalendarChoice(uid)).device : undefined;
+  const chosen = new Set(calendars.filter(c => isPicked(c.id, c.own, choice)).map(c => c.id));
   const now = Date.now();
-  const { result } = await (await plugin()).CapacitorCalendar.listEventsInRange({
-    from: now - DAYS_BACK * 86400000,
-    to: now + DAYS_AHEAD * 86400000,
-  });
-  return result.map(toDeviceEvent);
+  try {
+    const { result } = await (await plugin()).CapacitorCalendar.listEventsInRange({
+      from: now - DAYS_BACK * 86400000,
+      to: now + DAYS_AHEAD * 86400000,
+    });
+    return {
+      events: result.filter(e => !e.calendarId || chosen.has(e.calendarId)).map(toDeviceEvent),
+      range: { from: localDate(new Date(now)), to: localDate(new Date(now + DAYS_AHEAD * 86400000)) },
+    };
+  } catch { return null; }
+}
+
+export async function fetchDeviceEvents(): Promise<DeviceEvent[]> {
+  const { auth } = await import("./firebase");
+  return (await readDeviceCalendar(auth.currentUser?.uid))?.events || [];
 }
