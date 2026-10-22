@@ -55,10 +55,6 @@ function circleToPerson(c: CircleContact): Omit<Person, "id" | "color"> | null {
   if (!c?.name?.trim()) return null;
   const rel = c.relationship || "other";
   const role: FamilyMember["role"] = rel === "partner" ? "partner" : rel === "child" ? "child" : rel === "parent" ? "parent" : "other";
-  const freq = c.contactFrequency === "daily" ? "weekly" : c.contactFrequency;
-  // Only carry the check-in reminder for people you don't live with.
-  const checkIn = role === "partner" || role === "child" ? undefined
-    : (["weekly", "biweekly", "monthly", "quarterly"].includes(freq || "") ? freq as CheckInEvery : undefined);
   return {
     name: c.name.trim(),
     role,
@@ -66,7 +62,9 @@ function circleToPerson(c: CircleContact): Omit<Person, "id" | "color"> | null {
     ...splitBirthday(c.birthday),
     age: typeof c.age === "number" ? c.age : undefined,
     notes: [c.notes, ...(c.interests?.length ? [`likes ${c.interests.join(", ")}`] : [])].filter(Boolean).join(" · ") || undefined,
-    checkIn,
+    // No checkIn: reminders copied from Circle start switched off (Circle set
+    // "monthly" by default, so most were never chosen). She can turn one on
+    // per person in Your family.
     lastCheckIn: c.lastInteraction?.date || undefined,
     emoji: c.emoji,
     importedFrom: "circle",

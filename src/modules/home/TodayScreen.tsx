@@ -15,7 +15,7 @@ import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, invalidateHomeDocs } from "./homeData";
 import { GetStartedCard } from "./GetStartedCard";
 import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, type NeedsItem, type Person, type DayEvent } from "./todayData";
-import { briefingWindow, cachedBriefing, generateBriefing, type Briefing } from "../briefing/generateBriefing";
+import { cachedBriefing, generateBriefing, type Briefing } from "../briefing/generateBriefing";
 import { Avatar, YouMenu } from "../me/YouMenu";
 import { useTripsEnabled } from "../me/extras";
 
@@ -53,7 +53,8 @@ function MorningNote({ weather }: { weather: WeatherData | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, !!profile]);
 
-  const label = { morning: "Morning note", afternoon: "Afternoon note", evening: "Evening note" }[briefingWindow()];
+  // One note a day now, so name it for the day, not the hour.
+  const label = "Today's note";
   const dark: React.CSSProperties = { background: `linear-gradient(135deg,${T.esp},#3D2E22)`, borderRadius: 20, padding: 18, marginBottom: 12, color: "#fff" };
   const weatherLine = weather ? `${weather.icon} ${weather.temp}°${weather.unit}, ${weather.condition.toLowerCase()}` : null;
 

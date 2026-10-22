@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mondayOf, weekDates, ymd, choresToTasks, choreIdOf, buildWeekItems, familyDinnersToPlan, birthdayEvents } from "./planHelpers";
+import { mondayOf, weekDates, sundayWeekDates, ymd, choresToTasks, choreIdOf, buildWeekItems, familyDinnersToPlan, birthdayEvents } from "./planHelpers";
 
 describe("mondayOf (meal plan week start)", () => {
   it("on a Sunday returns the Monday six days earlier, not tomorrow", () => {
@@ -13,6 +13,13 @@ describe("mondayOf (meal plan week start)", () => {
   });
   it("across a month boundary", () => {
     expect(ymd(mondayOf(new Date(2026, 10, 1)))).toBe("2026-10-26");        // Sun 1 Nov
+  });
+  it("sundayWeekDates gives Sun..Sat, with Sunday starting its own week", () => {
+    expect(sundayWeekDates(new Date(2026, 9, 21, 23, 30))).toEqual([  // Wed 11:30pm
+      "2026-10-18", "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24",
+    ]);
+    expect(sundayWeekDates(new Date(2026, 10, 1))[0]).toBe("2026-11-01"); // Sun 1 Nov
+    expect(sundayWeekDates(new Date(2026, 9, 31))[6]).toBe("2026-10-31"); // Sat 31 Oct
   });
   it("weekDates gives Mon..Sun in local time", () => {
     expect(weekDates(new Date(2026, 9, 25, 21))).toEqual([

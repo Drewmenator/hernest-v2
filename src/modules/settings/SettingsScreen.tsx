@@ -3,15 +3,13 @@ import React, { useState } from "react";
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Button } from "../../shared/components";
+import { Card, PageTitle } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
 import { auth } from "../../core/firebase";
-import { bus } from "../../core/events";
 import toast from "react-hot-toast";
-import { onEnterSpace } from "../../shared/utils/a11y";
 
-const SECTIONS = ["partner","privacy","legal","account"] as const;
+const SECTIONS = ["privacy","legal","account"] as const;
 type Section = typeof SECTIONS[number];
 
 // Opened from the You menu: "Notifications & account" starts on Account,
@@ -19,13 +17,6 @@ type Section = typeof SECTIONS[number];
 export function SettingsScreen({ initialSection = "account" }: { initialSection?: Section }) {
   const { user, profile, reset, setProfile } = useStore();
   const [section, setSection] = useState<Section>(initialSection);
-
-  // Partner sharing
-  const [partnerEmail, setPartnerEmail] = useState("");
-  const [shareCategories, setShareCategories] = useState<string[]>(["tasks","calendar","budget"]);
-  const [inviteSent, setInviteSent] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
-  const [sendingInvite, setSendingInvite] = useState(false);
 
   // Delete account
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -35,15 +26,6 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
   const [memoryV2List, setMemoryV2List] = useState<any[]>([]);
   const [showMemoryV2, setShowMemoryV2] = useState(false);
 
-  const SHARE_OPTIONS = [
-    { id:"tasks",    label:"Tasks & Plan",       icon:"✓" },
-    { id:"calendar", label:"Family Calendar",     icon:"◈" },
-    { id:"budget",   label:"Bills",               icon:"◎" },
-    { id:"trips",    label:"Trip Plans",          icon:"✈️" },
-    { id:"school",   label:"School Events",       icon:"🏫" },
-    { id:"circle",   label:"Circle Check-ins",    icon:"◉" },
-  ];
-
   const loadMemories = async () => {
     if (!user?.uid) return;
     try {
@@ -51,36 +33,6 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
       setMemoryV2List(mems);
       setShowMemoryV2(true);
     } catch { setMemoryV2List([]); setShowMemoryV2(true); }
-  };
-
-  const toggleShare = (id: string) => {
-    setShareCategories(p => p.includes(id) ? p.filter(s=>s!==id) : [...p, id]);
-  };
-
-  const sendPartnerInvite = async () => {
-    if (!partnerEmail.trim() || !user?.uid) return;
-    setSendingInvite(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/invite/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          fromName: (profile as any)?.name || "Your partner",
-          toEmail: partnerEmail.trim(),
-          shareCategories,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send");
-      await bus.publish("partner.invite.sent", { email: partnerEmail }, { userId: user.uid, source: "settings" });
-      if (data.acceptUrl) setInviteLink(data.acceptUrl);
-      setInviteSent(true);
-      toast.success(data.emailSent ? `Invite sent to ${partnerEmail} ✓` : "Invite ready — share the link below");
-    } catch (e: any) {
-      toast.error(e.message || "Couldn't create invite — try again");
-    }
-    setSendingInvite(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -124,7 +76,6 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
       {/* Section tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
         {[
-          { id:"partner", label:"Partner" },
           { id:"privacy", label:"Privacy" },
           { id:"legal",   label:"Legal" },
           { id:"account", label:"Account" },
@@ -134,60 +85,6 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           </button>
         ))}
       </div>
-
-      {/* ── PARTNER SHARING ─────────────────────────────────────── */}
-      {section==="partner" && <>
-        <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div>
-            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Cleo</p>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
-          </div>
-          <button onClick={() => setShowCleoSetup(true)}
-            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
-            Start ✦
-          </button>
-        </div>
-        <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 8px" }}>SHARE WITH PARTNER</p>
-          <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
-            Invite your partner to see selected parts of HerNest. They'll get a view-only link — no editing, no surprises.
-          </p>
-          {!inviteSent ? <>
-            <input value={partnerEmail} onChange={e=>setPartnerEmail(e.target.value)} placeholder="Partner's email address" type="email" style={{ width:"100%", background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", marginBottom:16, boxSizing:"border-box", minHeight:48 }}/>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>WHAT TO SHARE</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
-              {SHARE_OPTIONS.map(opt=>(
-                <div key={opt.id} onClick={()=>toggleShare(opt.id)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle sharing: ${opt.label}`} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:shareCategories.includes(opt.id)?T.goldP:T.sand, border:`1.5px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, borderRadius:12, cursor:"pointer", touchAction:"manipulation" }}>
-                  <span style={{ fontSize:18 }}>{opt.icon}</span>
-                  <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, flex:1 }}>{opt.label}</p>
-                  <div style={{ width:22, height:22, borderRadius:7, border:`2px solid ${shareCategories.includes(opt.id)?T.gold:T.linen}`, background:shareCategories.includes(opt.id)?T.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13 }}>
-                    {shareCategories.includes(opt.id)?"✓":""}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button onClick={sendPartnerInvite} disabled={!partnerEmail.trim()||sendingInvite} variant="gold">
-              {sendingInvite?"Sending...":"Send Partner Invite ✦"}
-            </Button>
-          </> : (
-            <div style={{ textAlign:"center", padding:"16px 0" }}>
-              <div style={{ fontSize:48, marginBottom:12 }}>✦</div>
-              <p style={{ fontFamily:F.serif, fontSize:20, fontStyle:"italic", color:T.esp, margin:"0 0 8px" }}>Invite ready!</p>
-              <p style={{ fontFamily:F.sans, fontSize:13, color:T.taupe, margin:"0 0 16px" }}>Share this link with {partnerEmail}. When they open it and sign in, they'll see: {shareCategories.join(", ")}.</p>
-              {inviteLink && <>
-                <div style={{ background:T.sand, border:`1px solid ${T.linen}`, borderRadius:12, padding:"10px 12px", marginBottom:12, wordBreak:"break-all", fontFamily:F.sans, fontSize:11, color:T.bark, textAlign:"left" }}>{inviteLink}</div>
-                <button onClick={async()=>{
-                  try {
-                    if ((navigator as any).share) { await (navigator as any).share({ title:"Join my HerNest household", url: inviteLink }); }
-                    else { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); }
-                  } catch { try { await navigator.clipboard.writeText(inviteLink); toast.success("Link copied ✓"); } catch { toast("Long-press the link above to copy", { icon:"🔗" }); } }
-                }} style={{ width:"100%", background:T.esp, color:"#fff", border:"none", borderRadius:12, padding:"13px", fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", minHeight:48, marginBottom:8, touchAction:"manipulation" }}>Copy / share link</button>
-              </>}
-              <button onClick={()=>{ setInviteSent(false); setInviteLink(""); }} style={{ background:"none", border:`1px solid ${T.linen}`, borderRadius:12, padding:"8px 20px", fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:40 }}>Send another</button>
-            </div>
-          )}
-        </Card>
-      </>}
 
       {/* ── PRIVACY ─────────────────────────────────────────────── */}
       {section==="privacy" && <>
@@ -349,6 +246,17 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
 
       {/* ── ACCOUNT ─────────────────────────────────────────────── */}
       {section==="account" && <>
+        {/* Was in the old Partner tab; the partner invite moved to Your family. */}
+        <div style={{ background:T.sand, borderRadius:16, padding:"16px 20px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 2px" }}>Set up with Cleo</p>
+            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
+          </div>
+          <button onClick={() => setShowCleoSetup(true)}
+            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+            Start ✦
+          </button>
+        </div>
         <Card>
           <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 10px" }}>CURRENCY</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>

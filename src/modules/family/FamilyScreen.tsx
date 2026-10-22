@@ -14,6 +14,7 @@ import { displayAge, daysUntilBirthday, todayLocal } from "../../core/dateAwaren
 import { ensurePeopleMerged } from "../../core/familyPeopleSync";
 import { relationLabel, checkInDueIn, type Person, type CheckInEvery } from "../../core/familyPeople";
 import { openCleo } from "../../shared/utils/openCleo";
+import { PartnerInvite } from "./PartnerInvite";
 import toast from "react-hot-toast";
 
 const ROLE_ICONS: Record<string, string> = { partner: "💛", child: "⭐", parent: "🌿", inlaw: "🌸", other: "✦" };
@@ -291,6 +292,8 @@ export function FamilyScreen() {
           + Add someone
         </button>
       )}
+
+      <PartnerInvite />
 
       {people.length > 0 && (
         <button onClick={() => openCleo("Looking at my family this week, what should I be thinking about or preparing for?")}

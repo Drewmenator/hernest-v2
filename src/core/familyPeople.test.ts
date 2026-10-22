@@ -23,7 +23,8 @@ describe("mergePeople", () => {
     expect(byName.Maya.schoolInfo?.schoolName).toBe("Oak Elementary");
     expect(byName["Grandma Rose"]).toMatchObject({ role: "parent", relation: "grandparent" });
     expect(byName.Pat.role).toBe("inlaw");
-    expect(byName.Jess).toMatchObject({ role: "other", relation: "friend", checkIn: "monthly", birthDate: "1990-04-02" });
+    expect(byName.Jess).toMatchObject({ role: "other", relation: "friend", birthDate: "1990-04-02" });
+    expect(byName.Jess.checkIn).toBeUndefined(); // copied reminders start off
   });
 
   it("skips duplicates by name (case and spacing ignored) and keeps existing data", () => {
@@ -58,13 +59,13 @@ describe("mergePeople", () => {
     expect(members[0].birthDate).toBeUndefined();
   });
 
-  it("does not add check-in reminders for partner or kids", () => {
+  it("starts every copied check-in reminder switched off", () => {
     const { members } = mergePeople([], [
       { name: "Sam", relationship: "partner", contactFrequency: "daily" },
       { name: "Lea", relationship: "sibling", contactFrequency: "daily" },
     ], null, ids);
     expect((members[0] as Person).checkIn).toBeUndefined();
-    expect((members[1] as Person).checkIn).toBe("weekly");
+    expect((members[1] as Person).checkIn).toBeUndefined();
     expect(relationLabel(members[1] as Person)).toBe("sibling");
   });
 

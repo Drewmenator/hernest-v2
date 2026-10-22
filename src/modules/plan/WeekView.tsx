@@ -9,7 +9,7 @@ import { bus } from "../../core/events";
 import { todayLocal } from "../../core/dateAwareness";
 import { openCleo } from "../../shared/utils/openCleo";
 import { useCalendarEvents, type CalEvent } from "./useCalendarEvents";
-import { buildWeekItems, weekDates, type Chore, type WeekItem } from "./planHelpers";
+import { buildWeekItems, sundayWeekDates, type Chore, type WeekItem } from "./planHelpers";
 import type { Person } from "../../core/familyPeople";
 import toast from "react-hot-toast";
 
@@ -46,7 +46,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
 
   const today = todayLocal();
   const now = new Date();
-  const week = weekDates(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset * 7));
+  const week = sundayWeekDates(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset * 7));
   const { byDay, undated } = buildWeekItems({ week, events, schoolEvents, chores, tasks });
   const total = week.reduce((n, d) => n + byDay[d].length, 0);
 

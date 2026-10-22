@@ -25,6 +25,13 @@ export function weekDates(now: Date = new Date()): string[] {
   return Array.from({ length: 7 }, (_, i) => ymd(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i)));
 }
 
+// The seven dates Sunday..Saturday for the week containing `now`. The Week
+// view uses this (US calendars start on Sunday); meal plans stay Monday-first.
+export function sundayWeekDates(now: Date = new Date()): string[] {
+  const sun = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  return Array.from({ length: 7 }, (_, i) => ymd(new Date(sun.getFullYear(), sun.getMonth(), sun.getDate() + i)));
+}
+
 // ── Chores (family.tasks) shown as Plan tasks ────────────────────
 export interface Chore { id: string; title: string; assignedTo?: string; done?: boolean; dueDate?: string; }
 
