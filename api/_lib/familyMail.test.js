@@ -71,13 +71,24 @@ describe("sorting what Cleo found", () => {
       ],
       receipts: [{ email: 1, merchant: "United", amount: 0, date: "2026-10-20", category: "transport" }],
     }, emails, { today, foundAt: 1 });
-    expect(r.events.map((e) => e.title)).toEqual(["Zoo field trip", "UA 123 Houston to Denver"]);
+    // school dates go on the shared calendar
+    expect(r.events.map((e) => e.title)).toEqual(["Zoo field trip"]);
     expect(r.events[0]).toMatchObject({ id: "gmail_m1_zoo_field_trip_2026-10-24", source: "gmail", child: "Emma", allDay: true });
-    expect(r.events[1]).toMatchObject({ time: "7:05 AM", allDay: false });
-    expect(r.tasks[0]).toMatchObject({ title: "Sign Emma's field trip form", dueDate: "2026-10-22", status: "pending", messageId: "m1", from: "Katy ISD" });
-    expect(r.tasks[1].dueDate).toBeUndefined();
+    // her flight waits in her private list as a date to add
+    const flight = r.tasks.find((t) => t.kind === "event");
+    expect(flight).toMatchObject({ title: "UA 123 Houston to Denver", date: "2026-11-02", time: "7:05 AM", category: "travel", status: "pending" });
+    const todos = r.tasks.filter((t) => t.kind === "task");
+    expect(todos[0]).toMatchObject({ title: "Sign Emma's field trip form", dueDate: "2026-10-22", status: "pending", messageId: "m1", from: "Katy ISD" });
+    expect(todos[1].dueDate).toBeUndefined();
     expect(r.receipts).toEqual([]);
     expect(r.learnedDomains).toEqual(["katyisd.org"]); // gmail.com never learned
+  });
+
+  it("never puts a doctor visit on the shared calendar", () => {
+    const r = routeExtraction({ events: [{ email: 2, title: "Therapy appointment", date: "2026-10-28", time: "4 PM", category: "health", child: null }], tasks: [], receipts: [] },
+      emails, { today });
+    expect(r.events).toEqual([]);
+    expect(r.tasks[0]).toMatchObject({ kind: "event", title: "Therapy appointment" });
   });
 
   it("the extraction schema is accepted by the server request policy", () => {

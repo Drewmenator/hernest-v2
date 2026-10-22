@@ -133,6 +133,13 @@ describe("server-only records", () => {
     await assertFails(setDoc(doc(as(ALICE), "ai_usage", "2026-10-21"), { any: 1 }));
   });
 
+  it("her email list (mail_inbox) is hers: she reads and updates it, her partner can't see it", async () => {
+    await assertSucceeds(setDoc(doc(as(ALICE), "users", ALICE, "data", "mail_inbox"), { items: [{ id: "x", status: "added" }] }, { merge: true }));
+    await assertSucceeds(getDoc(doc(as(ALICE), "users", ALICE, "data", "mail_inbox")));
+    await assertFails(getDoc(doc(as(BOB), "users", ALICE, "data", "mail_inbox")));
+    await assertFails(setDoc(doc(as(BOB), "users", ALICE, "data", "mail_inbox"), { items: [] }));
+  });
+
   it("a user CANNOT reset her per-minute AI counter", async () => {
     await assertFails(setDoc(doc(as(ALICE), "ai_burst", ALICE), { minute: "x", count: 0 }));
     await assertFails(getDoc(doc(as(ALICE), "ai_burst", ALICE)));

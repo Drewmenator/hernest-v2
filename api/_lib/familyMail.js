@@ -2,8 +2,10 @@
 // Finds the emails that matter to a busy family (school, kids' activities,
 // doctor and dentist visits, travel, deadlines, receipts), reads them, and
 // asks Cleo to pull out:
-//   events   → the household calendar (calendar_synced, source "gmail")
-//   tasks    → users/{uid}/data/mail_inbox, waiting for her to tap Add
+//   school + kids' activity dates → the household calendar (calendar_synced,
+//              source "gmail"), which her partner can see
+//   other dates (doctor, travel, deadlines) and to-dos → users/{uid}/data/
+//              mail_inbox, private to her, waiting for her to tap Add
 //   receipts → users/{uid}/data/gmail_receipts (reviewed in Bills later)
 // Runs nightly from /api/cron and on "Scan now" in Connections. Each email is
 // read once (processedIds), so a rescan costs nothing for mail already seen.
@@ -214,7 +216,16 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
 const clip = (s, n) => String(s || "").trim().slice(0, n);
 
-// Pure: turns the AI's answer into calendar events, inbox tasks, receipts
+// Dates that go straight onto the shared household calendar. Everything else
+// from her mail (doctor visits, trips, deadlines) is hers to decide on: it
+// waits in her private list, because partners can see the synced calendar.
+export const AUTO_CALENDAR = ["school", "activities"];
+
+const inboxBase = (m, foundAt) => ({
+  from: clip(m.from.replace(/<[^>]*>/g, ""), 80), subject: clip(m.subject, 140), messageId: m.id, foundAt, status: "pending",
+});
+
+// Pure: turns the AI's answer into calendar events, inbox items, receipts
 // and newly learned sender domains. Drops anything malformed or past.
 export function routeExtraction(extracted, emails, { today, foundAt = Date.now() }) {
   const src = (i) => (Number.isInteger(i) && emails[i]) || null;
@@ -222,13 +233,18 @@ export function routeExtraction(extracted, emails, { today, foundAt = Date.now()
   for (const e of extracted?.events || []) {
     const m = src(e?.email);
     if (!m || !e.title || !ISO.test(e.date || "") || e.date < today) continue;
-    events.push({
-      id: `gmail_${m.id}_${slug(e.title)}_${e.date}`, title: clip(e.title, 120), date: e.date,
-      ...(e.time ? { time: clip(e.time, 20) } : {}), allDay: !e.time,
-      source: "gmail", color: "#C9A961", category: CATEGORIES.includes(e.category) ? e.category : "other",
-      ...(e.child ? { child: clip(e.child, 40) } : {}),
-    });
-    if (e.category === "school" || e.category === "activities") learned.add(senderDomain(m.from));
+    const category = CATEGORIES.includes(e.category) ? e.category : "other";
+    const common = {
+      title: clip(e.title, 120), date: e.date, ...(e.time ? { time: clip(e.time, 20) } : {}),
+      category, ...(e.child ? { child: clip(e.child, 40) } : {}),
+    };
+    const id = `gmail_${m.id}_${slug(e.title)}_${e.date}`;
+    if (AUTO_CALENDAR.includes(category)) {
+      events.push({ id, ...common, allDay: !e.time, source: "gmail", color: "#C9A961" });
+      learned.add(senderDomain(m.from));
+    } else {
+      tasks.push({ id, kind: "event", ...common, ...inboxBase(m, foundAt) });
+    }
   }
   for (const t of extracted?.tasks || []) {
     const m = src(t?.email);
@@ -236,10 +252,9 @@ export function routeExtraction(extracted, emails, { today, foundAt = Date.now()
     const due = ISO.test(t.dueDate || "") ? t.dueDate : null;
     if (due && due < today) continue;
     tasks.push({
-      id: `gmail_${m.id}_${slug(t.title)}`, title: clip(t.title, 120), ...(due ? { dueDate: due } : {}),
+      id: `gmail_${m.id}_${slug(t.title)}`, kind: "task", title: clip(t.title, 120), ...(due ? { dueDate: due } : {}),
       category: CATEGORIES.includes(t.category) ? t.category : "other", ...(t.child ? { child: clip(t.child, 40) } : {}),
-      from: clip(m.from.replace(/<[^>]*>/g, ""), 80), subject: clip(m.subject, 140), messageId: m.id,
-      foundAt, status: "pending",
+      ...inboxBase(m, foundAt),
     });
     if (t.category === "school" || t.category === "activities") learned.add(senderDomain(m.from));
   }

@@ -1,13 +1,14 @@
 // ─── Today: "From your email" ──────────────────────────────────────
-// To-dos Cleo found overnight in school, activity, doctor, travel and
-// due-date email. Add makes it a task in Plan; Not now hides it. Also asks
+// To-dos and dates Cleo found overnight in school, activity, doctor, travel
+// and due-date email. Add makes a to-do a task in Plan, or puts a date on the
+// calendar; Not now hides it. Also asks
 // her to reconnect Gmail when Google has signed the app out.
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { todayLocal } from "../../core/dateAwareness";
-import { loadMailInbox, addMailItem, dismissMailItem, dueLabel, type MailItem } from "../../core/mailInbox";
+import { loadMailInbox, addMailItem, dismissMailItem, dueLabel, isMailEvent, whenLabel, type MailItem } from "../../core/mailInbox";
 
 const card: React.CSSProperties = { background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: 16, marginBottom: 12 };
 const eyebrow: React.CSSProperties = { fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
@@ -40,7 +41,7 @@ export function MailInboxCard() {
     if (busy) return;
     setBusy(item.id);
     try {
-      if (add) { await addMailItem(uid, item); toast.success("Added to Plan"); }
+      if (add) { await addMailItem(uid, item); toast.success(isMailEvent(item) ? "Added to your calendar" : "Added to Plan"); }
       else await dismissMailItem(uid, item.id);
       setState(s => (s ? { ...s, items: s.items.filter(i => i.id !== item.id) } : s));
     } catch { toast.error("Couldn't save. Try again."); }
@@ -71,10 +72,10 @@ export function MailInboxCard() {
         <div key={it.id} style={{ padding: "9px 0", borderTop: i || state.needsReconnect ? `1px solid ${T.linen}` : "none" }}>
           <p style={{ fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, color: T.esp, margin: 0 }}>{it.title}</p>
           <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "2px 0 8px", lineHeight: 1.4 }}>
-            {[dueLabel(it.dueDate, today), it.child, it.subject].filter(Boolean).join(" · ")}
+            {[isMailEvent(it) ? whenLabel(it) : dueLabel(it.dueDate, today), it.child, it.subject].filter(Boolean).join(" · ")}
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => act(it, true)} disabled={busy === it.id} style={pill(true)}>{busy === it.id ? "…" : "Add"}</button>
+            <button onClick={() => act(it, true)} disabled={busy === it.id} style={pill(true)}>{busy === it.id ? "…" : isMailEvent(it) ? "Add to calendar" : "Add"}</button>
             <button onClick={() => act(it, false)} disabled={busy === it.id} style={pill(false)}>Not now</button>
           </div>
         </div>
