@@ -352,7 +352,7 @@ async function triggerMemoryWriteback(
 // ═══════════════════════════════════════════════════════════════════
 
 const FALLBACKS: Record<AIIntent, string> = {
-  emotional_support:  "I'm here with you. Something went quiet on my end — try again in a moment. 💛",
+  emotional_support:  "I'm here with you. Something went quiet on my end — try again in a moment.",
   financial_analysis: "I couldn't complete that analysis right now. Your saved information is still safe. Please try again.",
   decision_support:   "I wasn't able to run that scenario. Please try again — your data is safe.",
   planning:           "I had trouble loading your plan context. Try again in a moment.",
@@ -362,7 +362,7 @@ const FALLBACKS: Record<AIIntent, string> = {
   debt_strategy:      "I couldn't run the debt analysis. Please try again.",
   goal_planning:      "I had trouble with goal analysis. Please try again.",
   household_summary:  "I couldn't generate a household summary right now.",
-  wellness_check:     "I'm here for you. Something went quiet — try again in a moment. 💛",
+  wellness_check:     "I'm here for you. Something went quiet — try again in a moment.",
   unknown:            "I'm here. Something went quiet on my end — try again in a moment.",
 };
 

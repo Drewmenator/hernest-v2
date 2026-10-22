@@ -202,3 +202,27 @@ export function alreadyHandled(tasks: OwnedTask[] = [], viewerUid?: string): Han
     .slice(0, HANDLED_MAX)
     .map(t => ({ id: t.id, title: t.title || "A task", who: (t.assigneeName || "Your partner").split(" ")[0] }));
 }
+
+// ── Today's hero ────────────────────────────────────────────────────
+// One plain sentence about the shape of the day, from the calendar and
+// the "needs you" list only. Never guesses.
+function clock12(t: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m) return t;
+  const h = Number(m[1]);
+  return `${h % 12 || 12}${m[2] === "00" ? "" : `:${m[2]}`} ${h < 12 ? "AM" : "PM"}`;
+}
+export function dayHeadline(events: DayEvent[], needs: number, now: Date = new Date()): string {
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const timed = events.filter(e => e.time && /^\d{1,2}:\d{2}$/.test(e.time.trim()));
+  const next = timed.find(e => {
+    const [h, m] = e.time!.trim().split(":").map(Number);
+    return h * 60 + m >= mins;
+  });
+  const needsWord = needs === 1 ? "1 thing needs you" : `${needs} things need you`;
+  if (next) return `Next up: ${next.title} at ${clock12(next.time!)}.`;
+  if (events.length && timed.length === events.length) return needs ? `The calendar is done for today. ${needsWord}.` : "The calendar is done for today.";
+  if (events.length) return `${events.length === 1 ? "One thing" : `${events.length} things`} on the calendar today.`;
+  if (needs) return `Nothing on the calendar. ${needsWord}.`;
+  return "A clear day. Nothing on the calendar.";
+}

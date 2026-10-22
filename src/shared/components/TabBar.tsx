@@ -1,55 +1,68 @@
 // ─── HerNest V2 Tab Bar ───────────────────────────────────────────
 // Five tabs, nothing hidden in "More" (simplification plan, section 3).
 // Old tab ids still work: each screen lights up the tab it lives under.
-import { T, F } from "../../config/theme";
-import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, MeIcon } from "./Icons";
+import { T, F, MOTION, alpha, SHADOWS } from "../../config/theme";
+import { HomeIcon, CleoIcon, CalendarTabIcon, BudgetIcon, MeIcon } from "./Icons";
 import { useStore } from "../../core/store";
 import { tabFor } from "./tabParents";
+import { haptic } from "../haptics";
 
 const TABS = [
   { id: "home",   label: "Today", IC: HomeIcon },
-  { id: "plan",   label: "Plan",  IC: PlanIcon },
+  { id: "plan",   label: "Plan",  IC: CalendarTabIcon },   // opens on the Calendar
   { id: "cleo",   label: "Cleo",  IC: CleoIcon },
   { id: "budget", label: "Bills", IC: BudgetIcon },   // "budget" id shows Bills
   { id: "me",     label: "Me",    IC: MeIcon },
 ];
 
-// Wisteria tab bar: frosted ivory, deep violet for the selected tab with a
-// filled icon, always a text label. Sits above the iPhone home indicator.
+// Floating frosted tab bar: a rounded glass pill that hovers above the
+// iPhone home indicator, with a lavender highlight that slides to the
+// selected tab. Always a text label; the selected icon is filled.
 export function TabBar() {
   const activeTab = useStore(s => s.activeTab);
   const setActiveTab = useStore(s => s.setActiveTab);
   const current = tabFor(activeTab);
+  const idx = TABS.findIndex(t => t.id === current);
 
   return (
     <nav aria-label="Main" style={{
-      position: "fixed", bottom: 0, left: "50%",
-      transform: "translateX(-50%)",
-      width: "100%", maxWidth: 430,
-      background: "rgba(244,238,224,.88)",
-      backdropFilter: "blur(22px) saturate(170%)",
-      WebkitBackdropFilter: "blur(22px) saturate(170%)",
-      borderTop: `1px solid ${T.divider}`,
+      position: "fixed", left: "50%", transform: "translateX(-50%)",
+      bottom: "calc(max(env(safe-area-inset-bottom, 0px), 10px) + 2px)",
+      width: "calc(100% - 24px)", maxWidth: 406,
+      background: T.frost,
+      backdropFilter: "blur(24px) saturate(180%)",
+      WebkitBackdropFilter: "blur(24px) saturate(180%)",
+      border: `1px solid ${T.glass}`,
+      borderRadius: 30,
+      boxShadow: `0 1px 0 ${T.glassStrong} inset, ${SHADOWS.lg}`,
       zIndex: 100,
-      paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)",
     }}>
-      <div style={{ display: "flex", padding: "6px 4px 2px" }}>
+      <div style={{ position: "relative", display: "flex", padding: 5 }}>
+        {idx >= 0 && (
+          <span aria-hidden="true" style={{
+            position: "absolute", top: 5, bottom: 5, left: 5, width: `calc((100% - 10px) / ${TABS.length})`,
+            borderRadius: 24, background: `linear-gradient(180deg, ${T.cleoBg}, ${alpha(T.cleoBg, 0.85)})`,
+            boxShadow: `inset 0 1px 0 ${T.glassStrong}`,
+            transform: `translateX(${idx * 100}%)`, transition: `transform .42s ${MOTION.ease}`,
+          }} />
+        )}
         {TABS.map(t => {
           const on = current === t.id;
           return (
             <button
               key={t.id}
-              onClick={() => setActiveTab(t.id)}
+              onClick={() => { haptic("select"); if (!on) setActiveTab(t.id); else window.scrollTo({ top: 0, behavior: "smooth" }); }}
               aria-current={on ? "page" : undefined}
               style={{
+                position: "relative",
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                gap: 3, background: "none", border: "none", cursor: "pointer",
-                padding: "4px 6px", flex: 1,
-                minHeight: 48, touchAction: "manipulation",
-                color: on ? T.action : T.text2,
+                gap: 2, background: "none", border: "none", cursor: "pointer",
+                padding: "4px 2px", flex: 1,
+                minHeight: 52, touchAction: "manipulation",
+                color: on ? T.actionPress : T.text2,
               }}
             >
-              <t.IC size={25} color={on ? T.action : T.text2} filled={on} strokeWidth={1.8} />
+              <t.IC size={24} color={on ? T.actionPress : T.text2} filled={on} strokeWidth={1.8} />
               <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: on ? 700 : 500, letterSpacing: 0.1 }}>
                 {t.label}
               </span>

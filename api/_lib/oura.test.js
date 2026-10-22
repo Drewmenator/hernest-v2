@@ -79,3 +79,20 @@ describe("buildOuraHistory — trend sparklines", () => {
     expect(buildOuraHistory()).toEqual([]);
   });
 });
+
+describe("ouraRange", () => {
+  it("ends tomorrow so the night just slept (filed under today) is included", async () => {
+    const { ouraRange } = await import("./oura.js");
+    const r = ouraRange(new Date("2026-10-22T13:50:00Z"));
+    expect(r).toEqual({ start: "2026-10-08", end: "2026-10-23", today: "2026-10-22" });
+  });
+
+  it("uses the user's local date for today when given a zone, end stays tomorrow", async () => {
+    const { ouraRange } = await import("./oura.js");
+    // 9:30pm Oct 21 in Chicago is already Oct 22 in UTC
+    const at = new Date("2026-10-22T02:30:00Z");
+    expect(ouraRange(at, 14, "America/Chicago")).toEqual({ start: "2026-10-08", end: "2026-10-23", today: "2026-10-21" });
+    expect(ouraRange(at).today).toBe("2026-10-22");
+    expect(ouraRange(at, 14, "bad/zone").today).toBe("2026-10-22");
+  });
+});

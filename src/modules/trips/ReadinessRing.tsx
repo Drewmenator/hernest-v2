@@ -1,26 +1,45 @@
 import React from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
+import { ProgressRing } from "../../shared/components";
 
 // ═══════════════════════════════════════════════════════════════════
 // READINESS RING COMPONENT
 // ═══════════════════════════════════════════════════════════════════
 
 export function ReadinessRing({ score, size = 80 }: { score: number; size?: number }) {
-  const r = (size / 2) - 8;
-  const circ = 2 * Math.PI * r;
-  const color = score >= 80 ? T.sage : score >= 50 ? T.gold : T.blush;
+  const color = score >= 80 ? T.householdInk : score >= 50 ? T.warn : T.blush;
   return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.linen} strokeWidth={6} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
-          strokeDasharray={circ} strokeDashoffset={circ * (1 - score / 100)}
-          strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.6s ease" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: size * 0.22, fontWeight: 700, color, lineHeight: 1 }}>{score}%</span>
-        <span style={{ fontFamily: F.sans, fontSize: size * 0.10, color: T.taupe }}>Ready</span>
-      </div>
+    <div role="img" aria-label={`${score} percent ready`} style={{ flexShrink: 0 }}>
+      <ProgressRing value={score / 100} size={size} stroke={size >= 72 ? 8 : 6} color={color} track={alpha(color, 0.18)}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}>
+          <span style={{ fontFamily: F.sans, fontSize: Math.max(14, Math.round(size * 0.26)), fontWeight: 800, letterSpacing: "-0.03em", color: T.text, fontVariantNumeric: "tabular-nums" }}>{score}%</span>
+          {size >= 72 && <span style={{ fontFamily: F.sans, fontSize: 12, color: T.text2, marginTop: 2 }}>Ready</span>}
+        </div>
+      </ProgressRing>
+    </div>
+  );
+}
+
+// ── Stage chip ──────────────────────────────────────────────────────
+export function TripStageChip({ label, color, bg }: { label: string; color: string; bg: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", background: bg, color, borderRadius: 99, padding: "4px 10px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+      {label}
+    </span>
+  );
+}
+
+// ── Traveler avatars ────────────────────────────────────────────────
+export function TravelerAvatars({ names, max = 4 }: { names: string[]; max?: number }) {
+  const shown = names.slice(0, max);
+  return (
+    <div style={{ display: "flex", alignItems: "center" }}>
+      {shown.map((n, i) => (
+        <span key={i} title={n} style={{ width: 30, height: 30, borderRadius: "50%", marginLeft: i === 0 ? 0 : -8, background: T.surface, color: T.action, border: `2px solid ${T.cleoBg}`, display: "inline-grid", placeItems: "center", fontFamily: F.sans, fontSize: 13, fontWeight: 700 }}>
+          {(n.trim()[0] || "?").toUpperCase()}
+        </span>
+      ))}
+      {names.length > max && <span style={{ marginLeft: 8, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.text2 }}>+{names.length - max}</span>}
     </div>
   );
 }

@@ -14,10 +14,11 @@
 // to users/{uid}/integrations/{doc} so the app can show freshness.
 import crypto from "crypto";
 import { adminDb, applyCors, verifyAuth, encryptSecret, decryptSecret, openToken, isSealed } from "./_lib/secure.js";
-import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory } from "./_lib/oura.js";
+import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory, ouraRange } from "./_lib/oura.js";
 import { freshGoogleToken } from "./_lib/googleToken.js";
 import { scanFamilyMail } from "./_lib/familyMail.js";
 import { localParts } from "./_lib/localTime.js";
+import { fetchGoogleEvents, mapOutlookEvent, outlookHeaders, parseICSEvents, zoneOr, zonedMidnight, localDate } from "./_lib/calendarEvents.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -235,68 +236,23 @@ async function handleCallback(req, res) {
 // ═══ SYNC: GOOGLE CALENDAR ══════════════════════════════════════════
 
 async function syncGoogle(req, res, uid) {
-  const timezone = req.query.tz || "America/Chicago";
+  const timezone = zoneOr(req.query.tz);
   const tok = await freshGoogleToken(uid, "google_calendar");
   if (tok.error === "not_connected") return res.status(404).json({ error: "Not connected" });
   if (tok.error) {
     await writeMeta(uid, "google_calendar", { lastError: "reauth_required", lastSyncedAt: Date.now() });
     return res.status(401).json({ error: "reauth_required" });
   }
-  const headers = { Authorization: `Bearer ${tok.accessToken}` };
-  const now = new Date();
-  const timeMin = now.toISOString();
-  const timeMax = new Date(now.getTime() + 60 * 86400000).toISOString();
-
-  const listData = await (await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50", { headers })).json();
-  const calendars = (listData.items || []).filter(c => c.accessRole !== "freeBusyReader");
-
-  let allEvents = [];
-  for (const cal of calendars) {
-    try {
-      const evData = await (await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=50`,
-        { headers }
-      )).json();
-      if (evData.error) continue;
-      allEvents = allEvents.concat((evData.items || []).map(e => ({
-        id: `google_${e.id}`,
-        title: e.summary || "Event",
-        date: e.start?.date || (e.start?.dateTime ? new Date(e.start.dateTime).toLocaleDateString("en-CA", { timeZone: timezone }) : ""),
-        time: e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone }) : undefined,
-        source: "google", color: cal.backgroundColor || "#4285F4",
-        allDay: !!e.start?.date, calendar: cal.summary,
-      })));
-    } catch (e) { console.error("[Connectors] google calendar fetch:", e?.message); }
-  }
-  const seen = new Set();
-  allEvents = allEvents.filter(e => !seen.has(e.id) && seen.add(e.id));
+  // From local midnight (not "now"), so events that already started today
+  // are refreshed too. Times are HH:MM on the user's clock.
+  const { events: allEvents, complete, from, to } = await fetchGoogleEvents(tok.accessToken, { tz: timezone });
   await writeMeta(uid, "google_calendar", { lastSyncedAt: Date.now(), itemCount: allEvents.length, lastError: null });
-  res.json({ events: allEvents });
+  // complete + range let the client replace this source's events in [from, to)
+  // instead of merging, so cancelled events disappear.
+  res.json({ events: allEvents, complete, range: { from, to } });
 }
 
 // ═══ SYNC: APPLE (CalDAV) ═══════════════════════════════════════════
-
-function parseICSEvents(icsText) {
-  const events = [];
-  const blocks = icsText.split("BEGIN:VEVENT");
-  for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i];
-    const get = (key) => {
-      const match = block.match(new RegExp(`${key}[^:]*:([^\\r\\n]+)`));
-      return match ? match[1].trim() : "";
-    };
-    const dtstart = get("DTSTART");
-    const date = dtstart.replace(/T.*/, "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
-    if (!date) continue;
-    events.push({
-      id: `apple_${get("UID") || Math.random()}`,
-      title: get("SUMMARY") || "Event",
-      date, source: "apple", color: "#6E6E73",
-      allDay: !dtstart.includes("T"),
-    });
-  }
-  return events;
-}
 
 async function getCalendarHomeUrl(authHeader) {
   const r1 = await fetch("https://caldav.icloud.com/.well-known/caldav", {
@@ -321,6 +277,7 @@ async function getCalendarHomeUrl(authHeader) {
 }
 
 async function syncApple(req, res, uid) {
+  const tz = zoneOr(req.query.tz);
   const doc = await adminDb.doc(`users/${uid}/integrations/apple_calendar`).get();
   if (!doc.exists) return res.status(404).json({ error: "Not connected" });
   const { email, password } = doc.data();
@@ -366,7 +323,7 @@ async function syncApple(req, res, uid) {
       const r = await fetch(calUrl, { method: "REPORT", headers: { Authorization: authHeader, "Content-Type": "application/xml", Depth: "1" }, body: reportBody });
       const xml = await r.text();
       const icsMatches = xml.match(/BEGIN:VCALENDAR[\s\S]*?END:VCALENDAR/g) || [];
-      allEvents = allEvents.concat(icsMatches.flatMap(parseICSEvents).filter(Boolean));
+      allEvents = allEvents.concat(icsMatches.flatMap(ics => parseICSEvents(ics, tz)).filter(Boolean));
     } catch (e) { console.error("[Connectors] apple REPORT:", e?.message); }
   }
   await writeMeta(uid, "apple_calendar", { lastSyncedAt: Date.now(), itemCount: allEvents.length, lastError: null });
@@ -381,16 +338,16 @@ async function syncOutlook(req, res, uid) {
   const stored = doc.data();
   const accessToken = openToken(stored.accessToken);
   if (!isSealed(stored.accessToken)) await sealLegacyTokens(uid, "outlook_calendar", stored);
+  const tz = zoneOr(req.query.tz);
   const now = new Date();
+  // From local midnight so today's earlier events are refreshed; Prefer header
+  // makes Graph answer in the user's zone instead of UTC.
+  const startIso = zonedMidnight(localDate(now, tz), tz).toISOString();
   const data = await (await fetch(
-    `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${now.toISOString()}&endDateTime=${new Date(now.getTime() + 60 * 86400000).toISOString()}&$orderby=start/dateTime&$top=50`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+    `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${encodeURIComponent(startIso)}&endDateTime=${encodeURIComponent(new Date(now.getTime() + 60 * 86400000).toISOString())}&$orderby=start/dateTime&$top=50`,
+    { headers: outlookHeaders(accessToken, tz) }
   )).json();
-  const events = (data.value || []).map(e => ({
-    id: `outlook_${e.id}`, title: e.subject || "Event",
-    date: (e.start?.dateTime || "").split("T")[0],
-    source: "work", color: "#0078D4", allDay: e.isAllDay || false,
-  }));
+  const events = (data.value || []).map(e => mapOutlookEvent(e, tz));
   await writeMeta(uid, "outlook_calendar", { lastSyncedAt: Date.now(), itemCount: events.length, lastError: data.error ? "fetch_failed" : null });
   res.json({ events });
 }
@@ -433,9 +390,10 @@ async function syncOura(req, res, uid) {
     return res.status(401).json({ error: "reauth_required" });
   }
   const headers = { Authorization: `Bearer ${tok.accessToken}` };
-  const today = new Date().toISOString().split("T")[0];
-  const start = new Date(Date.now() - 14 * 86400000).toISOString().split("T")[0]; // 14d for trend sparklines
-  const q = `start_date=${start}&end_date=${today}`;
+  // 14 days for the trends, through tomorrow so last night is included.
+  // today is the user's local date when the app sends ?tz= (fallback for health.date).
+  const { start, end, today } = ouraRange(new Date(), 14, req.query?.tz);
+  const q = `start_date=${start}&end_date=${end}`;
 
   const [sleep, dailySleep, readiness, activity, stress] = await Promise.all([
     fetch(`https://api.ouraring.com/v2/usercollection/sleep?${q}`, { headers }).then(r => r.json()).catch(() => ({})),

@@ -3,6 +3,8 @@ import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData } from "../../core/firebase";
 import { crisisReply } from "../../core/crisis";
+import { Emoji } from "../../shared/components";
+import { ArrowRight } from "lucide-react";
 
 interface Msg { role: "cleo" | "user"; text: string; }
 
@@ -22,10 +24,10 @@ type SetupStep = "intro" | "name" | "kids" | "kidDates" | "challenge" | "done";
 const NORA_QUESTIONS: Record<SetupStep, (data: SetupData) => string> = {
   intro:     () => "",
   name:      () => "First things first — what's your name?",
-  kids:      (d) => `Lovely to meet you, ${d.name} ✦\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalize your experience. If not, just say 'no kids'.`,
-  kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate 🎂 — totally optional, tap Continue to skip.",
+  kids:      (d) => `Lovely to meet you, ${d.name}.\n\nDo you have children? If yes, tell me their names and ages — I'll use this to personalize your experience. If not, just say 'no kids'.`,
+  kidDates:  () => "Lovely. Want to add their birthdays? I'll keep their ages up to date and remember to celebrate them. Totally optional, tap Continue to skip.",
   challenge: () => "Almost done.\n\nWhat's the biggest thing weighing on you right now — the thing that takes up most of your mental energy?",
-  done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you keep on top of your bills, your schedule, your family, and anything else life throws at you.\n\nLet's go. ✦`,
+  done:      (d) => `${d.name}, I have everything I need.\n\nI'm going to set up your household now. From today, I'll help you keep on top of your bills, your schedule, your family, and anything else life throws at you.\n\nLet's go.`,
 };
 
 const STEP_ORDER: SetupStep[] = ["name", "kids", "kidDates", "challenge", "done"];
@@ -66,7 +68,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
 
   // Opening message
   useEffect(() => {
-    const intro = `Hi ✦ I'm Cleo — your household's AI chief of staff.\n\nI'm going to ask you a few quick questions so I can set up your household properly. The more you tell me, the more useful I'll be from day one.\n\nThis takes about 2 minutes.`;
+    const intro = `Hi, I'm Cleo — your household's AI chief of staff.\n\nI'm going to ask you a few quick questions so I can set up your household properly. The more you tell me, the more useful I'll be from day one.\n\nThis takes about 2 minutes.`;
     setMsgs([{ role: "cleo", text: intro }]);
     setTimeout(() => {
       setMsgs(prev => [...prev, { role: "cleo", text: NORA_QUESTIONS.name(data) }]);
@@ -179,7 +181,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
       {/* Header */}
       <div style={{ padding: "calc(52px + env(safe-area-inset-top, 0px)) 24px 16px", borderBottom: `1px solid ${T.linen}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: 0 }}>Meet Cleo</p>
           <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
         </div>
         {!done && (
@@ -195,13 +197,13 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
             {msg.role === "cleo" && (
               <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.esp, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 10, marginTop: 4 }}>
-                <span style={{ fontSize: 14 }}>✦</span>
+                <Emoji e="✦" size={15} color={T.onAction} />
               </div>
             )}
             <div style={{
               maxWidth: "78%",
-              background: msg.role === "user" ? T.esp : "#fff",
-              color: msg.role === "user" ? "#fff" : T.esp,
+              background: msg.role === "user" ? T.esp : T.surface,
+              color: msg.role === "user" ? T.onAction : T.esp,
               borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
               padding: "12px 16px",
               fontFamily: F.sans,
@@ -238,11 +240,11 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
                 max={new Date().toISOString().split("T")[0]}
                 value={k.birthDate || ""}
                 onChange={e => setKidsList(list => list.map((x, j) => j === i ? { ...x, birthDate: e.target.value } : x))}
-                style={{ background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }}
+                style={{ background: T.surface, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }}
               />
             </div>
           ))}
-          <button onClick={finishKidDates} style={{ width: "100%", marginTop: 8, padding: "13px", background: T.esp, border: "none", color: "#fff", borderRadius: 14, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 48 }}>
+          <button onClick={finishKidDates} style={{ width: "100%", marginTop: 8, padding: "13px", background: T.esp, border: "none", color: T.onAction, borderRadius: 14, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 48 }}>
             Continue
           </button>
         </div>
@@ -263,19 +265,19 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             }
             autoFocus
             style={{
-              flex: 1, background: "#fff", border: `1.5px solid ${T.linen}`,
+              flex: 1, background: T.surface, border: `1.5px solid ${T.linen}`,
               borderRadius: 14, padding: "12px 16px", fontFamily: F.sans,
               fontSize: 16, color: T.esp, outline: "none",
             }}
           />
-          <button onClick={send} disabled={!input.trim()}
+          <button onClick={send} disabled={!input.trim()} aria-label="Send"
             style={{
               width: 48, height: 48, borderRadius: 14,
               background: input.trim() ? T.esp : T.linen,
-              border: "none", color: "#fff", fontSize: 18,
+              border: "none", color: T.onAction, fontSize: 18, display: "inline-flex", alignItems: "center", justifyContent: "center",
               cursor: input.trim() ? "pointer" : "not-allowed", flexShrink: 0,
             }}>
-            →
+            <ArrowRight size={20} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
       )}

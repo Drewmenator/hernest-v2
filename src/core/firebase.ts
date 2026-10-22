@@ -2,7 +2,8 @@
 // ─── Firebase Config ─────────────────────────────────────────────
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, GoogleAuthProvider } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, doc, setDoc, getDoc, getDocFromCache, collection, query, where, getDocs } from "firebase/firestore";
+import { withTimeout, TIMED_OUT } from "./timeout";
 import { isHouseholdCollection, getHouseholdId } from "./identity";
 import { FLAGS } from "../config";
 
@@ -76,6 +77,17 @@ export function invalidateDataCache(uid: string, col: string): void {
   _docCache.delete(cacheKey(uid, col));
 }
 
+// Pull to refresh / app resume: forget every cached read so the next one
+// goes to the server (a partner's edits from the last minute show up).
+export function clearDataCaches(): void {
+  _docCache.clear();
+  import("./householdItems").then(m => m.clearItemsCache()).catch(() => {});
+}
+
+// A read that hasn't answered after this long falls back to the copy saved
+// on the phone (or nothing), so no screen waits forever.
+const READ_TIMEOUT_MS = 10_000;
+
 // ── Data Helpers ──────────────────────────────────────────────────
 // Raw write used by the offline-sync replay — throws on failure and never
 // re-queues (that would loop). App code should use saveData below.
@@ -128,7 +140,13 @@ export async function loadData(
 
   const p = (async (): Promise<LoadResult> => {
     try {
-      const snap = await getDoc(doc(db, "users", ownerFor(uid, col), "data", col));
+      const ref = doc(db, "users", ownerFor(uid, col), "data", col);
+      const snap = await withTimeout(getDoc(ref), READ_TIMEOUT_MS);
+      if (snap === TIMED_OUT) {
+        console.warn(`[Firebase] loadData slow, using the saved copy: ${col}`);
+        const cached = await withTimeout(getDocFromCache(ref), 2000);
+        return cached !== TIMED_OUT && cached.exists() ? (cached.data() as Record<string, unknown>) : null;
+      }
       const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
       _docCache.set(key, { data, expires: Date.now() + DOC_CACHE_TTL });
       return data;

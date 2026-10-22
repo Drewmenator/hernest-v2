@@ -1,4 +1,4 @@
-import { loadData } from "../../core/firebase";
+import { loadData, clearDataCaches } from "../../core/firebase";
 
 // ── Shared home-data fetch ─────────────────────────────────────────
 // Three cards used to fire their own loadData bursts for the same docs.
@@ -7,7 +7,7 @@ let _homeDocs: { uid: string; at: number; p: Promise<Record<string, any>> } | nu
 export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
   if (_homeDocs && _homeDocs.uid === uid && Date.now() - _homeDocs.at < 30_000) return _homeDocs.p;
   const p = (async () => {
-    const [tasks, budgetV2, budgetV1, calendar, school, trips, circle, thrive, bills] = await Promise.all([
+    const [tasks, budgetV2, budgetV1, calendar, school, trips, circle, thrive, bills, calendarSynced] = await Promise.all([
       loadData(uid, "tasks"),
       loadData(uid, "budget_v2"),
       loadData(uid, "budget"),
@@ -17,8 +17,10 @@ export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
       loadData(uid, "circle"),
       loadData(uid, "thrive"),
       loadData(uid, "bills"),
+      // Google / Outlook / iPhone calendars and dates found in email.
+      loadData(uid, "calendar_synced"),
     ]);
-    return { tasks, budget: budgetV2 || budgetV1, calendar, school, trips, circle, thrive, bills };
+    return { tasks, budget: budgetV2 || budgetV1, calendar, school, trips, circle, thrive, bills, calendarSynced };
   })();
   _homeDocs = { uid, at: Date.now(), p };
   return p;
@@ -27,3 +29,10 @@ export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
 
 // After a change made from Today (e.g. a bill marked paid), read fresh.
 export function invalidateHomeDocs(): void { _homeDocs = null; }
+
+// Pull to refresh / resume: also forget the short read caches underneath,
+// so changes made on another phone in the last minute show up.
+export function refreshHomeDocs(): void {
+  _homeDocs = null;
+  clearDataCaches();
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled, NEEDS_MAX } from "./todayData";
+import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled, dayHeadline, NEEDS_MAX } from "./todayData";
 import type { Bill } from "../../core/bills";
 
 const NOW = new Date(2026, 9, 21, 8); // Wed 2026-10-21, 8am local
@@ -176,5 +176,23 @@ describe("buildNeedsYou and autopay", () => {
   });
   it("leaves out an autopay that hasn't come due yet", () => {
     expect(buildNeedsYou({ bills: [car({ dueDay: 25 })] }, { tripsOn: false, now: NOW })).toEqual([]);
+  });
+});
+
+describe("dayHeadline", () => {
+  const at = (h: number, m = 0) => { const d = new Date(2026, 9, 21, h, m); return d; };
+  const ev = (title: string, time?: string) => ({ title, time, date: "2026-10-21" });
+  it("names the next event with a 12-hour time", () => {
+    expect(dayHeadline([ev("Drop-off", "08:00"), ev("Soccer", "16:30")], 0, at(9))).toBe("Next up: Soccer at 4:30 PM.");
+    expect(dayHeadline([ev("Drop-off", "08:00")], 0, at(7))).toBe("Next up: Drop-off at 8 AM.");
+  });
+  it("says when the calendar is done, and what still needs you", () => {
+    expect(dayHeadline([ev("Drop-off", "08:00")], 2, at(20))).toBe("The calendar is done for today. 2 things need you.");
+    expect(dayHeadline([ev("Drop-off", "08:00")], 0, at(20))).toBe("The calendar is done for today.");
+  });
+  it("handles all-day events and empty days without inventing anything", () => {
+    expect(dayHeadline([ev("Picture day")], 0, at(9))).toBe("One thing on the calendar today.");
+    expect(dayHeadline([], 1, at(9))).toBe("Nothing on the calendar. 1 thing needs you.");
+    expect(dayHeadline([], 0, at(9))).toBe("A clear day. Nothing on the calendar.");
   });
 });

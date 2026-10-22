@@ -2,7 +2,7 @@
 // Only the name is required. No amount or no date is fine: the reminder still
 // works, and the amount is learned when the bill is first marked paid.
 import React, { useState } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { PageTitle } from "../../shared/components";
 import { useStore } from "../../core/store";
 import { formatMoney } from "../../shared/utils/money";
@@ -72,7 +72,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CADENCES.map(c => (
           <button key={c.id} onClick={() => setCadence(c.id)} aria-pressed={cadence === c.id}
-            style={{ padding: "9px 13px", borderRadius: 18, border: `1.5px solid ${cadence === c.id ? T.esp : T.linen}`, background: cadence === c.id ? T.esp : "#fff", color: cadence === c.id ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>
+            style={{ padding: "9px 13px", borderRadius: 18, border: `1.5px solid ${cadence === c.id ? T.esp : T.linen}`, background: cadence === c.id ? T.esp : T.surface, color: cadence === c.id ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>
             {c.label}
           </button>
         ))}
@@ -103,7 +103,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
               { id: undefined, label: "Either" },
             ].map(o => (
               <button key={o.id || "either"} onClick={() => setPayer(o.id)} aria-pressed={payer === o.id}
-                style={{ padding: "9px 13px", borderRadius: 18, border: `1.5px solid ${payer === o.id ? T.esp : T.linen}`, background: payer === o.id ? T.esp : "#fff", color: payer === o.id ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>
+                style={{ padding: "9px 13px", borderRadius: 18, border: `1.5px solid ${payer === o.id ? T.esp : T.linen}`, background: payer === o.id ? T.esp : T.surface, color: payer === o.id ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>
                 {o.label}
               </button>
             ))}
@@ -119,7 +119,7 @@ export function BillEditor({ bill, onSave, onCancel, onDelete }: {
         <GhostButton onClick={onCancel} style={{ flex: 1 }}>Cancel</GhostButton>
         {bill && (
           confirmDelete ? (
-            <GhostButton onClick={() => onDelete(bill.id)} style={{ flex: 1, color: T.red, borderColor: `${T.red}66` }}>Yes, remove it</GhostButton>
+            <GhostButton onClick={() => onDelete(bill.id)} style={{ flex: 1, color: T.red, borderColor: `${alpha(T.red, 0.4)}` }}>Yes, remove it</GhostButton>
           ) : (
             <GhostButton onClick={() => setConfirmDelete(true)} style={{ flex: 1 }}>Remove</GhostButton>
           )

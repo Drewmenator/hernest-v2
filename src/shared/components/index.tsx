@@ -4,8 +4,15 @@
 // and props; new screens should prefer the Wisteria pieces below them
 // (SectionHeader, ListRow, StatusChip, TintCard, QuickAction, ...).
 import React from "react";
-import { T, F, R, S, TYPE, SHADOWS } from "../../config/theme";
+import { T, F, R, S, TYPE, SHADOWS, alpha, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { SparkleIcon, CheckIcon } from "./Icons";
+import { useReveal } from "../motion";
+import { haptic } from "../haptics";
+import { LargeTitle } from "./atmosphere";
+export { GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh, type AtmosTint } from "./atmosphere";
+export { ProgressRing } from "./charts";
+export { Emoji } from "./Emoji";
+export { ChartFrame, TrendChart, TimelineChart, BarsChart, TipText } from "./ChartFrame";
 
 // ── Card ──────────────────────────────────────────────────────────
 // Standard white information card.
@@ -18,8 +25,10 @@ export function Card({
   style?: React.CSSProperties;
   onClick?: () => void;
 }) {
+  const ref = useReveal<HTMLDivElement>();
   return (
     <div
+      ref={ref}
       onClick={onClick}
       style={{
         background: T.surface,
@@ -102,15 +111,18 @@ export function HeroCard({
 }
 
 // ── PageTitle ─────────────────────────────────────────────────────
-// Main screen heading: 28 bold, optional small line above and below.
-export function PageTitle({ eyebrow, title, subtitle, right }: { eyebrow?: string; title: string; subtitle?: string; right?: React.ReactNode }) {
+// Main screen heading: 32 serif (Fraunces), optional small line above and below.
+// `collapse` (top-level tab screens only): the title lifts away as you
+// scroll and a compact frosted bar takes its place.
+export function PageTitle({ eyebrow, title, subtitle, right, collapse }: { eyebrow?: string; title: string; subtitle?: string; right?: React.ReactNode; collapse?: boolean }) {
+  if (collapse) return <LargeTitle eyebrow={eyebrow} title={title} subtitle={subtitle} right={right} />;
   return (
     <header style={{ display: "flex", alignItems: "flex-start", gap: S.md, marginBottom: S.xl, paddingTop: S.xs }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {eyebrow && (
           <p style={{ fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text2, margin: "0 0 4px" }}>{eyebrow}</p>
         )}
-        <h1 style={{ fontFamily: F.sans, fontSize: TYPE.screen, fontWeight: 700, letterSpacing: "-0.025em", color: T.text, margin: 0, lineHeight: 1.15 }}>{title}</h1>
+        <h1 style={{ fontFamily: F.display, fontSize: TYPE.screen + 4, fontWeight: 500, letterSpacing: "-0.02em", color: T.text, margin: 0, lineHeight: 1.1 }}>{title}</h1>
         {subtitle && <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text2, margin: "4px 0 0" }}>{subtitle}</p>}
       </div>
       {right}
@@ -119,11 +131,11 @@ export function PageTitle({ eyebrow, title, subtitle, right }: { eyebrow?: strin
 }
 
 // ── SectionHeader ─────────────────────────────────────────────────
-// Section heading (19 semibold) with an optional text action on the right.
+// Section heading (22 serif) with an optional text action on the right.
 export function SectionHeader({ title, action, onAction, style }: { title: string; action?: string; onAction?: () => void; style?: React.CSSProperties }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: S.md, margin: `${S.xxl}px 0 ${S.sm}px`, ...style }}>
-      <h2 style={{ fontFamily: F.sans, fontSize: TYPE.section, fontWeight: 600, letterSpacing: "-0.01em", color: T.text, margin: 0 }}>{title}</h2>
+      <h2 style={{ fontFamily: F.display, fontSize: TYPE.section + 3, fontWeight: 500, letterSpacing: "-0.012em", color: T.text, margin: 0 }}>{title}</h2>
       {action && onAction && <TextButton onClick={onAction}>{action}</TextButton>}
     </div>
   );
@@ -213,10 +225,10 @@ export function QuickAction({ label, icon, tint, onClick }: { label: string; ico
 // A 44pt tap target around a 26pt rounded checkbox.
 export function CheckBox({ checked, onToggle, label }: { checked: boolean; onToggle: () => void; label: string }) {
   return (
-    <button onClick={onToggle} aria-pressed={checked} aria-label={label}
+    <button onClick={() => { haptic(checked ? "select" : "success"); onToggle(); }} aria-pressed={checked} aria-label={label}
       style={{ width: 44, height: 44, margin: "-9px -9px -9px -9px", flex: "none", display: "grid", placeItems: "center", background: "none", border: "none", cursor: "pointer", touchAction: "manipulation" }}>
-      <span style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${checked ? T.householdInk : "#CFC8BE"}`, background: checked ? T.householdInk : T.surface, display: "grid", placeItems: "center" }}>
-        {checked && <CheckIcon size={15} color="#fff" strokeWidth={3} />}
+      <span style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${checked ? T.householdInk : T.border}`, background: checked ? T.householdInk : T.surface, display: "grid", placeItems: "center" }}>
+        {checked && <CheckIcon size={15} color={T.onAction} strokeWidth={3} />}
       </span>
     </button>
   );
@@ -240,7 +252,7 @@ export function Pill({
       aria-pressed={active}
       style={{
         background: active ? (color || T.action) : T.surface,
-        color: active ? "#fff" : T.text,
+        color: active ? T.onAction : T.text,
         border: `1px solid ${active ? (color || T.action) : T.divider}`,
         borderRadius: R.chip,
         padding: "8px 14px",
@@ -263,7 +275,7 @@ export function Spinner({ size = 24, color = T.action }: { size?: number; color?
   return (
     <div role="status" aria-label="Loading" style={{
       width: size, height: size, borderRadius: "50%",
-      border: `2px solid ${color}30`,
+      border: `2px solid ${alpha(color, 0.19)}`,
       borderTop: `2px solid ${color}`,
       animation: "spin 0.8s linear infinite",
     }} />
@@ -272,8 +284,9 @@ export function Spinner({ size = 24, color = T.action }: { size?: number; color?
 
 // ── Skeleton ──────────────────────────────────────────────────────
 // Placeholder blocks while data loads, so the layout doesn't jump.
-export function Skeleton({ width = "100%", height = 14, radius = 8, style }: { width?: number | string; height?: number; radius?: number; style?: React.CSSProperties }) {
-  return <div aria-hidden="true" className="hn-skeleton" style={{ width, height, borderRadius: radius, ...style }} />;
+// onTint: lighter, for use inside a colored card.
+export function Skeleton({ width = "100%", height = 14, radius = 8, style, onTint }: { width?: number | string; height?: number; radius?: number; style?: React.CSSProperties; onTint?: boolean }) {
+  return <div aria-hidden="true" className={onTint ? "hn-skeleton on-tint" : "hn-skeleton"} style={{ width, height, borderRadius: radius, ...style }} />;
 }
 export function SkeletonRows({ rows = 2 }: { rows?: number }) {
   return (
@@ -336,15 +349,18 @@ export function CleoActionCard({
   const done = state === "done";
   const label = state === "preparing" ? "Preparing" : state === "waiting" ? "Waiting for your OK" : "Done";
   return (
-    <div role={state === "preparing" ? "status" : undefined} style={{ background: T.surface, borderRadius: R.card, padding: "12px 14px", boxShadow: `inset 0 0 0 1.5px ${done ? T.householdBg : T.cleoBg}`, marginBottom: S.sm }}>
-      <p style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: done ? T.householdInk : T.action, margin: 0 }}>
+    <div role={state === "preparing" ? "status" : undefined} style={{
+      background: done ? ATMOS.household.base : ATMOS.cleo.base, boxShadow: done ? ATMOS.household.shadow : ATMOS.cleo.shadow,
+      border: `1px solid ${T.glass}`, borderRadius: R.card + 4, padding: "14px 16px", marginBottom: S.sm,
+    }}>
+      <p style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: done ? ATMOS.household.ink : ATMOS.cleo.ink, margin: 0, background: T.glassStrong, borderRadius: 99, padding: "4px 10px" }}>
         {state === "preparing" && <Spinner size={13} />}
-        {state === "waiting" && <SparkleIcon size={14} color={T.action} filled />}
-        {done && <CheckIcon size={14} color={T.householdInk} strokeWidth={2.6} />}
+        {state === "waiting" && <SparkleIcon size={14} color={ATMOS.cleo.ink} filled />}
+        {done && <CheckIcon size={14} color={ATMOS.household.ink} strokeWidth={2.6} />}
         {label}
       </p>
-      <div style={{ fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 600, color: T.text, marginTop: 6, lineHeight: 1.4 }}>{title}</div>
-      {detail && <div style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text2, marginTop: 2 }}>{detail}</div>}
+      <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 500, letterSpacing: "-0.01em", color: T.text, marginTop: 10, lineHeight: 1.3 }}>{title}</div>
+      {detail && <div style={{ fontFamily: F.sans, fontSize: TYPE.support, color: ATMOS_TEXT2, marginTop: 4 }}>{detail}</div>}
       {state === "waiting" && (onConfirm || onDecline) && (
         <div style={{ display: "flex", gap: S.sm, marginTop: S.md }}>
           {onConfirm && <Button size="sm" onClick={onConfirm} style={{ width: "auto" }}>{confirmLabel}</Button>}
@@ -438,8 +454,8 @@ export function Button({
   ariaLabel?: string;
 }) {
   const styles: Record<ButtonVariant, React.CSSProperties> = {
-    primary:   { background: T.action, color: "#fff", border: "none" },
-    gold:      { background: T.action, color: "#fff", border: "none" },
+    primary:   { background: T.action, color: T.onAction, border: "none" },
+    gold:      { background: T.action, color: T.onAction, border: "none" },
     secondary: { background: T.surface, color: T.text, border: `1.5px solid ${T.divider}` },
     ghost:     { background: "transparent", color: T.text, border: `1.5px solid ${T.divider}` },
     gentle:    { background: T.cleoBg, color: T.action, border: "none" },
@@ -448,7 +464,7 @@ export function Button({
   const sm = size === "sm";
   return (
     <button
-      onClick={onClick}
+      onClick={onClick && (() => { if (variant === "primary" || variant === "gold" || variant === "completed") haptic("tap"); onClick(); })}
       disabled={disabled}
       aria-label={ariaLabel}
       style={{
@@ -490,7 +506,7 @@ export function ProgressBar({
 }) {
   const pct = Math.min((value / max) * 100, 100);
   return (
-    <div style={{ background: `${color}20`, borderRadius: 99, height, overflow: "hidden" }}>
+    <div style={{ background: `${alpha(color, 0.13)}`, borderRadius: 99, height, overflow: "hidden" }}>
       <div style={{
         width: `${pct}%`, height: "100%",
         background: color, borderRadius: 99,
@@ -528,6 +544,7 @@ export function EmptyState({
   actionLabel,
   onAction,
   tint = "cleo",
+  bare,
 }: {
   icon?: React.ReactNode;
   title: string;
@@ -535,10 +552,18 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
   tint?: Tint;
+  // Already inside a card: skip the frosted panel.
+  bare?: boolean;
 }) {
   const c = TINT[tint];
+  // On the open page it sits on a frosted panel, so the tab's artwork
+  // never runs behind the words.
+  const panel: React.CSSProperties = bare ? {} : {
+    background: T.frost, border: `1px solid ${T.glass}`, borderRadius: R.card + 6, boxShadow: SHADOWS.sm,
+    backdropFilter: "blur(18px) saturate(160%)", WebkitBackdropFilter: "blur(18px) saturate(160%)", marginBottom: S.md,
+  };
   return (
-    <div style={{ textAlign: "center", padding: "32px 20px" }}>
+    <div style={{ textAlign: "center", padding: "32px 20px", ...panel }}>
       <div style={{ width: 60, height: 60, borderRadius: 20, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 24, color: c.ink }}>
         {icon ?? <SparkleIcon size={26} color={c.ink} filled />}
       </div>
@@ -566,11 +591,11 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
         return (
           <button key={o.id} role="tab" aria-selected={on} onClick={() => onChange(o.id)}
             style={{ flex: 1, minWidth: 0, minHeight: 40, borderRadius: 11, border: "none", cursor: "pointer", touchAction: "manipulation",
-              background: on ? T.surface : "transparent", boxShadow: on ? "0 1px 3px rgba(28,61,90,.12)" : "none",
+              background: on ? T.surface : "transparent", boxShadow: on ? SHADOWS.sm : "none",
               fontFamily: F.sans, fontSize: 14, fontWeight: on ? 700 : 500, color: on ? T.text : T.text2,
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 6px", whiteSpace: "nowrap" }}>
             {o.label}
-            {!!o.badge && <span aria-label={`${o.badge} need attention`} style={{ minWidth: 18, height: 18, borderRadius: 9, background: T.action, color: "#fff", fontSize: 12, fontWeight: 700, display: "inline-grid", placeItems: "center", padding: "0 5px" }}>{o.badge}</span>}
+            {!!o.badge && <span aria-label={`${o.badge} need attention`} style={{ minWidth: 18, height: 18, borderRadius: 9, background: T.action, color: T.onAction, fontSize: 12, fontWeight: 700, display: "inline-grid", placeItems: "center", padding: "0 5px" }}>{o.badge}</span>}
           </button>
         );
       })}

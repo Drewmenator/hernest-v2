@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { loadHomeDocs } from "./homeData";
+import { Check, ArrowRight } from "lucide-react";
+import { openPlan } from "../../shared/utils/openPlan";
 
 // ── Post-onboarding guide ──────────────────────────────────────────
 // Onboarding is delightful, then new users land on ten tiles with no map.
@@ -42,17 +44,17 @@ export function GetStartedCard() {
   if (doneCount === items.length) { localStorage.setItem("hn_getstarted_done", "1"); return null; }
 
   return (
-    <div style={{ background: T.ivory, border: `1.5px solid ${T.gold}40`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
+    <div style={{ background: T.ivory, border: `1.5px solid ${alpha(T.gold, 0.25)}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.goldText, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
         <button onClick={() => { localStorage.setItem("hn_getstarted_done", "1"); setDismissed(true); }}
           style={{ background: "none", border: "none", color: T.taupe, fontSize: 15, cursor: "pointer", padding: 0 }}>×</button>
       </div>
       {items.map((it, i) => (
-        <div key={i} onClick={() => !it.done && setActiveTab(it.tab)}
+        <div key={i} onClick={() => { if (it.done) return; if (it.tab === "plan") openPlan("tasks"); else setActiveTab(it.tab); }}
           role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={it.label}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: i < items.length - 1 ? `1px solid ${T.linen}` : "none", cursor: it.done ? "default" : "pointer", opacity: it.done ? 0.55 : 1, touchAction: "manipulation" }}>
-          <span style={{ width: 20, textAlign: "center", color: it.done ? T.sage : T.gold, fontSize: 14, flexShrink: 0 }}>{it.done ? "✓" : "→"}</span>
+          <span style={{ width: 20, textAlign: "center", color: it.done ? T.sage : T.gold, fontSize: 14, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}>{it.done ? <Check size={16} strokeWidth={2.2} aria-hidden="true" /> : <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />}</span>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0, textDecoration: it.done ? "line-through" : "none" }}>{it.label}</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" }}>{it.sub}</p>

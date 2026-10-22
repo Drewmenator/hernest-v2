@@ -88,7 +88,7 @@ export function initConnectivity(userId: string) {
     // Add trip to calendar as a multi-day event
     const tripEvent = {
       id: `trip_${trip.id}`,
-      title: `✈ ${trip.destination}`,
+      title: trip.destination,
       date: trip.departureDate,
       endDate: trip.returnDate,
       source: "trips",
@@ -117,7 +117,7 @@ export function initConnectivity(userId: string) {
       id: `circle_${contact}`,
       type: "circle",
       message: daysSince >= 999
-        ? `Say hi to ${contact} when you have a moment ✦`
+        ? `Say hi to ${contact} when you have a moment`
         : `${contact} might love to hear from you — it's been ${daysSince} days`,
       severity: "low",
       createdAt: Date.now(),

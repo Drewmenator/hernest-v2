@@ -39,7 +39,7 @@ export async function signInWithGoogle(onStatus?: (s: string) => void): Promise<
 
   const credential = GoogleAuthProvider.credential(idToken);
   await withTimeout(signInWithCredential(auth, credential), 30_000, "firebase");
-  onStatus?.("signed in ✓");
+  onStatus?.("signed in");
 }
 
 // ─── Sign in with Apple ──────────────────────────────────────────────
@@ -68,5 +68,5 @@ export async function signInWithApple(onStatus?: (s: string) => void): Promise<v
 
   const credential = provider.credential({ idToken, rawNonce });
   await withTimeout(signInWithCredential(auth, credential), 30_000, "firebase");
-  onStatus?.("signed in ✓");
+  onStatus?.("signed in");
 }

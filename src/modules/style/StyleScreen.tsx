@@ -11,9 +11,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Input, Spinner } from "../../shared/components";
+import { Card, PageTitle, Input, Spinner, Emoji } from "../../shared/components";
 import { loadData, saveData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
@@ -48,12 +48,12 @@ const OUTFIT_SCHEMA = s.object({
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
 const chip = (on: boolean): React.CSSProperties => ({
-  padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
-  color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 38,
+  padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : T.surface,
+  color: on ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 38,
 });
 const actionBtn = (primary: boolean): React.CSSProperties => ({
   flex: 1, padding: "11px 8px", borderRadius: 12, border: primary ? "none" : `1.5px solid ${T.linen}`,
-  background: primary ? T.action : "#fff", color: primary ? "#fff" : T.esp,
+  background: primary ? T.action : T.surface, color: primary ? T.onAction : T.esp,
   fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
 });
 const smallBtn: React.CSSProperties = { ...actionBtn(false), fontSize: 12, fontWeight: 600, padding: "9px 6px", minHeight: 40 };
@@ -162,7 +162,7 @@ export function StyleScreen() {
     setShown({ ...shown, wearing: true });
     saveData(uid, "style", { todayOutfit: { date: today, occasion: shown.occasion, outfit: shown.outfit, wearing: true } }).catch(() => {});
     trackEvent("outfit_worn", { occasion: shown.occasion || "auto" });
-    toast.success("Have a good day ✦");
+    toast.success("Have a good day");
   };
 
   const somethingElse = () => {
@@ -175,7 +175,7 @@ export function StyleScreen() {
     saveMemory(m);
     setPickingMissing(null);
     trackEvent("style_not_owned");
-    toast(`Got it. No more ${item.toLowerCase()}.`, { icon: "✦" });
+    toast(`Got it. No more ${item.toLowerCase()}.`, { icon: <Emoji e="✦" size={16} /> });
     if (where === "today") showToday({ ...ctx, memory: m }, shown?.occasion ?? autoOccasion, { another: true });
     else if (dress) runDress(dress.key, dress.title, { ...dress.ask, avoid: [...(dress.ask.avoid || []), ...(dress.outfit ? [dress.outfit.headline] : [])] });
   };
@@ -251,7 +251,7 @@ export function StyleScreen() {
   const forget = (item: string) => saveMemory({ ...memRef.current, notOwned: memRef.current.notOwned.filter(x => x !== item) });
 
   // ── UI ───────────────────────────────────────────────────────────
-  const context = [weather && `${weather.icon} ${weatherLine(weather)}`, todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
+  const context = [weather && weatherLine(weather), todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
   const profileOpen = editingProfile || (docLoaded && !hasProfile(profile));
 
   return (
@@ -261,7 +261,7 @@ export function StyleScreen() {
       {/* 1. Today's look */}
       <Card>
         <p style={label}>{shown?.occasion ? `Today's look · ${occasionLabel(shown.occasion)}` : "Today's look"}</p>
-        {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{context}</p>}
+        {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{weather && <><Emoji e={weather.icon} size={14} /> </>}{context}</p>}
 
         {loading || (!shown && !error) ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 0" }}>
@@ -282,7 +282,7 @@ export function StyleScreen() {
           <>
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               {shown.wearing
-                ? <span style={{ ...actionBtn(false), display: "flex", alignItems: "center", justifyContent: "center", color: T.sage, borderColor: `${T.sage}60` }}>✓ Wearing this today</span>
+                ? <span style={{ ...actionBtn(false), display: "flex", alignItems: "center", justifyContent: "center", color: T.sage, borderColor: `${alpha(T.sage, 0.38)}` }}>✓ Wearing this today</span>
                 : <button onClick={wearThis} style={actionBtn(true)}>Wear this</button>}
               <button onClick={somethingElse} style={actionBtn(false)}>Something else</button>
             </div>
@@ -309,7 +309,7 @@ export function StyleScreen() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {upcoming.map(e => (
                 <button key={e.id} onClick={() => dressForEvent(e)} aria-pressed={dress?.key === e.id} style={chip(dress?.key === e.id)}>
-                  {OCCASIONS.find(o => o.id === e.occasion)?.emoji} {e.title} · {whenLabel(e.date, today)}
+                  <Emoji e={OCCASIONS.find(o => o.id === e.occasion)?.emoji} size={15} /> {e.title} · {whenLabel(e.date, today)}
                 </button>
               ))}
             </div>

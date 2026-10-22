@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F, S, TYPE } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, TintCard, Pill, Button, Input, ProgressBar, AIBadge, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
+import { Card, PageTitle, Pill, Button, Input, AIBadge, Emoji, GlowCard, Headline, ProgressRing, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
 import { PlusIcon, SparkleIcon } from "../../shared/components/Icons";
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
@@ -18,6 +18,7 @@ import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import toast from "react-hot-toast";
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { WeekView } from "./WeekView";
+import { SchoolCalendarUpload } from "./SchoolCalendarUpload";
 import { DAYS_OF_WEEK, PLAN_TAB_KEY, weekDates, choresToTasks, choreIdOf, familyDinnersToPlan, type Chore, type FamilyDinner } from "./planHelpers";
 import type { Person } from "../../core/familyPeople";
 import { ensurePeopleMerged } from "../../core/familyPeopleSync";
@@ -52,6 +53,9 @@ interface DayMeal { date: string; dayName: string; breakfast?: string; lunch?: s
 interface MealPlan { days: DayMeal[]; shoppingList: ShoppingItem[]; generatedAt: number; fromFamily?: boolean; }
 
 const CATS = ["family","work","home","travel","personal"] as const;
+
+// Re-read shared docs when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
 
 // Time stamp for completions (outside the component so it reads as an event-time value).
 const stamp = () => Date.now();
@@ -90,7 +94,7 @@ export function PlanScreen() {
       const t = sessionStorage.getItem(PLAN_TAB_KEY);
       if (t) { sessionStorage.removeItem(PLAN_TAB_KEY); return t; }
     } catch { /* private mode */ }
-    return "tasks";
+    return "week";   // Plan opens on the Calendar
   });
 
   // Family doc: people (for "who"), chores, and the old Family dinner plan
@@ -121,6 +125,7 @@ export function PlanScreen() {
   const [mealPlan, setMealPlan] = useState<MealPlan|null>(null);
   const [generatingMeals, setGeneratingMeals] = useState(false);
   const [showShopping, setShowShopping] = useState(false);
+  const shoppingSave = useRef<Promise<void>>(Promise.resolve());
 
   const today = todayLocal();
   // Chores show alongside tasks, with who does them.
@@ -153,15 +158,32 @@ export function PlanScreen() {
     return () => { offTasks(); offChores(); };
   }, [user?.uid]);
 
+  // School, meals and family are read on open and again when the app comes
+  // back to the front (at most every 5 minutes), so a partner's changes show.
+  const [resumeTick, setResumeTick] = useState(0);
+  useEffect(() => {
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      setResumeTick(t => t + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     if (!user?.uid) return;
-    loadData(user.uid, "school").then(d => { if(d?.events) setSchoolEvents(d.events as any); });
-    loadData(user.uid, "meals").then(d => { if(d?.mealPlan) setMealPlan(d.mealPlan as any); });
+    let alive = true;
+    loadData(user.uid, "school").then(d => { if(alive && d?.events) setSchoolEvents(d.events as any); });
+    loadData(user.uid, "meals").then(d => { if(alive && d?.mealPlan) setMealPlan(d.mealPlan as any); });
     ensurePeopleMerged(user.uid).then(() => loadData(user.uid, "family")).then(d => {
+      if (!alive) return;
       setPeople((d?.members as Person[]) || []);
       setFamilyDinners((d?.meals as FamilyDinner[]) || []);
     });
-  }, [user?.uid]);
+    return () => { alive = false; };
+  }, [user?.uid, resumeTick]);
 
   // Each write touches one record only, so two people editing at once both keep their change.
   const uid = user?.uid;
@@ -248,7 +270,7 @@ export function PlanScreen() {
     if (!uid) return;
     await updateItem(uid, "tasks", id, { userConfirmed: true }).catch(saveFailed);
     trackEvent("task_confirmed");
-    toast.success("Task confirmed ✓");
+    toast.success("Task confirmed");
   };
 
   const toggleTask = async (id: string) => {
@@ -258,14 +280,14 @@ export function PlanScreen() {
       const c = chores.find(c => c.id===choreId);
       if (!c) return;
       await updateItem(uid, "chores", choreId, { done: !c.done }).catch(saveFailed);
-      if (!c.done) toast.success("Chore done ✓");
+      if (!c.done) toast.success("Chore done");
       return;
     }
     const t = tasks.find(t => t.id===id);
     if (!t) return;
     const completing = t.status !== "completed";
     const r = await setTaskDone(t, completing).catch(saveFailed);
-    if (r && completing) toast.success("Task complete ✓");
+    if (r && completing) toast.success("Task complete");
   };
 
   // ── Task ownership: answer, or follow up on an unanswered ask ──────
@@ -363,17 +385,34 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
           await saveData(user.uid, "meals", { mealPlan:plan });
           await bus.publish("plan.meal.generated", { days:7 }, { userId:user.uid, source:"plan" });
         }
-        toast.success("Meal plan ready ✦");
+        toast.success("Meal plan ready");
       } catch(e) { console.error('[Plan] meal plan parse:', e); toast.error("Meal plan failed — tap try again"); }
     }
     setGeneratingMeals(false);
   };
 
+  // Ticks one item. The saved plan is read again right before writing, so a
+  // partner's ticks (or a newer plan) made since this screen loaded are kept.
   const toggleShoppingItem = async (index: number) => {
     if (!mealPlan) return;
-    const updated = { ...mealPlan, shoppingList: mealPlan.shoppingList.map((item,i) => i===index?{...item,checked:!item.checked}:item) };
-    setMealPlan(updated);
-    if (user?.uid) await saveData(user.uid, "meals", { mealPlan:updated });
+    const target = mealPlan.shoppingList[index];
+    if (!target) return;
+    const checked = !target.checked;
+    const sameItem = (i: ShoppingItem) => i.item === target.item && i.category === target.category;
+    const tick = (plan: MealPlan): MealPlan => ({ ...plan, shoppingList: plan.shoppingList.map(i => sameItem(i) ? { ...i, checked } : i) });
+    setMealPlan(p => p ? tick(p) : p);
+    const owner = user?.uid;
+    if (!owner) return;
+    // One save at a time, so two quick taps can't undo each other.
+    shoppingSave.current = shoppingSave.current.then(async () => {
+      try {
+        const saved = (await loadData(owner, "meals"))?.mealPlan as MealPlan | undefined;
+        const updated = tick(saved?.shoppingList ? saved : mealPlan);
+        setMealPlan(updated);
+        await saveData(owner, "meals", { mealPlan:updated });
+      } catch (e) { console.error("[Plan] shopping list save failed:", e); toast.error("Couldn't save. Try again."); }
+    });
+    await shoppingSave.current;
   };
 
   // Sort pending tasks by priority score per blueprint
@@ -437,16 +476,20 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow={new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} title="Plan"/>
+      <PageTitle collapse eyebrow={new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} title="Plan"/>
 
-      {/* Plan's color is pale blue */}
-      <TintCard tint="plan" style={{ padding:"12px 16px" }}>
-        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:S.sm }}>
-          <p style={{ fontFamily:F.sans, fontSize:17, fontWeight:700, color:T.text, margin:0 }}>{total?`${done} of ${total} done today`:"Nothing planned yet"}</p>
-          {total>0 && <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:0 }}>{pending.length} to do</p>}
+      {/* Plan's color is pale blue: today's progress as a ring */}
+      <GlowCard tint="plan" reveal={false} style={{ padding:"16px 20px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:S.lg }}>
+          <ProgressRing value={total ? done/total : 0} size={76} stroke={7} color={ATMOS.plan.chart} track={ATMOS.plan.chartSoft}>
+            <span style={{ fontFamily:F.sans, fontSize:18, fontWeight:800, color:T.text, fontVariantNumeric:"tabular-nums" }}>{total ? `${Math.round(done/total*100)}%` : "0"}</span>
+          </ProgressRing>
+          <div style={{ minWidth:0 }}>
+            <Headline size={21}>{total ? (pending.length ? `${pending.length} left to do` : "All done. Nice work.") : "Nothing planned yet"}</Headline>
+            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:ATMOS_TEXT2, margin:"4px 0 0" }}>{total ? `${done} of ${total} done today` : "Add a task below to get started."}</p>
+          </div>
         </div>
-        {total>0 && <div style={{ marginTop:8 }}><ProgressBar value={done} max={total} color={T.planInk}/></div>}
-      </TintCard>
+      </GlowCard>
 
       {/* School alert */}
       {urgentSchool > 0 && (
@@ -457,8 +500,8 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
       )}
 
       <Segmented label="Plan views" value={tab as "tasks"|"week"|"school"|"meals"} onChange={v=>setTab(v)} options={[
+        { id:"week", label:"Calendar" },
         { id:"tasks", label:"Tasks" },
-        { id:"week", label:"Week" },
         { id:"school", label:"School", badge: urgentSchool },
         { id:"meals", label:"Meals" },
       ]} />
@@ -469,7 +512,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
         <Card>
           <div style={{ display:"flex", gap:8, marginBottom:(input.trim() || who !== "") ? 12 : 0 }}>
             <Input value={input} onChange={setInput} placeholder="Add a task" style={{ flex:1 }}/>
-            <button onClick={addTask} disabled={!input.trim()} aria-label="Add task" style={{ width:48, height:48, borderRadius:12, background:input.trim()?T.action:T.divider, border:"none", color:"#fff", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, display:"grid", placeItems:"center" }}><PlusIcon size={22} color="#fff" strokeWidth={2.4}/></button>
+            <button onClick={addTask} disabled={!input.trim()} aria-label="Add task" style={{ width:48, height:48, borderRadius:12, background:input.trim()?T.action:T.divider, border:"none", color:T.onAction, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, display:"grid", placeItems:"center" }}><PlusIcon size={22} color={T.onAction} strokeWidth={2.4}/></button>
           </div>
           {/* The details appear once she starts typing, so the form stays one line until needed. */}
           {(input.trim() || who !== "") && <>
@@ -590,11 +633,12 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
 
       {/* ── SCHOOL TAB ─────────────────────────────────────────────── */}
       {tab==="school" && <>
+        <SchoolCalendarUpload people={people} />
         <Card>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Paste newsletter text</p>
           <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
           <Button onClick={extractFromNewsletter} disabled={!newsletterText.trim()||extracting} variant="gold">
-            {extracting?"✦ Cleo is reading...":"✦ Extract Events & Actions"}
+            <Emoji e="✦" size={14} /> {extracting?"Cleo is reading...":"Extract Events & Actions"}
           </Button>
         </Card>
 
@@ -605,7 +649,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               <AIBadge label="Extracted by Cleo"/>
             </div>
             {schoolEvents.map(e=>{
-              const typeColors: Record<string,string> = { "parent-evening":T.blush, trip:T.gold, deadline:"#dc2626", sport:T.sage };
+              const typeColors: Record<string,string> = { "parent-evening":T.blush, trip:T.gold, deadline:T.danger, sport:T.sage };
               return (
                 <div key={e.id} style={{ padding:"12px 0", borderBottom:`1px solid ${T.linen}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
@@ -621,7 +665,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
                       )}
                     </div>
                     {e.requiresAction && (
-                      <span style={{ background:`${T.blush}20`, color:T.blush, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10, flexShrink:0 }}>
+                      <span style={{ background:`${alpha(T.blush, 0.13)}`, color:T.blush, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10, flexShrink:0 }}>
                         {e.actionType||"action"}
                       </span>
                     )}
@@ -637,7 +681,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
       {/* ── MEALS TAB per blueprint structured format ─────────────── */}
       {tab==="meals" && <>
         <Button onClick={generateMeals} disabled={generatingMeals} variant="gold" style={{ marginBottom:16 }}>
-          {generatingMeals?"✦ Planning your week...":"✦ Plan This Week's Meals"}
+          <Emoji e="✦" size={14} /> {generatingMeals?"Planning your week...":"Plan This Week's Meals"}
         </Button>
 
         {shownMealPlan && <>
@@ -651,7 +695,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               <Card key={i}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:isToday?T.gold:T.taupe, margin:0 }}>{day.dayName}{isToday?" · TODAY":""}</p>
-                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}>⏱ {day.prepTime}min</span>}
+                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}><Emoji e="⏱" size={13} /> {day.prepTime}min</span>}
                 </div>
                 {[
                   { label:"B", meal:day.breakfast, color:T.gold },
@@ -664,14 +708,14 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
                     <span style={{ fontFamily:F.sans, fontSize:13, color:T.esp }}>{m.meal}</span>
                   </div>
                 ))}
-                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>💡 {day.prepNotes}</p>}
+                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}><Emoji e="💡" size={13} /> {day.prepNotes}</p>}
               </Card>
             );
           })}
 
           {/* Shopping list per blueprint with categories */}
-          {mealPlan && mealPlan.shoppingList.length > 0 && <button onClick={()=>setShowShopping(!showShopping)} style={{ width:"100%", padding:"12px", background:T.esp, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:showShopping?12:0, minHeight:48, touchAction:"manipulation" }}>
-            🛒 Shopping List ({mealPlan.shoppingList.length} items)
+          {mealPlan && mealPlan.shoppingList.length > 0 && <button onClick={()=>setShowShopping(!showShopping)} style={{ width:"100%", padding:"12px", background:T.esp, color:T.onAction, border:"none", borderRadius:14, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:showShopping?12:0, minHeight:48, touchAction:"manipulation" }}>
+            <Emoji e="🛒" size={16} /> Shopping List ({mealPlan.shoppingList.length} items)
           </button>}
 
           {mealPlan && showShopping && (
@@ -679,15 +723,15 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               {(["produce","protein","pantry","dairy","frozen","other"] as const).map(cat=>{
                 const items = mealPlan.shoppingList.filter(i=>i.category===cat);
                 if (!items.length) return null;
-                const catLabels = { produce:"🥦 Produce", protein:"🥩 Protein", pantry:"🥫 Pantry", dairy:"🥛 Dairy", frozen:"🧊 Frozen", other:"📦 Other" };
+                const catLabels = { produce:["🥦","Produce"], protein:["🥩","Protein"], pantry:["🥫","Pantry"], dairy:["🥛","Dairy"], frozen:["🧊","Frozen"], other:["📦","Other"] };
                 return (
                   <div key={cat} style={{ marginBottom:12 }}>
-                    <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px" }}>{catLabels[cat]}</p>
+                    <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px", display:"flex", alignItems:"center", gap:6 }}><Emoji e={catLabels[cat][0]} size={15} /> {catLabels[cat][1]}</p>
                     {items.map((item,idx)=>{
                       const globalIdx = mealPlan.shoppingList.indexOf(item);
                       return (
                         <div key={idx} onClick={()=>toggleShoppingItem(globalIdx)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle bought: ${item.item}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", cursor:"pointer", touchAction:"manipulation" }}>
-                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12 }}>{item.checked?"✓":""}</div>
+                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction, fontSize:12 }}>{item.checked?<Emoji e="✓" size={13} strokeWidth={2.4} />:""}</div>
                           <span style={{ fontFamily:F.sans, fontSize:13, color:item.checked?T.taupe:T.esp, textDecoration:item.checked?"line-through":"none" }}>
                             {item.quantity} {item.item}
                           </span>

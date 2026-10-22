@@ -8,9 +8,9 @@
 // Export name stays ThriveScreen so the Me tab can render it.
 import React, { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, ATMOS, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle } from "../../shared/components";
+import { Emoji, Card, PageTitle, GlowCard, Headline, Skeleton, ProgressRing, PullToRefresh } from "../../shared/components";
 import { ThriveVitals } from "./ThriveVitals";
 import { loadData, saveData } from "../../core/firebase";
 import { bus } from "../../core/events";
@@ -41,8 +41,8 @@ async function fetchWearable(uid: string): Promise<{ wearable: WearableDay | nul
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.action, cursor: "pointer", minHeight: 44 };
 const chip = (on: boolean): React.CSSProperties => ({
-  padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
-  color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 40,
+  padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : T.surface,
+  color: on ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 40,
 });
 
 export function ThriveScreen() {
@@ -90,6 +90,13 @@ export function ThriveScreen() {
       setLoaded(true);
     }).catch(() => setLoaded(true));
     fetchWearable(uid).then(r => { if (alive) applyWearable(r); });
+    // Fresh numbers after the app resumes: re-read what was just saved.
+    let off = () => {};
+    import("../../core/healthRefresh").then(m => {
+      off = m.onHealthUpdated(() => {
+        import("../../core/wellnessAutoTrack").then(w => w.readWearable(uid)).then(wd => { if (alive) setWearable(wd); }).catch(() => {});
+      });
+    }).catch(() => {});
     import("../../core/upcomingEvents")
       .then(m => m.loadUpcomingEvents(uid, 1))
       .then(evs => { if (alive) setEventsToday(evs.length); })
@@ -99,7 +106,7 @@ export function ThriveScreen() {
       setOnIphone(m.appleHealthSupported());
       setHealthUpgrade(await m.appleHealthNeedsUpgrade(uid));
     }).catch(() => {});
-    return () => { alive = false; };
+    return () => { alive = false; off(); };
   }, [uid]);
 
   // Cleo's note, from real wearable numbers, cached once a day
@@ -202,7 +209,7 @@ export function ThriveScreen() {
     // through: send her to the steps in Connections instead of a dead end.
     if (await appleHealthState(uid) === "no_data") {
       const { default: toast } = await import("react-hot-toast");
-      toast("No Health data has come through yet. If sharing is off, here's how to switch it on.", { icon: "♡", duration: 6000 });
+      toast("No Health data has come through yet. If sharing is off, here's how to switch it on.", { icon: <Emoji e="♡" size={16} />, duration: 6000 });
       useStore.getState().setActiveTab("connections");
       return;
     }
@@ -219,27 +226,29 @@ export function ThriveScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="Just for you" title="Wellness" />
+      <PageTitle collapse eyebrow="Just for you" title="Wellness" />
+      {uid && <PullToRefresh onRefresh={async () => { await (await import("../../core/healthRefresh")).refreshHealth(uid, true); applyWearable(await fetchWearable(uid)); }} />}
 
-      {/* 1. Today's note: Me's color is warm blush */}
-      <section aria-label="Today's note" style={{ background: T.personalBg, borderRadius: 22, padding: "18px 16px", marginBottom: 12 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.personalInk, margin: "0 0 6px" }}>Today's note</p>
-        <p style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 17, color: T.text, margin: "0 0 12px", lineHeight: 1.45 }}>
-          {checkinText || "Your note for today is on its way."}
-        </p>
+      {/* 1. Today's note: Cleo's one line, read from the measured numbers */}
+      <GlowCard tint="cleo" grain eyebrow="Today's note from Cleo" ariaLabel="Today's note" reveal={false}>
+        {checkinText
+          ? <Headline size={22}>{checkinText}</Headline>
+          : <div role="status" aria-label="Your note for today is on its way">
+              <Skeleton onTint height={20} width="94%" />
+              <Skeleton onTint height={20} width="66%" style={{ marginTop: 8 }} />
+            </div>}
 
         {!wearable && loaded && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: ATMOS.cleo.ink, margin: "8px 0 -6px", textAlign: "left" }}>
             {connecting ? "Connecting…" : onIphone ? "Connect Apple Health so this fills in by itself ›" : "Connect Apple Health or Oura ›"}
           </button>
         )}
         {wearable && healthUpgrade && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: ATMOS.cleo.ink, margin: "8px 0 -6px", textAlign: "left" }}>
             {connecting ? "Asking…" : "Let HerNest count your workouts too ›"}
           </button>
         )}
-
-      </section>
+      </GlowCard>
 
       {wearable && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
 
@@ -263,7 +272,14 @@ export function ThriveScreen() {
           </>
         ) : (
           <>
-            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: "0 0 12px" }}>{goalLabel(goal)}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "0 0 14px" }}>
+              {progress && (
+                <ProgressRing value={progress.done / progress.target} size={58} stroke={6} color={T.sage} track={T.sageP}>
+                  <span style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{progress.done}/{progress.target}</span>
+                </ProgressRing>
+              )}
+              <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.esp, margin: 0 }}>{goalLabel(goal)}</p>
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }} aria-label={`This week: ${progress?.text}`}>
               {dots!.map(d => (
                 <div key={d.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
@@ -271,8 +287,8 @@ export function ThriveScreen() {
                     width: 28, height: 28, borderRadius: "50%",
                     background: d.state === "moved" ? T.sage : "transparent",
                     border: d.state === "moved" ? `2px solid ${T.sage}` : d.state === "today" ? `2px solid ${T.esp}` : `2px ${d.state === "future" ? "dashed" : "solid"} ${T.linen}`,
-                    display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13,
-                  }}>{d.state === "moved" ? "✓" : ""}</div>
+                    display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13,
+                  }}>{d.state === "moved" ? <Emoji e="✓" size={15} strokeWidth={2.4} /> : ""}</div>
                   <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: d.date === today ? 700 : 500, color: d.date === today ? T.esp : T.taupe }}>{d.letter}</span>
                 </div>
               ))}
@@ -280,7 +296,7 @@ export function ThriveScreen() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: progress?.met ? T.sage : T.esp, fontWeight: 600, margin: 0 }}>{progress?.text}</p>
               {(!movedToday || tappedToday) && (
-                <button onClick={toggleMovedToday} style={{ padding: "9px 14px", borderRadius: 12, border: `1.5px solid ${tappedToday ? T.linen : T.sage}`, background: tappedToday ? "#fff" : T.sageP, color: tappedToday ? T.taupe : T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40, touchAction: "manipulation" }}>
+                <button onClick={toggleMovedToday} style={{ padding: "9px 14px", borderRadius: 12, border: `1.5px solid ${tappedToday ? T.linen : T.sage}`, background: tappedToday ? T.surface : T.sageP, color: tappedToday ? T.taupe : T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40, touchAction: "manipulation" }}>
                   {tappedToday ? "Undo today" : "I moved today"}
                 </button>
               )}
@@ -294,8 +310,8 @@ export function ThriveScreen() {
 
       {/* 3. One suggestion, at most */}
       {suggestion && (
-        <div style={{ background: `${T.gold}12`, border: `1px solid ${T.gold}30`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <span style={{ fontSize: 14, flexShrink: 0, color: T.goldText }}>✦</span>
+        <div style={{ background: `${alpha(T.gold, 0.07)}`, border: `1px solid ${alpha(T.gold, 0.19)}`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ flexShrink: 0, color: T.goldText, display: "inline-flex" }}><Emoji e="✦" size={16} /></span>
           <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.5, flex: 1 }}>{suggestion.text}</p>
           <button onClick={() => setSuggestionHidden(true)} aria-label="Dismiss suggestion" style={{ background: "none", border: "none", color: T.taupe, fontSize: 16, cursor: "pointer", padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
         </div>
@@ -315,7 +331,7 @@ export function ThriveScreen() {
                 {HABIT_CHOICES.map(h => {
                   const on = habitPicks.includes(h.id);
                   const full = !on && habitPicks.length >= MAX_HABITS;
-                  return <button key={h.id} onClick={() => togglePick(h.id)} disabled={full} style={{ ...chip(on), opacity: full ? 0.45 : 1 }}>{h.icon} {h.name}</button>;
+                  return <button key={h.id} onClick={() => togglePick(h.id)} disabled={full} style={{ ...chip(on), opacity: full ? 0.45 : 1 }}><Emoji e={h.icon} size={16} /> {h.name}</button>;
                 })}
               </div>
               <div style={{ display: "flex", gap: 16 }}>
@@ -328,8 +344,8 @@ export function ThriveScreen() {
             return (
               <button key={h.id} onClick={() => tickHabit(h.id)} aria-pressed={done}
                 style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 0", background: "none", border: "none", borderTop: `1px solid ${T.linen}`, cursor: "pointer", minHeight: 48, textAlign: "left" }}>
-                <span style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${done ? T.sage : T.linen}`, background: done ? T.sage : "#fff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{done ? "✓" : ""}</span>
-                <span style={{ fontSize: 16 }}>{h.icon}</span>
+                <span style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${done ? T.sage : T.linen}`, background: done ? T.sage : T.surface, color: T.onAction, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{done ? <Emoji e="✓" size={15} strokeWidth={2.4} /> : ""}</span>
+                <span style={{ fontSize: 16, display: "inline-flex" }}><Emoji e={h.icon} size={18} /></span>
                 <span style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, flex: 1, textDecoration: done ? "line-through" : "none" }}>{h.name}</span>
                 {h.streak >= 2 && <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{h.streak} days</span>}
               </button>
@@ -346,7 +362,7 @@ export function ThriveScreen() {
         <p style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, margin: "0 0 12px", lineHeight: 1.55 }}>
           {summary || "Check in for a few days and your week will show here."}
         </p>
-        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: T.action, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: T.action, color: T.onAction, border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
           Ask Cleo about this
         </button>
       </Card>
