@@ -127,24 +127,57 @@ export function profileLine(p: StyleProfile, money: (n: number) => string): stri
 }
 
 // ── The outfit itself ──────────────────────────────────────────────
-export interface Outfit { headline: string; pieces: { item: string; note: string }[]; why: string; tip: string | null; }
+export interface Outfit { headline: string; pieces: { item: string; note: string }[]; why: string; tip: string | null; backup?: string | null; }
+
+// ── What Cleo has learned from her taps (no quiz, no closet photos) ──
+// liked: looks she tapped "Wear this" on (newest first)
+// notOwned: pieces she tapped "Don't have that" on; never suggested again
+// passed: looks she skipped with "Something else"
+export interface StyleMemory { liked: string[]; notOwned: string[]; passed: string[] }
+const MEMORY_CAP = { liked: 10, notOwned: 40, passed: 10 };
+
+export function readStyleMemory(d: Record<string, unknown> | null | undefined): StyleMemory {
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : []);
+  const m = (d?.memory || {}) as Record<string, unknown>;
+  return { liked: list(m.liked), notOwned: list(m.notOwned), passed: list(m.passed) };
+}
+
+// Adds to the front, drops duplicates (case-insensitive), keeps the newest.
+export function remember(mem: StyleMemory, key: keyof StyleMemory, value: string): StyleMemory {
+  const v = value.trim();
+  if (!v) return mem;
+  const rest = mem[key].filter(x => x.toLowerCase() !== v.toLowerCase());
+  return { ...mem, [key]: [v, ...rest].slice(0, MEMORY_CAP[key]) };
+}
+
+export type Shift = "dressier" | "casual";
 
 export function buildOutfitPrompt(input: {
   weather: string; events: SimpleEvent[]; occasion: string | null; eventTitle?: string; when?: string;
   profile: StyleProfile; currencyCode: string; avoid: string[];
+  occasionText?: string;          // typed in "Dress me for...", e.g. "beach wedding Saturday"
+  memory?: StyleMemory;
+  shift?: { to: Shift; from: string } | null;
 }): string {
   const p = input.profile;
-  const lines = [
-    input.eventTitle
+  const mem = input.memory;
+  const forWhat = input.occasionText
+    ? `Outfit for: ${input.occasionText}.`
+    : input.eventTitle
       ? `Outfit for: ${input.eventTitle}${input.when ? ` (${input.when})` : ""}.`
-      : `Outfit for today.${input.events.length ? ` Her day: ${dayLine(input.events, 5)}.` : " Nothing on her calendar."}`,
-    input.occasion ? `Occasion: ${occasionLabel(input.occasion)}.` : "Occasion: an everyday mom day.",
-    input.weather ? `Weather${input.eventTitle ? " today (may differ on the day)" : ""}: ${input.weather}.` : "",
+      : `Outfit for today.${input.events.length ? ` Her day: ${dayLine(input.events, 5)}.` : " Nothing on her calendar."}`;
+  const planningAhead = !!(input.eventTitle || input.occasionText);
+  const lines = [
+    forWhat,
+    input.occasionText ? "" : input.occasion ? `Occasion: ${occasionLabel(input.occasion)}.` : "Occasion: an everyday mom day.",
+    input.weather ? `Weather${planningAhead ? " today (may differ on the day)" : ""}: ${input.weather}.` : "",
     p.size ? (isOldSize(p.size) ? `Her size: ${p.size} (sizing system unknown, may be UK).` : `Her size: US ${p.size}.`) : "",
     p.words.length ? `Her style: ${p.words.join(", ")}.` : "",
-    p.bodyShape ? `Body shape: ${p.bodyShape}.` : "",
     p.height ? `Height: ${p.height}.` : "",
     p.budget ? `If anything needs buying, keep the whole look around ${p.budget} ${input.currencyCode}.` : "",
+    mem?.liked.length ? `Looks she wore and liked (lean this way): ${mem.liked.slice(0, 5).join(" | ")}.` : "",
+    mem?.notOwned.length ? `She doesn't own these, so never suggest them: ${mem.notOwned.join(", ")}.` : "",
+    input.shift ? `Make it a step ${input.shift.to === "dressier" ? "dressier" : "more casual"} than: ${input.shift.from}.` : "",
     input.avoid.length ? `Give a different idea from: ${input.avoid.join(" | ")}.` : "",
   ];
   return lines.filter(Boolean).join("\n");
@@ -157,7 +190,9 @@ Rules:
 - pieces: 3 to 6 items, each with a short note (max 8 words)
 - why: one or two short sentences tied to her weather and day. No essay, no flattery.
 - tip: one optional practical tip, or null
-- US sizes, US English, never mention body flaws.`;
+- backup: a second, simpler outfit in one line, or null
+- Use pieces most closets have. If something would need buying, say so in its note ("if you have one").
+- US sizes, US English, never mention body flaws, no em dashes.`;
 
 export function parseOutfit(text: string): Outfit | null {
   try {
@@ -168,7 +203,11 @@ export function parseOutfit(text: string): Outfit | null {
       .map(p => ({ item: p.item.trim(), note: typeof p.note === "string" ? p.note.trim() : "" }))
       .slice(0, 6);
     if (!pieces.length) return null;
-    return { headline: o.headline.trim(), pieces, why: typeof o.why === "string" ? o.why.trim() : "", tip: typeof o.tip === "string" && o.tip.trim() ? o.tip.trim() : null };
+    return {
+      headline: o.headline.trim(), pieces, why: typeof o.why === "string" ? o.why.trim() : "",
+      tip: typeof o.tip === "string" && o.tip.trim() ? o.tip.trim() : null,
+      backup: typeof o.backup === "string" && o.backup.trim() ? o.backup.trim() : null,
+    };
   } catch { return null; }
 }
 
