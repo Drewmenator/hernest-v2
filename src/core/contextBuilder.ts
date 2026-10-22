@@ -160,6 +160,9 @@ export function bodyFactsFor(w: WearableDay | null): string[] {
 }
 
 export function selectToneProfile(sleepTrend: number[], moodTrend: number[]): ToneProfile {
+  // No data is not a bad night: without this, everyone who never used the old
+  // sleep log was read as "struggling".
+  if (!sleepTrend.length && !moodTrend.length) return "steady";
   const avgSleep = sleepTrend.length ? sleepTrend.reduce((a,b)=>a+b,0)/sleepTrend.length : 0;
   const avgMood  = moodTrend.length  ? moodTrend.reduce((a,b)=>a+b,0)/moodTrend.length   : 3;
   if (avgSleep >= 7 && avgMood >= 4) return "thriving";
@@ -280,11 +283,15 @@ export async function buildAppContext(
   const habits     = (thriveData?.habits   as any[]) || [];
   const todaySleep = sleepLogs.find((l:any)=>l.date===todayStr);
   const todayMood  = moodLogs.find((l:any)=>l.date===todayStr);
-  const sleepTrend = sleepLogs.slice(-7).map((l:any)=>l.hours);
-  const moodTrend  = moodLogs.slice(-7).map((l:any)=>l.value);
+  // Only the last 7 days: old manual logs can be months stale.
+  const weekAgo    = (() => { const d = new Date(today); d.setDate(d.getDate() - 7); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
+  const recent     = (l: { date?: unknown }) => typeof l?.date === "string" && l.date >= weekAgo;
+  const sleepTrend = sleepLogs.filter(recent).slice(-7).map((l:any)=>l.hours);
+  const moodTrend  = moodLogs.filter(recent).slice(-7).map((l:any)=>l.value);
 
   // ── Tone ────────────────────────────────────────────────────────
-  const tone = selectToneProfile(sleepTrend, moodTrend);
+  // Measured sleep (Apple Health / Oura) counts when there is no manual log.
+  const tone = selectToneProfile(sleepTrend.length ? sleepTrend : (wearable?.sleepHours != null ? [wearable.sleepHours] : []), moodTrend);
   const toneConfig = TONE_PROFILES[tone];
 
   // ── Trips ───────────────────────────────────────────────────────
@@ -321,8 +328,9 @@ export async function buildAppContext(
    .filter((b)=> b.daysUntil != null && b.daysUntil <= 14)
    .map((b)=>({ name: b.name, daysUntil: b.daysUntil as number }));
 
+  // Only people with a real last-contact date (no date used to read as "999 days").
   const overdueCheckins = contacts.filter((c:any)=>{
-    if (!c.lastContact) return true;
+    if (!c.lastContact) return false;
     return Math.floor((today.getTime()-new Date(c.lastContact).getTime())/(1000*60*60*24))>14;
   }).map((c:any)=>({
     name:c.name,
@@ -420,9 +428,10 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   const lines: string[] = [];
 
   lines.push(`=== USER CONTEXT ===`);
-  lines.push(`Name: ${ctx.name}. Role: ${ctx.role||"not specified"}. Challenge: ${ctx.challenge||"managing everything"}.`);
-  lines.push(`Energy pattern: ${ctx.energyPattern}. Priorities: ${ctx.priorities.join(", ")||"family, career"}.`);
-  lines.push(`Kids: ${ctx.kids.map((k:any)=>k.name).join(", ")||"none"}.`);
+  // Only what she told us; made-up defaults ("managing everything") read as facts.
+  lines.push(`Name: ${ctx.name}.${ctx.role ? ` Role: ${ctx.role}.` : ""}${ctx.challenge ? ` Challenge: ${ctx.challenge}.` : ""}`);
+  if (ctx.priorities.length) lines.push(`Priorities: ${ctx.priorities.join(", ")}.`);
+  if (ctx.kids.length) lines.push(`Kids: ${ctx.kids.map((k:any)=>k.name).join(", ")}.`);
   lines.push(`Tone profile: ${ctx.tone} (${ctx.toneConfig.label}). Affirmation theme: ${ctx.toneConfig.affirmationTheme}.`);
   lines.push(``);
 
@@ -435,7 +444,7 @@ export function buildBriefingPrompt(ctx: AppContext): string {
     lines.push(`Due today (${ctx.tasks.dueToday.length}): ${ctx.tasks.dueToday.map(t=>`${t.title} [${t.category}/${t.priority}]`).join(", ")}.`);
   if (ctx.tasks.overdue.length)
     lines.push(`OVERDUE (${ctx.tasks.overdue.length}): ${ctx.tasks.overdue.map(t=>t.title).join(", ")}.`);
-  lines.push(`Total pending: ${ctx.tasks.total}. Completion rate: ${Math.round(ctx.tasks.completionRate*100)}%.`);
+  lines.push(`Total pending: ${ctx.tasks.total}.`);
   lines.push(``);
 
   lines.push(`=== CALENDAR ===`);
@@ -463,9 +472,12 @@ export function buildBriefingPrompt(ctx: AppContext): string {
   lines.push(``);
 
   lines.push(`=== THRIVE ===`);
-  lines.push(`Sleep last night: ${ctx.thrive.sleepLast||"not logged"}h. 7-day trend: ${ctx.thrive.sleepTrend.join(", ")||"no data"}.`);
+  // Only what we have: "not logged" lines made the brief ask her to log sleep.
+  if (ctx.thrive.sleepLast || ctx.thrive.sleepTrend.length)
+    lines.push(`Sleep last night: ${ctx.thrive.sleepLast ? `${ctx.thrive.sleepLast}h` : "unknown"}. 7-day trend: ${ctx.thrive.sleepTrend.join(", ") || "none"}.`);
   // Mood and energy are no longer asked; read her day from the body data.
-  lines.push(`Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`);
+  if (ctx.thrive.totalHabits || ctx.thrive.mood)
+    lines.push(`${ctx.thrive.totalHabits ? `Habits: ${ctx.thrive.habitsToday}/${ctx.thrive.totalHabits} done.` : ""}${ctx.thrive.mood ? ` Mood (older log): ${ctx.thrive.mood}/5.` : ""}`.trim());
   if (ctx.thrive.readiness != null) {
     const src = ctx.thrive.wearableSource === "oura" ? "Oura" : "wearable";
     lines.push(`BODY READINESS (${src}): ${ctx.thrive.readiness}/100${ctx.thrive.sleepScore != null ? `, sleep score ${ctx.thrive.sleepScore}/100` : ""}${ctx.thrive.stressDay ? `. Yesterday's stress balance: ${ctx.thrive.stressDay}` : ""}. This is measured recovery data — weight it heavily in the energy forecast. Below 60: actively protect her day, suggest trimming non-essentials. 60-75: steady pace, no new commitments. Above 85: a genuinely strong day — good for the hardest task. If yesterday was stressful, acknowledge it and keep today's asks lighter.`);
@@ -478,7 +490,7 @@ export function buildBriefingPrompt(ctx: AppContext): string {
 
   if (ctx.trips.next) {
     lines.push(`=== TRIP ===`);
-    lines.push(`Next: ${ctx.trips.next.dest} in ${ctx.trips.next.daysUntil} days. Budget: ${currencySymbol()}${ctx.trips.next.budget}. Packing: ${ctx.trips.next.packingPct}% done.`);
+    lines.push(`Next: ${ctx.trips.next.dest} in ${ctx.trips.next.daysUntil} days.${ctx.trips.next.budget ? ` Budget: ${currencySymbol()}${ctx.trips.next.budget}.` : ""}${ctx.trips.next.packingPct ? ` Packing: ${ctx.trips.next.packingPct}% done.` : ""}`);
   }
 
   if (ctx.school.urgentToday.length || ctx.school.thisWeek.length) {

@@ -125,3 +125,42 @@ describe("orchestrate: crisis check (Cleo tab, every Ask Cleo prefill)", () => {
     expect(res.text).toBe(crisisResponse());
   });
 });
+
+describe("Cleo stays grounded and acts through her tools", () => {
+  it("'remind me to pay the water bill' is a task, not a money question", () => {
+    const r = classifyIntentLocally("remind me to pay the water bill on friday", "cleo");
+    expect(r?.intent).toBe("task_creation");
+  });
+
+  it("every prompt says: only facts from her data, no claims without a tool, no filler advice", () => {
+    for (const feature of ["cleo_chat", "household_cfo", "wellness_coach"]) {
+      const p = buildSystemPrompt({ intent: "unknown", feature } as unknown as Parameters<typeof buildSystemPrompt>[0]);
+      expect(p).toMatch(/If it isn't there, say you don't have that yet/);
+      expect(p).toMatch(/only by calling a tool/);
+      expect(p).toMatch(/never say you added, scheduled, completed or will remind/);
+      expect(p).toMatch(/generic parenting or self-care advice/);
+    }
+  });
+
+  it("with tools, task requests don't ask for TASKS_JSON", () => {
+    const p = buildSystemPrompt({ intent: "task_creation", feature: "task_extraction" } as unknown as Parameters<typeof buildSystemPrompt>[0], { agent: true });
+    expect(p).not.toContain("TASKS_JSON");
+  });
+
+  it("task requests go to the tool loop, so reminders are really set", async () => {
+    const { runCleoAgent } = await import("./cleoAgent");
+    (runCleoAgent as Mock).mockReset().mockResolvedValue({ text: "I'll remind you at 3:00 PM.", actions: [], usedTools: true });
+    (validateResponse as Mock).mockImplementation(({ rawText }: { rawText: string }) => ({
+      valid: true, text: rawText, warnings: [], repaired: false, confidenceNormalized: false, lengthAdjusted: false,
+    }));
+    const res = await orchestrate({
+      userId: "u1", profile: { name: "Test" }, sourceModule: "cleo",
+      userMessage: "remind me at 3pm to call the dentist", conversationHistory: [], options: {},
+    });
+    expect(runCleoAgent).toHaveBeenCalledTimes(1);
+    const { system } = (runCleoAgent as Mock).mock.calls[0][0];
+    expect(system).not.toContain("TASKS_JSON");
+    expect(system).toContain("remindAt");
+    expect(res.text).toContain("3:00 PM");
+  });
+});

@@ -152,8 +152,11 @@ export function classifyIntentLocally(message: string, sourceModule: SourceModul
   const taskScore       = TASK_KEYWORDS.filter(k => msg.includes(k)).length;
   const wellnessScore   = WELLNESS_KEYWORDS.filter(k => msg.includes(k)).length;
 
+  // "Remind me to pay the water bill" is a task, not a money question.
+  const explicitTask = /\b(remind me|don't forget|dont forget|add (it |this |that )?to|create a task|add a task|make a note)\b/.test(msg);
+
   // Strong financial signal
-  if (financialScore >= 2 || (financialScore >= 1 && sourceModule === "finances")) {
+  if (!explicitTask && (financialScore >= 2 || (financialScore >= 1 && sourceModule === "finances"))) {
     return {
       intent: "financial_analysis",
       feature: "household_cfo",
@@ -249,6 +252,9 @@ You must always:
 - Avoid shame, fear, or alarmist language
 - Explain recommendations clearly
 - State assumptions when data is incomplete
+- Only state facts about her family, schedule, tasks, bills or money that appear in HOUSEHOLD CONTEXT or this conversation. If it isn't there, say you don't have that yet. Never guess names, dates, times or amounts
+- Change things in the app (add a task or reminder, add a calendar event, mark something done) only by calling a tool, when tools are available in this conversation. If you didn't call one, never say you added, scheduled, completed or will remind her; tell her where to do it in the app instead
+- Don't offer generic parenting or self-care advice, or ask her to log or track things in the app, unless she asks
 - Use plain language and focus on practical next steps
 - Sound consistent whether you're answering from the home screen, finances, or wellness
 
@@ -260,13 +266,14 @@ You are acting as the HerNest Household CFO.
 
 Your job is to help the household understand cash flow, spending, savings goals, debt, upcoming obligations, and major financial decisions.
 
-Every CFO response must address:
+When the data supports it, cover:
 1. What I'm seeing (observation with numbers)
 2. Why it matters
 3. Options (2-3 concrete options)
 4. My recommendation
 5. Confidence level and assumptions
 6. Suggested next step
+When only bills data is available, keep it short and skip the sections you have nothing for.
 
 Never shame spending. Never guarantee outcomes. Never provide investment, tax, or legal advice.
 When data is missing, state the assumption clearly — do not invent numbers.
@@ -278,11 +285,13 @@ You are acting as the HerNest Wellness Coach.
 
 Focus on:
 - Validating how the user feels before offering advice
-- Connecting household load (calendar, tasks, finances) to how they're feeling
-- Offering 1-3 practical, realistic relief actions
+- Connecting her actual calendar, tasks and any body data in the context to how she's feeling
+- Offering 1-3 relief actions tied to that data (move or drop a specific task, protect a specific gap); no generic self-care lists
 - Being gentle — never prescriptive or clinical`;
 
-export function buildSystemPrompt(classification: IntentClassification): string {
+// `agent`: Cleo will have tools this turn, so she adds tasks herself instead
+// of returning TASKS_JSON for the screen to offer.
+export function buildSystemPrompt(classification: IntentClassification, opts: { agent?: boolean } = {}): string {
   let base: string;
   switch (classification.feature) {
     case "household_cfo":        base = CFO_SYSTEM; break;
@@ -295,7 +304,7 @@ export function buildSystemPrompt(classification: IntentClassification): string 
   if (classification.intent === "financial_analysis") {
     base += `\n\nWhen giving financial guidance, end with one short line: "(Educational guidance, not financial advice.)"`;
   }
-  if (classification.intent === "task_creation") {
+  if (classification.intent === "task_creation" && !opts.agent) {
     base += `\n\nTASK EXTRACTION: After responding warmly, extract any clear actionable tasks mentioned.
 Return your response, then on a new line: TASKS_JSON:[{"title":"","category":"family|work|home|travel|personal","dueDate":"YYYY-MM-DD or null","confidence":0.9}]
 Only include TASKS_JSON if you found clear actionable tasks. The app shows these to the user for approval — never claim they were added.`;
@@ -435,7 +444,10 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     assumptions = ["Full household context unavailable"];
   }
 
-  const systemPrompt = `${buildSystemPrompt(classification)}
+  // Cleo's tool loop handles chat and task requests ("remind me at 3pm"), so
+  // tasks and reminders are really added instead of only suggested.
+  const viaAgent = !requireJson && FLAGS.CLEO_AGENT && (classification.feature === "cleo_chat" || classification.intent === "task_creation");
+  const systemPrompt = `${buildSystemPrompt(classification, { agent: viaAgent })}
 
 === HOUSEHOLD CONTEXT ===
 ${context}
@@ -473,7 +485,7 @@ ${stateAddendum}`;
         fallbackUsed = true;
         text = FALLBACKS[classification.intent];
       }
-    } else if (FLAGS.CLEO_AGENT && classification.feature === "cleo_chat") {
+    } else if (viaAgent) {
       // ── Cleo v2 agent (Phase 2): tool loop so she can ACT, not just answer ──
       const todayStr = todayLocal();
       const nowStr = new Date().toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" });

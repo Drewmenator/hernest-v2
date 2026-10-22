@@ -17,43 +17,7 @@ import type { HouseholdMemory } from "../../core/memoryServiceV2";
 interface Msg { role: "user"|"assistant"; content: string; type?: "text"|"task-suggestion"|"crisis"; tasks?: ExtractedTask[]; }
 interface ExtractedTask { id: string; title: string; category: string; dueDate?: string; confidence: number; }
 
-// ── Intent classifier (unchanged) ────────────────────────────────
-const INTENT_PATTERNS = {
-  "task-extraction": [
-    /I need to/i, /I should/i, /I have to/i, /don't forget/i,
-    /remember to/i, /remind me to/i, /add .* to/i, /schedule/i,
-    /book/i, /pick up/i, /drop off/i, /buy/i, /call/i, /email/i,
-  ],
-  "emotional-support": [
-    /I('m| am) (stressed|tired|exhausted|overwhelmed|anxious|worried|sad|lonely)/i,
-    /I can'?t (cope|handle|deal|manage)/i,
-    /everything (is|feels) (too much|hard|heavy)/i,
-    /I feel like/i, /nobody (understands|helps|cares)/i,
-    /I('m| am) struggling/i, /so hard/i, /falling apart/i,
-  ],
-  "financial": [
-    /afford/i, /budget/i, /money/i, /spend/i, /cost/i, /debt/i,
-    /savings/i, /salary/i, /income/i, /expensive/i, /cheap/i, /price/i,
-    /can we/i, /should we buy/i, /worth it/i, /financial/i,
-  ],
-  "information": [
-    /what('s| is) my/i, /how much/i, /show me/i,
-    /when is/i, /where is/i, /tell me/i, /remind me of/i,
-  ],
-  "action-request": [
-    /plan (my|the)/i, /generate/i, /create (a|an)/i,
-    /help me (with|to)/i, /can you/i, /I want to/i,
-  ],
-};
-
 import { crisisReply } from "../../core/crisis";
-
-function classifyIntent(msg: string): string {
-  for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
-    if (patterns.some(p => p.test(msg))) return intent;
-  }
-  return "general";
-}
 
 const QUICK_REPLIES = [
   "What should I focus on today?",
@@ -278,8 +242,6 @@ export function CleoScreen() {
         return;
       }
 
-      const intent = classifyIntent(msg);
-
       // NOTE: this screen used to hand-build a large system prompt here, but it
       // was never passed to askCleo — the orchestrator builds the real prompt
       // (see aiOrchestrator buildSystemPrompt, where the useful pieces now live).
@@ -317,7 +279,9 @@ export function CleoScreen() {
       let responseText = result.text;
       let extracted: ExtractedTask[] = [];
 
-      if (intent === "task-extraction" && result.text.includes("TASKS_JSON:")) {
+      // Strip TASKS_JSON whatever this screen guessed the intent was (the
+      // orchestrator classifies on its own, so the two can disagree).
+      if (result.text.includes("TASKS_JSON:")) {
         const parts = result.text.split("TASKS_JSON:");
         responseText = parts[0].trim();
         try {
