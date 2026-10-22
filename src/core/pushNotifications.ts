@@ -12,11 +12,16 @@ function isNative(): boolean {
 
 // FCM tokens are safe Firestore doc ids (no slashes), but long — key devices by
 // token so re-registering the same device updates in place instead of piling up.
+// timeZone (e.g. "America/New_York") lets the server send the morning briefing
+// at this device's local 7am; it refreshes on each launch, so travel follows.
 async function storeToken(uid: string, token: string): Promise<void> {
+  let timeZone: string | undefined;
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { /* unknown */ }
   await setDoc(doc(db, "users", uid, "devices", token), {
     token,
     platform: "ios",
     updatedAt: Date.now(),
+    ...(timeZone ? { timeZone } : {}),
   }, { merge: true });
 }
 
@@ -67,11 +72,12 @@ async function completeRegistration(uid: string, FirebaseMessaging: any): Promis
       if (e?.token) storeToken(uid, e.token).catch(() => {});
     });
 
-    // On-device wellness notifications: standing evening check-in reminder +
-    // tap routing (permission is already granted, so these won't prompt).
+    // On-device notifications: standing evening check-in reminder, bill
+    // reminders, and tap routing (permission is already granted, so these won't prompt).
     import("./localNotifications").then(l => {
       l.ensureDailyCheckinReminder();
       l.initLocalNotificationTaps();
+      l.syncBillRemindersFromCloud(uid);
     }).catch(() => {});
 
     await FirebaseMessaging.addListener("notificationActionPerformed", (e: any) => {

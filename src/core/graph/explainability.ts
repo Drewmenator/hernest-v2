@@ -4,6 +4,7 @@
 // saveMemoryFromInsight() + explainWhyRecommendationWasMade().
 
 import { aiJSON } from "../ai";
+import { s } from "../aiSchema";
 import { saveMemoryFacts } from "../memory";
 import {
   COMPLIANCE_NOTE, now, uuid, addRelationship, indexNode, baseNode, insightToMemoryType,
@@ -93,10 +94,11 @@ export async function explainWhyRecommendationWasMade(
     };
   });
 
-  const sys = `You are HerNest's explainability engine. Given a recommendation and supporting evidence, write 3-5 short bullet points explaining WHY this recommendation was made. Be specific with numbers. Return JSON: {"steps": ["step 1", "step 2", ...]}`;
+  const sys = `You are HerNest's explainability engine. Given a recommendation and supporting evidence, write 3-5 short bullet points explaining WHY this recommendation was made. Be specific with numbers. Put the bullet points in "steps".`;
   const prompt = `Recommendation: "${recommendation}"\nEvidence:\n${reasoning.join("\n")}\n${strongRelationships.slice(0, 3).map(r => `- ${r.description}`).join("\n")}`;
 
-  const result = await aiJSON<{ steps: string[] }>(sys, prompt, "budget_coach", { steps: reasoning });
+  const result = await aiJSON<{ steps: string[] }>(sys, prompt, "budget_coach", { steps: reasoning },
+    s.object({ steps: s.array(s.string("one short bullet point")) }));
 
   return {
     recommendation,

@@ -1,5 +1,6 @@
 // ─── HerNest AI Client ────────────────────────────────────────────
 import { auth } from "./firebase";
+import type { JsonSchema } from "./aiSchema";
 
 export type Feature =
   | "cleo_chat" | "morning_briefing" | "style_stylist"
@@ -7,7 +8,8 @@ export type Feature =
   | "trip_planner" | "school_calendar" | "receipt_scanner"
   | "csv_import" | "gift_advisor" | "briefing_ask"
   | "sunday_reset" | "travel_brief" | "wellness_score"
-  | "circle_match" | "debrief" | "household_cfo" | "gmail_extract" | "cleo_checkin";
+  | "circle_match" | "debrief" | "household_cfo" | "gmail_extract" | "cleo_checkin"
+  | "bill_scan" | "bill_parse";
 
 // Model choice and output limits live on the server (api/_lib/claudeRequest.js),
 // keyed by feature. The client only says which feature it is.
@@ -33,11 +35,19 @@ export interface AIError {
 
 export type AIResult = AIResponse | AIError;
 
+export interface AIOptions {
+  // A fixed answer shape (JSON schema, object at the root). The API then
+  // guarantees the reply is valid JSON in that shape — no more cutting JSON out
+  // of free text. Build one with the helpers in ./aiSchema.
+  schema?: JsonSchema;
+}
+
 export async function ai(
   system: string,
   prompt: string,
   feature: Feature = "cleo_chat",
-  history: Array<{ role: string; content: string }> = []
+  history: Array<{ role: string; content: string }> = [],
+  opts: AIOptions = {}
 ): Promise<AIResult> {
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
@@ -52,7 +62,30 @@ export async function ai(
   );
   while (safeHistory.length && safeHistory[0].role !== "user") safeHistory.shift();
   const messages = [...safeHistory, { role: "user", content: prompt }];
+  return send(idToken, { system, prompt, feature, messages, ...(opts.schema ? { schema: opts.schema } : {}) });
+}
 
+// An image the model should read (base64, no data: prefix).
+export interface AIImage { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string; }
+
+// One user turn made of images plus an instruction. Only features the server
+// allows attachments for will accept this (e.g. bill_scan).
+export async function aiWithImages(
+  system: string,
+  images: AIImage[],
+  instruction: string,
+  feature: Feature
+): Promise<AIResult> {
+  const idToken = await getIdToken();
+  if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
+  const content = [
+    ...images.map(img => ({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } })),
+    { type: "text", text: instruction },
+  ];
+  return send(idToken, { system, feature, messages: [{ role: "user", content }] });
+}
+
+async function send(idToken: string, body: Record<string, unknown>): Promise<AIResult> {
   try {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -60,12 +93,7 @@ export async function ai(
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({
-        system,
-        prompt,
-        feature,
-        messages,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (res.status === 429) {
@@ -93,14 +121,16 @@ export async function ai(
   }
 }
 
-// Convenience: parse JSON from AI response
+// Convenience: parse JSON from AI response. Pass a schema to get a guaranteed
+// shape (structured outputs); without one the reply is parsed best-effort.
 export async function aiJSON<T>(
   system: string,
   prompt: string,
   feature: Feature,
-  fallback: T
+  fallback: T,
+  schema?: JsonSchema
 ): Promise<T> {
-  const result = await ai(system, prompt, feature);
+  const result = await ai(system, prompt, feature, [], { schema });
   if (result.error) return fallback;
   try {
     return JSON.parse(result.text.replace(/```json|```/g, "").trim()) as T;

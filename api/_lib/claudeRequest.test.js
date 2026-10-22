@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildUpstreamBody, resolveModel, MODELS, MAX_TEXT_CHARS } from "./claudeRequest.js";
+import { buildUpstreamBody, resolveModel, MODELS, MAX_TEXT_CHARS, THINKING_HEADROOM } from "./claudeRequest.js";
 
 const tool = (name) => ({ name, description: "d", input_schema: { type: "object", properties: {} } });
 
@@ -22,7 +22,7 @@ describe("buildUpstreamBody", () => {
 
   it("caps max_tokens at the feature limit", () => {
     const { upstream } = buildUpstreamBody({ prompt: "hi", feature: "gift_advisor", max_tokens: 8000 });
-    expect(upstream.max_tokens).toBe(1000);
+    expect(upstream.max_tokens).toBe(1000 + THINKING_HEADROOM);
   });
 
   it("only allows the Cleo tools, and only on cleo_chat", () => {
@@ -45,5 +45,22 @@ describe("buildUpstreamBody", () => {
 
   it("rejects bad roles", () => {
     expect(buildUpstreamBody({ messages: [{ role: "system", content: "x" }], feature: "cleo_chat" }).error).toBe("bad_request");
+  });
+
+  it("sets effort per feature", () => {
+    expect(buildUpstreamBody({ prompt: "hi", feature: "gift_advisor" }).upstream.output_config.effort).toBe("low");
+    expect(buildUpstreamBody({ prompt: "hi", feature: "household_cfo" }).upstream.output_config.effort).toBe("medium");
+  });
+
+  it("passes a fixed answer shape through as structured output", () => {
+    const schema = { type: "object", properties: { ideas: { type: "array", items: { type: "string" } } }, required: ["ideas"], additionalProperties: false };
+    const { upstream } = buildUpstreamBody({ prompt: "hi", feature: "gift_advisor", schema });
+    expect(upstream.output_config.format).toEqual({ type: "json_schema", schema });
+  });
+
+  it("rejects bad or oversized schemas", () => {
+    expect(buildUpstreamBody({ prompt: "hi", feature: "gift_advisor", schema: { type: "array" } }).error).toBe("bad_schema");
+    const huge = { type: "object", description: "x".repeat(30000) };
+    expect(buildUpstreamBody({ prompt: "hi", feature: "gift_advisor", schema: huge }).error).toBe("bad_schema");
   });
 });

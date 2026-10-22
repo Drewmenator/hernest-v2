@@ -76,6 +76,24 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         history: (oura.history as WearableDayPoint[]) ?? [],
       };
     }
+    // Apple Health read directly on the iPhone (src/core/appleHealth.ts):
+    // richer than the Shortcut (heart data, a week of history), so it wins.
+    const native = await loadData(uid, "apple_health").catch(() => null);
+    if (native?.date && (native.date as string) >= recentCutoff && (native.lastSleepHours != null || native.lastSteps != null)) {
+      return {
+        source: "apple_health", date: native.date as string,
+        sleepHours: (native.lastSleepHours as number) ?? null,
+        sleepScore: null, readiness: null,
+        steps: (native.lastSteps as number) ?? null,
+        avgHrv: (native.avgHrv as number) ?? null,
+        restingHr: (native.restingHr as number) ?? null,
+        readinessContributors: null,
+        stressDay: null, stressHighMins: null, recoveryHighMins: null,
+        activeCalories: null, sedentaryMins: null, activityScore: null,
+        history: (native.history as WearableDayPoint[]) ?? [],
+      };
+    }
+
     const ah = ahSnap.data();
     if (ah?.date && ah.date >= recentCutoff && (ah.lastSleepHours != null || ah.lastSteps != null)) {
       return {
@@ -97,6 +115,8 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
 
 // Auto-log sleep + movement into the thrive doc. Returns what changed.
 export async function autoTrackWellness(uid: string): Promise<{ wearable: WearableDay | null; sleepLogged: boolean; moveDone: boolean }> {
+  // On the iPhone, refresh Apple Health first (no-op if not connected).
+  await import("./appleHealth").then(m => m.syncAppleHealth(uid)).catch(() => false);
   const wearable = await readWearable(uid);
   if (!wearable) return { wearable: null, sleepLogged: false, moveDone: false };
 

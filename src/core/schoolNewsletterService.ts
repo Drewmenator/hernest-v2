@@ -2,9 +2,10 @@
 // PlanScreen and CalendarScreen each had their own extraction with
 // DIFFERENT schemas writing to the same "school" collection — and the
 // calendar copy's JSON slicing ({…} instead of […]) silently failed on
-// newsletters with more than one event. One service, one schema, one
-// robust parser.
+// newsletters with more than one event. One service, one schema, and the
+// API returns exactly that shape (structured outputs), so no JSON slicing.
 import { ai } from "./ai";
+import { s } from "./aiSchema";
 import { loadData, saveData } from "./firebase";
 import { bus } from "./events";
 import { todayLocal } from "./dateAwareness";
@@ -22,26 +23,20 @@ export interface SchoolEvent {
   notes?: string;
 }
 
-const PROMPT_SCHEMA = `[{
-  "title":"string",
-  "date":"YYYY-MM-DD",
-  "time":"string or null",
-  "type":"academic|sport|social|parent-evening|trip|deadline",
-  "requiresAction":true/false,
-  "actionType":"permission-slip|payment|rsvp|supply-list|costume|none",
-  "actionDeadline":"YYYY-MM-DD or null",
-  "notes":"string or null"
-}]`;
-
-function parseJsonArray(raw: string): any[] {
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const s = cleaned.indexOf("[");
-  const e = cleaned.lastIndexOf("]");
-  if (s === -1 || e === -1 || e <= s) throw new Error("No JSON array in response");
-  const parsed = JSON.parse(cleaned.slice(s, e + 1));
-  if (!Array.isArray(parsed)) throw new Error("Response is not an array");
-  return parsed;
-}
+// Fixed answer shape (structured outputs). The API only accepts an object at
+// the root, so the event list is wrapped in { events }.
+const EVENTS_SCHEMA = s.object({
+  events: s.array(s.object({
+    title: s.string(),
+    date: s.string("YYYY-MM-DD"),
+    time: s.nullable(s.string()),
+    type: s.enum(["academic", "sport", "social", "parent-evening", "trip", "deadline"]),
+    requiresAction: s.boolean(),
+    actionType: s.enum(["permission-slip", "payment", "rsvp", "supply-list", "costume", "none"]),
+    actionDeadline: s.nullable(s.string("YYYY-MM-DD")),
+    notes: s.nullable(s.string()),
+  })),
+});
 
 export interface ExtractionResult {
   events: SchoolEvent[];      // the newly extracted events
@@ -60,16 +55,16 @@ export async function extractSchoolEvents(
   childName?: string
 ): Promise<ExtractionResult> {
   const today = todayLocal();
-  const sys = `You are Cleo extracting school events${childName ? ` for ${childName}` : ""}. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated. Return ONLY valid JSON array:
-${PROMPT_SCHEMA}
+  const sys = `You are Cleo extracting school events${childName ? ` for ${childName}` : ""}. ONLY extract events explicitly mentioned in the text — never infer or invent events not clearly stated.
 Today: ${today}. Extract ALL events, deadlines, and action items. Be thorough.`;
 
-  const result = await ai(sys, text, "school_calendar");
+  const result = await ai(sys, text, "school_calendar", [], { schema: EVENTS_SCHEMA });
   if (result.error) return { events: [], allEvents: [], actionCount: 0, error: result.error };
 
   let parsed: any[];
   try {
-    parsed = parseJsonArray(result.text);
+    parsed = JSON.parse(result.text).events;
+    if (!Array.isArray(parsed)) throw new Error("No events array in response");
   } catch (e) {
     console.warn("[SchoolNewsletter] parse failed:", e);
     return { events: [], allEvents: [], actionCount: 0, error: "parse_failed" };

@@ -3,6 +3,7 @@
 // Updated: SpendingTrend integration, compliance language, richer prompts
 
 import { aiJSON } from "../ai";
+import { s } from "../aiSchema";
 import { currencySymbol } from "../../shared/utils/money";
 import { loadData, saveData } from "../firebase";
 import { buildMemoryContext } from "../memory";
@@ -110,17 +111,6 @@ Prioritize insights that CROSS modules:
 - Seasonal spending spikes
 - Unusual transactions vs normal patterns
 
-Return ONLY valid JSON array — no markdown:
-[{
-  "observation": "specific, data-driven, 1-2 sentences with numbers",
-  "whyItMatters": "why this affects this household specifically",
-  "options": ["concrete option 1", "concrete option 2", "concrete option 3"],
-  "recommendation": "single best action, specific and actionable",
-  "confidenceLevel": 0-100,
-  "category": "spending|savings|debt|cashflow|stress|scheduling|family|health|decision|opportunity",
-  "sourceModules": ["budget", "calendar"]
-}]
-
 Rules:
 - Use actual numbers
 - At least 2 of 4 insights must connect multiple modules
@@ -129,7 +119,21 @@ Rules:
 - Never guarantee outcomes or provide investment/legal/tax advice`;
 
   type RawInsight = Omit<HouseholdInsight, "id" | "createdAt">;
-  const results = await aiJSON<RawInsight[]>(sys, "Generate household insights", "cleo_chat", []);
+  // Root must be an object, so the insight list is wrapped in { insights }.
+  const schema = s.object({
+    insights: s.array(s.object({
+      observation: s.string("specific, data-driven, 1-2 sentences with numbers"),
+      whyItMatters: s.string("why this affects this household specifically"),
+      options: s.array(s.string("a concrete option (about 3)")),
+      recommendation: s.string("single best action, specific and actionable"),
+      confidenceLevel: s.integer("0-100"),
+      category: s.enum(["spending", "savings", "debt", "cashflow", "stress", "scheduling", "family", "health", "decision", "opportunity"]),
+      sourceModules: s.array(s.enum(["budget", "calendar", "family", "trips", "thrive", "style", "cleo", "home", "plan", "circle"])),
+    })),
+  });
+  const { insights: results = [] } = await aiJSON<{ insights?: RawInsight[] }>(
+    sys, "Generate household insights", "cleo_chat", { insights: [] }, schema
+  );
   if (!results.length) return [];
 
   return results.map(ins => ({

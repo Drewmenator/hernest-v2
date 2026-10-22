@@ -10,15 +10,17 @@ export const MODELS = {
   sonnet: "claude-sonnet-5-5",
 };
 
-// Every feature the app uses, with its default tier and output cap.
+// Every feature the app uses, with its default tier and answer-length cap.
+// effort: how much the model thinks first (Haiku/Sonnet 5.5 think by default).
+// "low" keeps chat and extraction fast; "medium" for real reasoning.
 export const FEATURES = {
-  cleo_chat:         { tier: "sonnet", maxTokens: 2000 },
-  morning_briefing:  { tier: "sonnet", maxTokens: 2000 },
+  cleo_chat:         { tier: "sonnet", maxTokens: 2000, effort: "medium" },
+  morning_briefing:  { tier: "sonnet", maxTokens: 2000, effort: "medium" },
   style_stylist:     { tier: "sonnet", maxTokens: 2000 },
-  trip_planner:      { tier: "sonnet", maxTokens: 2000 },
+  trip_planner:      { tier: "sonnet", maxTokens: 2000, effort: "medium" },
   trip_planner_v2:   { tier: "sonnet", maxTokens: 2000 },
   sunday_reset:      { tier: "sonnet", maxTokens: 2000 },
-  household_cfo:     { tier: "sonnet", maxTokens: 2000 },
+  household_cfo:     { tier: "sonnet", maxTokens: 2000, effort: "medium" },
   cleo_household:    { tier: "sonnet", maxTokens: 2000 },
   school_calendar:   { tier: "sonnet", maxTokens: 2000, attachments: true },
   receipt_scanner:   { tier: "haiku",  maxTokens: 1000, attachments: true },
@@ -36,11 +38,28 @@ export const FEATURES = {
   debrief:           { tier: "haiku",  maxTokens: 1000 },
   gmail_extract:     { tier: "haiku",  maxTokens: 1000 },
   cleo_checkin:      { tier: "haiku",  maxTokens: 1000 },
+  // Bills: read bills off screenshots (vision needs the stronger tier), and
+  // turn a typed line like "daycare every other Friday" into bills.
+  bill_scan:         { tier: "sonnet", maxTokens: 2000, attachments: true },
+  bill_parse:        { tier: "haiku",  maxTokens: 1000 },
 };
 
 // Tools the Cleo agent may call (src/core/cleoAgent.ts TOOLS). Only cleo_chat
 // may send tools at all.
 export const ALLOWED_TOOLS = ["add_task", "complete_task", "add_calendar_event"];
+
+// Thinking counts against max_tokens, so the answer cap gets this headroom on
+// top; otherwise a long think could cut the answer off mid-sentence.
+export const THINKING_HEADROOM = 3000;
+const EFFORTS = ["low", "medium", "high"];
+
+// A JSON schema for a fixed answer shape (structured outputs). Root must be an
+// object; kept small so it can't be used to smuggle a large prompt.
+export const MAX_SCHEMA_CHARS = 20000;
+function validSchema(schema) {
+  return !!schema && typeof schema === "object" && !Array.isArray(schema)
+    && schema.type === "object" && JSON.stringify(schema).length <= MAX_SCHEMA_CHARS;
+}
 
 // Text budget for system + messages, in characters (~15k tokens).
 export const MAX_TEXT_CHARS = 60000;
@@ -77,7 +96,7 @@ function contentSize(content, allowAttachments) {
 // Validates the client body and returns the upstream Anthropic body, or
 // { error, status } for a client-safe rejection.
 export function buildUpstreamBody(body) {
-  const { prompt, system, feature, model, messages, tools, stream, max_tokens } = body || {};
+  const { prompt, system, feature, model, messages, tools, stream, max_tokens, schema } = body || {};
 
   const spec = FEATURES[feature];
   if (!spec) return { error: "invalid_feature", status: 400 };
@@ -108,11 +127,19 @@ export function buildUpstreamBody(body) {
     safeTools = tools.map(t => ({ name: t.name, description: String(t.description || ""), input_schema: t.input_schema }));
   }
 
+  if (schema !== undefined && !validSchema(schema)) return { error: "bad_schema", status: 400 };
+  if (schema && (safeTools || stream)) return { error: "bad_request", status: 400 };
+
   const requestedMax = Number(max_tokens) || spec.maxTokens;
+  const effort = EFFORTS.includes(spec.effort) ? spec.effort : "low";
   return {
     upstream: {
       model: resolveModel(feature, model),
-      max_tokens: Math.min(Math.max(requestedMax, 1), spec.maxTokens),
+      max_tokens: Math.min(Math.max(requestedMax, 1), spec.maxTokens) + THINKING_HEADROOM,
+      output_config: {
+        effort,
+        ...(schema ? { format: { type: "json_schema", schema } } : {}),
+      },
       // Prompt-cache the system prompt: it carries the large household context
       // and is re-sent every turn (and every agent-loop iteration).
       system: system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined,

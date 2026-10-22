@@ -2,15 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Spinner } from "../../shared/components";
-import { ai } from "../../core/ai";
+import { Spinner } from "../../shared/components";
 import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
-import { useAdaptiveUX, getCleoToneProfile } from "../../core/household/adaptiveUX";
+import { useAdaptiveUX } from "../../core/household/adaptiveUX";
 import { useContextGraph } from "../../core/graph";
-import { extractFactsFromConversation, saveMemoryFacts, buildMemoryContext } from "../../core/memory";
-import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import { saveData, loadData } from "../../core/firebase";
 import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
 import toast from "react-hot-toast";
@@ -47,7 +44,7 @@ const INTENT_PATTERNS = {
   ],
 };
 
-import { detectCrisis } from "../../core/crisis";
+import { detectCrisis, crisisResponse } from "../../core/crisis";
 
 function classifyIntent(msg: string): string {
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
@@ -227,7 +224,7 @@ export function CleoScreen() {
         const crisisResp: Msg = {
           role: "assistant",
           type: "crisis",
-          content: `I'm really glad you told me. What you're feeling is real, and you don't have to carry it alone.\n\nI'm not equipped to help in the way you deserve right now, but these people are:\n\n🆘 **Samaritans**: 116 123 (free, 24/7)\n🆘 **Shout**: Text SHOUT to 85258\n🆘 **NHS 111** or **999** if you're in immediate danger\n\nYou matter. Please reach out to one of these services — they want to hear from you.`,
+          content: crisisResponse(),
         };
         setMsgs(p => [...p, crisisResp]);
         trackEvent("cleo_crisis_detected");

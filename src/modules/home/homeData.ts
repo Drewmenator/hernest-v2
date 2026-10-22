@@ -7,7 +7,7 @@ let _homeDocs: { uid: string; at: number; p: Promise<Record<string, any>> } | nu
 export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
   if (_homeDocs && _homeDocs.uid === uid && Date.now() - _homeDocs.at < 30_000) return _homeDocs.p;
   const p = (async () => {
-    const [tasks, budgetV2, budgetV1, calendar, school, trips, circle, thrive] = await Promise.all([
+    const [tasks, budgetV2, budgetV1, calendar, school, trips, circle, thrive, bills] = await Promise.all([
       loadData(uid, "tasks"),
       loadData(uid, "budget_v2"),
       loadData(uid, "budget"),
@@ -16,8 +16,9 @@ export function loadHomeDocs(uid: string): Promise<Record<string, any>> {
       loadData(uid, "trips"),
       loadData(uid, "circle"),
       loadData(uid, "thrive"),
+      loadData(uid, "bills"),
     ]);
-    return { tasks, budget: budgetV2 || budgetV1, calendar, school, trips, circle, thrive };
+    return { tasks, budget: budgetV2 || budgetV1, calendar, school, trips, circle, thrive, bills };
   })();
   _homeDocs = { uid, at: Date.now(), p };
   return p;

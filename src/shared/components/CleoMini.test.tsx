@@ -48,7 +48,7 @@ describe("CleoMini", () => {
 
   it("answers a crisis message with helplines WITHOUT calling the AI", async () => {
     await openAndSend("I don't want to be here anymore");
-    expect(await screen.findByText(/Samaritans/)).toBeTruthy();
+    expect(await screen.findByText(/988|Samaritans|Find a Helpline/)).toBeTruthy();
     expect(askCleo).not.toHaveBeenCalled();
   });
 

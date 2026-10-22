@@ -4,6 +4,7 @@
 // Updated: full HerNestCFOResponse schema + compliance guardrails
 
 import { aiJSON } from "../ai";
+import { s } from "../aiSchema";
 import { currencySymbol } from "../../shared/utils/money";
 import { runDecisionV2, selectDecisionMode } from "./DecisionEngineV2";
 import { saveData, loadData } from "../firebase";
@@ -79,6 +80,25 @@ function confidenceLabel(level: number): "low" | "medium" | "high" {
   return "low";
 }
 
+// Fixed answer shape for runScenario (structured outputs). Field
+// descriptions carry what the prompt used to spell out in a JSON template.
+const CFO_SCHEMA = s.object({
+  summary: s.string("1-2 sentence plain-English summary"),
+  riskLevel: s.enum(["low", "medium", "high"]),
+  observation: s.string("what the data shows about this question"),
+  whyItMatters: s.string("why this matters to this household specifically"),
+  financialImpact: s.string("specific dollar amounts, timeline, cash flow effect"),
+  tradeoffs: s.array(s.string("a tradeoff (about 3)")),
+  options: s.array(s.string("an option with numbers (about 3)")),
+  recommendedAction: s.string("single clear action with specific numbers"),
+  nextSteps: s.array(s.string("immediate step, step within the week, step this month")),
+  confidence: s.enum(["low", "medium", "high"]),
+  confidenceLevel: s.integer("0-100"),
+  assumptions: s.array(s.string()),
+  suggestedFollowUpQuestions: s.array(s.string("a follow-up question (about 3)")),
+  affectedModules: s.array(s.enum(["budget", "calendar", "trips", "family", "thrive"])),
+});
+
 // ── Core scenario analysis ────────────────────────────────────────
 export async function runScenario(
   question: string,
@@ -102,24 +122,6 @@ Decision Quality methodology:
 6. Suggest natural follow-up questions
 
 ${context}
-
-Return ONLY valid JSON — no markdown, no extra text:
-{
-  "summary": "1-2 sentence plain-English summary",
-  "riskLevel": "low|medium|high",
-  "observation": "what the data shows about this question",
-  "whyItMatters": "why this matters to this household specifically",
-  "financialImpact": "specific dollar amounts, timeline, cash flow effect",
-  "tradeoffs": ["tradeoff 1", "tradeoff 2", "tradeoff 3"],
-  "options": ["option 1 with numbers", "option 2 with numbers", "option 3 with numbers"],
-  "recommendedAction": "single clear action with specific numbers",
-  "nextSteps": ["immediate step", "step within the week", "step this month"],
-  "confidence": "low|medium|high",
-  "confidenceLevel": 0-100,
-  "assumptions": ["assumption 1", "assumption 2"],
-  "suggestedFollowUpQuestions": ["follow-up 1", "follow-up 2", "follow-up 3"],
-  "affectedModules": ["budget", "calendar", "trips", "family", "thrive"]
-}
 
 Rules:
 - Use actual numbers from the household data
@@ -151,7 +153,8 @@ Rules:
     sys,
     `Analyze this household financial decision: "${question}"`,
     "cleo_chat",
-    fallback
+    fallback,
+    CFO_SCHEMA
   );
 
   return { ...raw, confidence: confidenceLabel(raw.confidenceLevel ?? 50) };

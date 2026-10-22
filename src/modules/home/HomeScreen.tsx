@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { daysUntilDue, type Bill } from "../../core/bills";
 import { T, F } from "../../config/theme";
 import toast from "react-hot-toast";
 import { useStore } from "../../core/store";
@@ -86,15 +87,14 @@ function IntelligenceCard() {
   useEffect(() => {
     if (!user?.uid) return;
     const today = new Date().toISOString().split("T")[0];
-    loadHomeDocs(user.uid).then(({ tasks: tasksD, budget: budgetD, calendar: calendarD, school: schoolD, trips: tripsD, circle: circleD }) => {
+    loadHomeDocs(user.uid).then(({ tasks: tasksD, bills: billsD, calendar: calendarD, school: schoolD, trips: tripsD, circle: circleD }) => {
       const allTasks = (tasksD?.tasks as any[]) || [];
       const pending = allTasks.filter((t: any) => t.status !== "completed");
       const overdue = pending.filter((t: any) => t.dueDate && t.dueDate < today);
-      const categories = (budgetD?.categories as any[]) || [];
-      const totalBudget = categories.reduce((s: number, c: any) => s + (c.budget || 0), 0);
-      const totalSpent = categories.reduce((s: number, c: any) => s + (c.spent || 0), 0);
-      const budgetPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-      const budgetStatus = budgetPct >= 95 ? "critical" : budgetPct >= 85 ? "warning" : budgetPct >= 70 ? "watch" : "healthy";
+      // Bills due in the next 7 days, and whether any are overdue.
+      const billDays = ((billsD?.bills as Bill[]) || []).map(b => daysUntilDue(b)).filter((d): d is number => d != null);
+      const billsDue = billDays.filter(d => d <= 6).length;
+      const billsOverdue = billDays.filter(d => d < 0).length;
       const calEvents = (calendarD?.events as any[]) || [];
       const todayEvents = calEvents.filter((e: any) => e.date === today);
       const schoolEvents = (schoolD?.events as any[]) || [];
@@ -110,12 +110,12 @@ function IntelligenceCard() {
         const freq = c.frequency === "weekly" ? 7 : c.frequency === "monthly" ? 30 : 90;
         return days > freq;
       }).length;
-      setData({ pending: pending.length, overdue: overdue.length, budgetPct, budgetStatus, todayEvents: todayEvents.length, nextEvent: todayEvents[0], urgentSchool: urgentSchool.length, urgentSchoolItem: urgentSchool[0], nextTrip, daysUntil, circleOverdue });
+      setData({ pending: pending.length, overdue: overdue.length, billsDue, billsOverdue, todayEvents: todayEvents.length, nextEvent: todayEvents[0], urgentSchool: urgentSchool.length, urgentSchoolItem: urgentSchool[0], nextTrip, daysUntil, circleOverdue });
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user?.uid]);
 
-  const budgetColor = data.budgetStatus === "critical" ? "#dc2626" : data.budgetStatus === "warning" ? T.gold : T.sage;
+  const billsColor = data.billsOverdue > 0 ? "#dc2626" : T.esp;
 
   return (
     <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
@@ -133,9 +133,9 @@ function IntelligenceCard() {
               <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{data.todayEvents || 0}</p>
               <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Events</p>
             </div>
-            <div onClick={() => useStore.getState().setActiveTab("budget")} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Open budget" style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
-              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: budgetColor, margin: "0 0 2px" }}>{data.budgetPct || 0}%</p>
-              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Budget</p>
+            <div onClick={() => useStore.getState().setActiveTab("budget")} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label="Open bills" style={{ background: "#fff", borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${T.linen}`, cursor: "pointer" }}>
+              <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: billsColor, margin: "0 0 2px" }}>{data.billsDue || 0}</p>
+              <p style={{ fontFamily: F.sans, fontSize: 9, color: T.taupe, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{data.billsOverdue > 0 ? `Bills · ${data.billsOverdue} overdue` : "Bills due"}</p>
             </div>
           </div>
           {data.urgentSchool > 0 && (
@@ -212,14 +212,14 @@ function ModuleGrid() {
   useEffect(() => {
     if (!user?.uid) return;
     const today = new Date().toISOString().split("T")[0];
-    loadHomeDocs(user.uid).then(({ tasks: tasksD, budget: budgetD, circle: circleD, trips: tripsD, thrive: thriveD, calendar: calendarD }) => {
+    loadHomeDocs(user.uid).then(({ tasks: tasksD, bills: billsD, circle: circleD, trips: tripsD, thrive: thriveD, calendar: calendarD }) => {
       const b: Record<string, number | string> = {};
       const tasks = (tasksD?.tasks as any[]) || [];
       const overdue = tasks.filter((t: any) => t.status !== "completed" && t.dueDate && t.dueDate < today).length;
       if (overdue > 0) b.plan = overdue;
-      const cats = (budgetD?.categories as any[]) || [];
-      const overBudget = cats.filter((c: any) => c.budget > 0 && (c.spent / c.budget) >= 0.8).length;
-      if (overBudget > 0) b.budget = overBudget;
+      // Badge: bills overdue or due in the next 3 days.
+      const billsSoon = ((billsD?.bills as Bill[]) || []).filter(x => { const d = daysUntilDue(x); return d != null && d <= 3; }).length;
+      if (billsSoon > 0) b.budget = billsSoon;
       const contacts = (circleD?.contacts as any[]) || [];
       const circleOverdue = contacts.filter((c: any) => {
         if (!c.lastContact) return true;
@@ -252,7 +252,7 @@ function ModuleGrid() {
     { id: "trips",    label: "Trips",    icon: "→", sub: "Plan your next escape", color: T.orange },
     { id: "thrive",   label: "Thrive",   icon: "◦", sub: "Log today's mood",     color: T.sage },
     { id: "circle",   label: "Circle",   icon: "◉", sub: "Your people",          color: T.sky },
-    { id: "budget",   label: "Budget", icon: "◎", sub: "Household CFO",        color: T.yellow },
+    { id: "budget",   label: "Bills",  icon: "◎", sub: "Never miss one",       color: T.yellow },
     { id: "plan",     label: "Plan",     icon: "◈", sub: "Tasks & meals",        color: T.esp },
     { id: "calendar", label: "Calendar", icon: "◆", sub: "Your schedule",        color: T.navy },
     { id: "family",   label: "Family",   icon: "⌂", sub: "Command centre",      color: T.gold },
@@ -299,7 +299,7 @@ function GetStartedCard() {
   const { user } = useStore();
   const setActiveTab = useStore(s => s.setActiveTab);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem("hn_getstarted_done") === "1");
-  const [steps, setSteps] = useState<{ income: boolean; task: boolean; connect: boolean } | null>(null);
+  const [steps, setSteps] = useState<{ bills: boolean; task: boolean; connect: boolean } | null>(null);
 
   useEffect(() => {
     if (!user?.uid || dismissed) return;
@@ -307,14 +307,14 @@ function GetStartedCard() {
     (async () => {
       try {
         const docs = await loadHomeDocs(user.uid);
-        const incomes = (docs.budget?.incomes as any[]) || [];
+        const bills = (docs.bills?.bills as any[]) || [];
         const tasks = (docs.tasks?.tasks as any[]) || [];
         const { doc, getDoc } = await import("firebase/firestore");
         const { db } = await import("../../core/firebase");
         const snaps = await Promise.all(["google_calendar", "apple_calendar", "oura", "gmail"].map(d =>
           getDoc(doc(db, "users", user.uid, "integrations", d)).catch(() => null)));
         const connected = snaps.some(s => s?.exists());
-        if (alive) setSteps({ income: incomes.length > 0, task: tasks.length > 0, connect: connected });
+        if (alive) setSteps({ bills: bills.length > 0, task: tasks.length > 0, connect: connected });
       } catch { if (alive) setSteps(null); }
     })();
     return () => { alive = false; };
@@ -322,7 +322,7 @@ function GetStartedCard() {
 
   if (dismissed || !steps) return null;
   const items = [
-    { done: steps.income, label: "Add your income", sub: "unlocks the CFO & health score", tab: "budget" },
+    { done: steps.bills, label: "Add your bills", sub: "we'll remind you before each one", tab: "budget" },
     { done: steps.task, label: "Add your first task", sub: "or just tell Cleo", tab: "plan" },
     { done: steps.connect, label: "Connect a calendar or your ring", sub: "so Cleo sees your real life", tab: "connections" },
   ];

@@ -5,6 +5,7 @@
 //   receipts             → gmail_receipts inbox (reviewed in Budget later)
 import { auth, loadData, saveData } from "./firebase";
 import { aiJSON } from "./ai";
+import { s } from "./aiSchema";
 import { bus } from "./events";
 import { todayLocal } from "./dateAwareness";
 
@@ -42,14 +43,23 @@ export async function scanGmail(uid: string): Promise<GmailScanResult> {
 
   const sys = `You are Cleo extracting structured household data from email summaries.
 ONLY extract what is explicitly present — never invent merchants, amounts, or dates.
-Today: ${today}. Return ONLY valid JSON:
-{
-  "events": [{"title":"string","date":"YYYY-MM-DD","time":"string or null"}],
-  "receipts": [{"merchant":"string","amount":0.00,"date":"YYYY-MM-DD","category":"groceries|dining|shopping|transport|kids|home|other"}]
-}
+Today: ${today}.
 Rules: events only for school/travel items with a clear future date. Receipts only where an amount is visible. Skip marketing emails.`;
 
-  const extracted = await aiJSON<Extraction>(sys, msgList, "gmail_extract", { events: [], receipts: [] });
+  const schema = s.object({
+    events: s.array(s.object({
+      title: s.string(),
+      date: s.string("YYYY-MM-DD"),
+      time: s.nullable(s.string()),
+    })),
+    receipts: s.array(s.object({
+      merchant: s.string(),
+      amount: s.number(),
+      date: s.string("YYYY-MM-DD"),
+      category: s.enum(["groceries", "dining", "shopping", "transport", "kids", "home", "other"]),
+    })),
+  });
+  const extracted = await aiJSON<Extraction>(sys, msgList, "gmail_extract", { events: [], receipts: [] }, schema);
 
   // Route events → calendar_synced
   let eventsAdded = 0;
