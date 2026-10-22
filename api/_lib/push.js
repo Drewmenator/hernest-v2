@@ -5,6 +5,7 @@ import { getMessaging } from "firebase-admin/messaging";
 import { adminDb } from "./secure.js";
 import { isBirthdayToday, turningAge, daysUntilBirthday, todayISO } from "./dates.js";
 import { daysUntilDue, billIsFor } from "./bills.js";
+import { readHouseholdItems } from "./householdItems.js";
 
 // Send one notification to every device registered under users/{uid}/devices.
 // Returns { sent, pruned }. Safe to call when the user has no devices.
@@ -89,7 +90,7 @@ export async function buildBriefingLine(uid, now = new Date()) {
     else if (todays.length > 1) bits.push(`${todays.length} events`);
   } catch { /* skip */ }
   try {
-    const tasks = ((await docData(`users/${owner}/data/tasks`)).tasks) || [];
+    const tasks = await readHouseholdItems(adminDb, owner, "tasks");
     const due = tasks.filter(t => t?.dueDate === today && t?.status !== "done" && t?.status !== "completed");
     if (due.length) bits.push(`${due.length} task${due.length > 1 ? "s" : ""} due`);
   } catch { /* skip */ }
@@ -104,7 +105,7 @@ export async function buildBriefingLine(uid, now = new Date()) {
     if (soon.length) bits.push(`${soon.length} school deadline${soon.length > 1 ? "s" : ""}`);
   } catch { /* skip */ }
   try {
-    const bills = ((await docData(`users/${owner}/data/bills`)).bills) || [];
+    const bills = await readHouseholdItems(adminDb, owner, "bills");
     const due = bills
       // "Who pays": a bill set to one person only shows in that person's digest.
       .filter(b => billIsFor(b, uid))

@@ -200,6 +200,21 @@ export function undoPaid(bill: Bill): Bill {
   return next;
 }
 
+// Mark the repeat due on `due` paid, unless it is no longer the one due
+// (someone already paid it): then null, meaning "no change". Used inside a
+// transaction so two people tapping Paid together tick it off once.
+export function markPaidOnce(bill: Bill, due: string, now: Date = new Date(), amount?: number, by?: string): Bill | null {
+  if (nextDueDate(bill, now) !== due) return null;
+  return markPaid(bill, now, amount, by);
+}
+
+// Undo the newest payment only if it is the one `by` made for `due`.
+export function undoOwnPayment(bill: Bill, due: string, by?: string): Bill | null {
+  const last = bill.payments?.[0];
+  if (!last || last.due !== due || (last.by && by && last.by !== by)) return null;
+  return undoPaid(bill);
+}
+
 // The amount to show, and whether it is an estimate ("about $X").
 export function displayAmount(bill: Bill): { amount: number | null; estimate: boolean } {
   const paid = (bill.payments || []).map(p => p.amount).filter((a): a is number => typeof a === "number" && a > 0);

@@ -5,6 +5,7 @@ import { useStore } from "../../core/store";
 import { Card, PageTitle, HeroCard, Pill, Button, Input, ProgressBar, AIBadge, EmptyState } from "../../shared/components";
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
+import { subscribeItems, createItem, updateItem, removeItem } from "../../core/householdItems";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
@@ -29,7 +30,8 @@ interface Task {
   dueDate?: string; estimatedMinutes?: number;
   createdAt: number;
   who?: string;         // chores: who does it
-  isChore?: boolean;    // lives in the family doc (family.tasks), not the tasks doc
+  isChore?: boolean;    // a chore record (users/{owner}/chores), not a task
+  completedAt?: number; completedBy?: string;
 }
 
 interface SchoolEvent {
@@ -46,6 +48,9 @@ interface MealPlan { days: DayMeal[]; shoppingList: ShoppingItem[]; generatedAt:
 
 const CATS = ["family","work","home","travel","personal"] as const;
 const PRIORITY_COLORS: Record<string,string> = { must:T.esp, nice:T.sage, critical:"#dc2626", high:T.gold, medium:T.esp, low:T.taupe };
+
+// Time stamp for completions (outside the component so it reads as an event-time value).
+const stamp = () => Date.now();
 
 // Friendly short date (e.g. "Jul 3") from an ISO yyyy-mm-dd string.
 const fmtDate = (d: string) => { try { return new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}); } catch { return d; } };
@@ -108,33 +113,27 @@ export function PlanScreen() {
   const pending = allTasks.filter(t=>t.status==="pending");
   const energyPattern = (profile as any)?.energyPattern || "morning";
 
+  // Tasks and chores are live: an add, tick or delete on either phone shows on both.
   useEffect(() => {
     if (!user?.uid) return;
-    loadData(user.uid, "tasks").then(d => { if(d?.tasks) setTasks(d.tasks as any); });
+    const offTasks = subscribeItems<Task>(user.uid, "tasks", items => setTasks([...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))));
+    const offChores = subscribeItems<Chore>(user.uid, "chores", items => setChores(items));
+    return () => { offTasks(); offChores(); };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
     loadData(user.uid, "school").then(d => { if(d?.events) setSchoolEvents(d.events as any); });
     loadData(user.uid, "meals").then(d => { if(d?.mealPlan) setMealPlan(d.mealPlan as any); });
     ensurePeopleMerged(user.uid).then(() => loadData(user.uid, "family")).then(d => {
       setPeople((d?.members as Person[]) || []);
-      setChores((d?.tasks as Chore[]) || []);
       setFamilyDinners((d?.meals as FamilyDinner[]) || []);
     });
   }, [user?.uid]);
 
-  // Chores are saved back to the family doc (only its `tasks` field changes).
-  const persistChores = async (updated: Chore[]) => {
-    setChores(updated);
-    if (user?.uid) await saveData(user.uid, "family", { tasks: JSON.parse(JSON.stringify(updated)) });
-  };
-
-  const persist = async (updated: Task[]) => {
-    if (!user?.uid) { console.error("[Plan] No user uid — cannot save tasks"); return; }
-    try {
-      await saveData(user.uid, "tasks", { tasks: updated });
-      console.log("[Plan] Saved", updated.length, "tasks for", user.uid);
-    } catch(e) {
-      console.error("[Plan] Save failed:", e);
-    }
-  };
+  // Each write touches one record only, so two people editing at once both keep their change.
+  const uid = user?.uid;
+  const saveFailed = (e: unknown) => { console.error("[Plan] save failed:", e); toast.error("Couldn't save. Try again."); };
 
   // ── Add task with energy level per blueprint ───────────────────────
   const addTask = async () => {
@@ -142,7 +141,7 @@ export function PlanScreen() {
     if (who) {
       const chore: Chore = { id: crypto.randomUUID(), title: input.trim(), assignedTo: who, done: false, ...(dueDate ? { dueDate } : {}) };
       setInput(""); setDueDate(""); setWho("");
-      await persistChores([chore, ...chores]);
+      if (uid) await createItem(uid, "chores", chore).catch(saveFailed);
       return;
     }
     const task: Task = {
@@ -152,42 +151,47 @@ export function PlanScreen() {
       ...(dueDate ? { dueDate } : {}),
       createdAt: Date.now(),
     };
-    const updated = [task, ...tasks];
-    setTasks(updated); setInput(""); setDueDate("");
-    await persist(updated);
+    setInput(""); setDueDate("");
+    if (!uid) return;
+    await createItem(uid, "tasks", task).catch(saveFailed);
     await bus.publish("plan.task.created", task, { userId: user!.uid, source: "plan" });
   };
 
   // ── Confirm AI-extracted task per blueprint ────────────────────────
   const confirmTask = async (id: string) => {
-    const updated = tasks.map(t => t.id===id ? { ...t, userConfirmed:true } : t);
-    setTasks(updated); await persist(updated);
+    if (!uid) return;
+    await updateItem(uid, "tasks", id, { userConfirmed: true }).catch(saveFailed);
     trackEvent("task_confirmed");
     toast.success("Task confirmed ✓");
   };
 
   const toggleTask = async (id: string) => {
+    if (!uid) return;
     const choreId = choreIdOf(id);
     if (choreId) {
-      const updatedChores = chores.map(c => c.id===choreId ? { ...c, done: !c.done } : c);
-      await persistChores(updatedChores);
-      if (updatedChores.find(c=>c.id===choreId)?.done) toast.success("Chore done ✓");
+      const c = chores.find(c => c.id===choreId);
+      if (!c) return;
+      await updateItem(uid, "chores", choreId, { done: !c.done }).catch(saveFailed);
+      if (!c.done) toast.success("Chore done ✓");
       return;
     }
-    const updated = tasks.map(t => t.id===id ? { ...t, status: t.status==="completed"?"pending":"completed" as any } : t);
-    setTasks(updated); await persist(updated);
-    const t = updated.find(t=>t.id===id);
-    if (t?.status==="completed") {
-      await bus.publish("plan.task.completed", t, { userId:user!.uid, source:"plan" });
+    const t = tasks.find(t => t.id===id);
+    if (!t) return;
+    const completing = t.status !== "completed";
+    await updateItem(uid, "tasks", id, completing
+      ? { status: "completed", completedAt: stamp(), completedBy: uid }
+      : { status: "pending", completedAt: undefined, completedBy: undefined }).catch(saveFailed);
+    if (completing) {
+      await bus.publish("plan.task.completed", { ...t, status: "completed" }, { userId: uid, source:"plan" });
       toast.success("Task complete ✓");
     }
   };
 
   const deleteTask = async (id: string) => {
+    if (!uid) return;
     const choreId = choreIdOf(id);
-    if (choreId) { await persistChores(chores.filter(c=>c.id!==choreId)); return; }
-    const updated = tasks.filter(t=>t.id!==id);
-    setTasks(updated); await persist(updated);
+    if (choreId) { await removeItem(uid, "chores", choreId).catch(saveFailed); return; }
+    await removeItem(uid, "tasks", id).catch(saveFailed);
   };
 
   // ── School newsletter extraction per blueprint ──────────────────────
@@ -216,11 +220,7 @@ export function PlanScreen() {
         createdAt: Date.now(),
       }));
 
-      if (actionTasks.length) {
-        const updatedTasks = [...actionTasks, ...tasks];
-        setTasks(updatedTasks);
-        await persist(updatedTasks);
-      }
+      if (actionTasks.length) await Promise.all(actionTasks.map(t => createItem(user.uid, "tasks", t)));
 
       toast.success(`Found ${events.length} events · ${events.filter(e=>e.requiresAction).length} need action`);
     } catch(e) { console.error('[Plan] newsletter parse:', e); toast.error("Couldn't read newsletter — try pasting plain text only"); }

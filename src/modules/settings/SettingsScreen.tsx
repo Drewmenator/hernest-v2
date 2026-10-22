@@ -165,6 +165,8 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
             const collections = ["profile","bills","tasks","calendar","calendar_synced","school","meals","family","thrive","trips","circle","style","cleo_memory","cleo_memory_v2","cleo_feedback","budget","budget_v2"];
             const allData: Record<string,unknown> = {};
             await Promise.all(collections.map(async c => { allData[c] = await loadData(user.uid!, c); }));
+            // Chores are one record each now (tasks and bills come back through loadData).
+            allData.chores = await (await import("../../core/householdItems")).listItems(user.uid!, "chores").catch(() => null);
             const blob = new Blob([JSON.stringify(allData, null, 2)], { type:"application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");

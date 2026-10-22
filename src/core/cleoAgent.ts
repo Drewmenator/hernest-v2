@@ -14,6 +14,7 @@
 
 import { auth, loadData, saveData } from "./firebase";
 import { bus } from "./events";
+import { createItem, listItems, updateItem } from "./householdItems";
 import { AI } from "../config";
 
 const MAX_ITERS = 5;
@@ -81,7 +82,6 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
     case "add_task": {
       const title = String(input.title || "").trim();
       if (!title) return "I couldn't add that — no task description was given.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
       const task = {
         id: crypto.randomUUID(),
         title,
@@ -93,8 +93,9 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
         // a "Confirm" affordance (same flow as school-extracted tasks).
         userConfirmed: false,
         ...(input.dueDate ? { dueDate: String(input.dueDate) } : {}),
+        createdAt: Date.now(),
       };
-      await saveData(uid, "tasks", { tasks: [...existing, task] });
+      await createItem(uid, "tasks", task);
       await bus.publish("plan.task.created", task, { userId: uid, source: "cleo" }).catch(() => {});
       return `Added task "${title}"${input.dueDate ? ` (due ${input.dueDate})` : ""} — it's waiting for your confirmation in Plan.`;
     }
@@ -102,7 +103,7 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
     case "complete_task": {
       const q = String(input.title || "").trim().toLowerCase();
       if (!q) return "I couldn't tell which task to complete.";
-      const existing = ((await loadData(uid, "tasks"))?.tasks as any[]) || [];
+      const existing = await listItems<any>(uid, "tasks");
       // Fuzzy matching completed the WRONG task when several titles overlapped.
       // Only act on an unambiguous match; otherwise ask instead of guessing.
       const matches = existing.filter(
@@ -111,8 +112,7 @@ async function executeTool(uid: string, name: string, input: Record<string, unkn
       if (matches.length === 0) return `I couldn't find an open task matching "${input.title}".`;
       if (matches.length > 1) return `A few tasks match "${input.title}": ${matches.slice(0, 3).map((t: any) => `"${t.title}"`).join(", ")}. Which one did you mean?`;
       const match = matches[0];
-      const updated = existing.map((t: any) => (t.id === match.id ? { ...t, status: "completed" } : t));
-      await saveData(uid, "tasks", { tasks: updated });
+      await updateItem(uid, "tasks", match.id, { status: "completed", completedAt: Date.now(), completedBy: uid });
       await bus.publish("plan.task.completed", match, { userId: uid, source: "cleo" }).catch(() => {});
       return `Marked "${match.title}" complete.`;
     }

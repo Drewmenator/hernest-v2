@@ -23,6 +23,8 @@ export const HOUSEHOLD_COLLECTIONS = new Set<string>([
   "budget_v2",
   "bills",
   "tasks",
+  "chores",            // per-item docs users/{owner}/chores/{id} (householdItems.ts)
+  "items_migration",   // marker: which lists were copied to per-item docs
   "calendar",
   "calendar_synced",   // events fetched from connected providers (Google/Apple/Outlook)
   "trips",

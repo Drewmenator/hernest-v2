@@ -332,15 +332,14 @@ export function CleoScreen() {
 
   const confirmTasks = async () => {
     if (!pendingTasks.length || !user?.uid) return;
-    const existing = await loadData(user.uid, "tasks");
-    const current = (existing?.tasks as any[]) || [];
     const newTasks = pendingTasks.map(t => ({
       id: t.id, title: t.title, category: t.category,
       status: "pending", priority: "must", source: "cleo",
       energyRequired: "medium", userConfirmed: true,
       ...(t.dueDate ? { dueDate: t.dueDate } : {}), createdAt: Date.now(),
     }));
-    await saveData(user.uid, "tasks", { tasks: [...newTasks, ...current] });
+    const { createItem } = await import("../../core/householdItems");
+    await Promise.all(newTasks.map(t => createItem(user.uid!, "tasks", t)));
     for (const task of newTasks) {
       await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }

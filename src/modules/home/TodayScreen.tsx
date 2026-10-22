@@ -7,8 +7,8 @@ import toast from "react-hot-toast";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { openCleo } from "../../shared/utils/openCleo";
-import { loadData, saveData } from "../../core/firebase";
-import { markPaid, undoPaid, type Bill } from "../../core/bills";
+import { type Bill } from "../../core/bills";
+import { payBill, undoBillPayment } from "../bills/billActions";
 import { formatMoney } from "../../shared/utils/money";
 import { Spinner } from "../../shared/components";
 import type { WeatherData } from "../../core/weather";
@@ -152,20 +152,17 @@ function NeedsYou({ data, reload }: { data: TodayData | null; reload: () => void
     if (!uid || paying) return;
     setPaying(billId);
     try {
-      const stored = ((await loadData(uid, "bills"))?.bills as Bill[]) || [];
-      const b = stored.find(x => x.id === billId);
+      const b = data?.bills.find(x => x.id === billId);
       if (!b) return;
-      const save = async (list: Bill[]) => {
-        await saveData(uid, "bills", JSON.parse(JSON.stringify({ bills: list })));
-        import("../../core/localNotifications").then(m => m.syncBillReminders(list, uid)).catch(() => {});
-        reload();
-      };
-      const next = stored.map(x => (x.id === billId ? markPaid(x, new Date(), undefined, uid) : x));
-      await save(next);
+      const r = await payBill(uid, b);
+      const resync = () => import("../../core/localNotifications").then(m => m.syncBillRemindersFromCloud(uid)).catch(() => {});
+      resync();
+      reload();
+      if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
       toast(t => (
         <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {b.name} marked paid
-          <button onClick={() => { toast.dismiss(t.id); save(next.map(x => (x.id === billId ? undoPaid(x) : x))); }}
+          <button onClick={() => { toast.dismiss(t.id); undoBillPayment(uid, r.bill, r.due).then(() => { resync(); reload(); }).catch(() => {}); }}
             style={{ background: "none", border: "none", color: T.gold, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Undo</button>
         </span>
       ), { duration: 5000 });
