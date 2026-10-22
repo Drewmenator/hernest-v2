@@ -8,7 +8,7 @@
 import { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle } from "../../shared/components";
+import { Card, PageTitle, Emoji } from "../../shared/components";
 import { db, auth } from "../../core/firebase";
 import toast from "react-hot-toast";
 import { deviceCalendarSupported, deviceCalendarConnected, connectDeviceCalendar } from "../../core/deviceCalendar";
@@ -33,8 +33,8 @@ export function CalendarScreen() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const which = params.get("calendar_connected");
-    if (which === "google") toast.success("Google Calendar connected ✓");
-    if (which === "outlook") toast.success("Outlook Calendar connected ✓");
+    if (which === "google") toast.success("Google Calendar connected");
+    if (which === "outlook") toast.success("Outlook Calendar connected");
     if (params.get("calendar_error")) toast.error("Calendar connection failed — try again");
     if (which || params.get("calendar_error")) window.history.replaceState({}, "", window.location.pathname);
   }, []);
@@ -50,7 +50,7 @@ export function CalendarScreen() {
 
   const connectApple = async () => {
     if (!onDevice) { setShowAppleModal(true); return; }
-    if (await connectDeviceCalendar()) { setAppleConnected(true); toast.success("iPhone calendars connected ✓"); }
+    if (await connectDeviceCalendar()) { setAppleConnected(true); toast.success("iPhone calendars connected"); }
     else toast.error("Calendar access is off — turn it on in Settings → HerNest → Calendars");
   };
 
@@ -60,7 +60,7 @@ export function CalendarScreen() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/auth/apple", { method: "POST", headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ email: appleEmail, password: applePassword }) });
-      if (res.ok || res.redirected) { setAppleConnected(true); setShowAppleModal(false); setApplePassword(""); toast.success("Apple Calendar connected ✓"); }
+      if (res.ok || res.redirected) { setAppleConnected(true); setShowAppleModal(false); setApplePassword(""); toast.success("Apple Calendar connected"); }
       else { const d = await res.json().catch(() => ({})); toast.error(d.error || "Connection failed"); }
     } catch { toast.error("Connection failed — check your details"); }
     setAppleLoading(false);
@@ -88,7 +88,7 @@ export function CalendarScreen() {
       </Card>
 
       <button onClick={() => openPlan("week")} style={{ width: "100%", padding: "14px", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, cursor: "pointer", minHeight: 48, marginBottom: 8 }}>
-        📅 See your week in Plan
+        <Emoji e="📅" size={16} /> See your week in Plan
       </button>
       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", lineHeight: 1.6, margin: "4px 0 0" }}>
         Your calendar, school dates and chores are now together in Plan → Week.{" "}

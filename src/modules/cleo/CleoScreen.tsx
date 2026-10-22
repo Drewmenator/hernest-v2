@@ -118,16 +118,16 @@ export function CleoScreen() {
           : "";
 
         const greeting = snap?.householdStressLevel === "high"
-          ? `Hey ${name} 💛 How are you actually doing?${proactiveNote}`
+          ? `Hey ${name}, how are you actually doing?${proactiveNote}`
           : snap?.calendarLoad === "critical"
-          ? `Good ${getTimeOfDay()}, ${name} ✦ Looks like a big week ahead.${proactiveNote}`
-          : `Good ${getTimeOfDay()}, ${name} ✦${proactiveNote || "\n\nWhat's on your mind today?"}`;
+          ? `Good ${getTimeOfDay()}, ${name}. Looks like a big week ahead.${proactiveNote}`
+          : `Good ${getTimeOfDay()}, ${name}.${proactiveNote || "\n\nWhat's on your mind today?"}`;
 
         setMsgs([{ role: "assistant", content: greeting, type: "text" }]);
       } catch {
         setMsgs([{
           role: "assistant",
-          content: `Good ${getTimeOfDay()}, ${name} ✦\n\nWhat's on your mind today?`,
+          content: `Good ${getTimeOfDay()}, ${name}.\n\nWhat's on your mind today?`,
           type: "text",
         }]);
       }
@@ -350,8 +350,8 @@ export function CleoScreen() {
       await bus.publish("plan.task.created", task, { userId: user.uid, source: "cleo" });
     }
     setPendingTasks([]);
-    toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan ✓`);
-    setMsgs(p => [...p, { role:"assistant", content:`Done! I've added ${newTasks.length > 1 ? "all of them" : "it"} to your plan. You'll find ${newTasks.length > 1 ? "them" : "it"} in the Plan tab ✦` }]);
+    toast.success(`${newTasks.length} task${newTasks.length>1?"s":""} added to your plan`);
+    setMsgs(p => [...p, { role:"assistant", content:`Done! I've added ${newTasks.length > 1 ? "all of them" : "it"} to your plan. You'll find ${newTasks.length > 1 ? "them" : "it"} in the Plan tab.` }]);
   };
 
   const dismissTasks = () => {

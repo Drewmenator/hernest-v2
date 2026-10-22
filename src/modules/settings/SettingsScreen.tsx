@@ -3,7 +3,8 @@ import React, { useState } from "react";
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle } from "../../shared/components";
+import { Card, PageTitle, Emoji } from "../../shared/components";
+import { Bookmark, Repeat, Wallet, Brain } from "lucide-react";
 import { saveData, loadData } from "../../core/firebase";
 import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
 import { auth } from "../../core/firebase";
@@ -107,7 +108,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           ].map(item=>(
             <div key={item.title} style={{ padding:"14px 0", borderBottom:`1px solid ${T.linen}` }}>
               <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-                <span style={{ fontSize:20, flexShrink:0 }}>{item.icon}</span>
+                <Emoji e={item.icon} tile size={16} />
                 <div>
                   <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:"0 0 4px" }}>{item.title}</p>
                   <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0, lineHeight:1.6 }}>{item.body}</p>
@@ -139,8 +140,8 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
               )}
               {memoryV2List.length > 0 && memoryV2List.slice(0, 20).map((mem: any, i: number) => (
                 <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
-                  <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>
-                    {mem.type === "preference" ? "◆" : mem.type === "pattern" ? "◈" : mem.type === "financial_context" ? "💰" : "◎"}
+                  <span aria-hidden="true" style={{ flexShrink:0, marginTop:1, display:"inline-flex", color:T.goldText }}>
+                    {mem.type === "preference" ? <Bookmark size={15} strokeWidth={1.9} /> : mem.type === "pattern" ? <Repeat size={15} strokeWidth={1.9} /> : mem.type === "financial_context" ? <Wallet size={15} strokeWidth={1.9} /> : <Brain size={15} strokeWidth={1.9} />}
                   </span>
                   <div style={{ flex:1 }}>
                     <p style={{ fontFamily:F.sans, fontSize:12, color:T.esp, margin:"0 0 2px", lineHeight:1.5 }}>{mem.content}</p>
@@ -173,9 +174,9 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
             const a = document.createElement("a");
             a.href=url; a.download=`hernest-data-${new Date().toISOString().split("T")[0]}.json`;
             a.click(); URL.revokeObjectURL(url);
-            toast.success("Data exported ✓");
+            toast.success("Data exported");
           }} style={{ width:"100%", padding:"12px", background:T.sand, border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.esp, cursor:"pointer", minHeight:44, touchAction:"manipulation" }}>
-            📥 Export My Data (JSON)
+            <Emoji e="📥" /> Export My Data (JSON)
           </button>
         </Card>
       </>}
@@ -257,7 +258,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           </div>
           <button onClick={() => setShowCleoSetup(true)}
             style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
-            Start ✦
+            Start
           </button>
         </div>
         <Card>
@@ -281,8 +282,8 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
         <Card>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Account info</p>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
-            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>
-              {(profile as any)?.avatar || "👩"}
+            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
+              {/^https?:\/\//.test((profile as { avatar?: string } | null)?.avatar || "") ? <img src={(profile as { avatar?: string }).avatar} alt="" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : <Emoji e={(profile as { avatar?: string } | null)?.avatar || "👩"} size={24} color="#fff" />}
             </div>
             <div>
               <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>{(profile as any)?.name || "Your name"}</p>
@@ -294,16 +295,16 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
               <button onClick={async()=>{
                 const { enablePush } = await import("../../core/pushNotifications");
                 const ok = await enablePush(user!.uid);
-                if (ok) toast.success("Notifications on ✓");
-                else toast("Enable notifications in iOS Settings to get reminders", { icon: "🔔" });
+                if (ok) toast.success("Notifications on");
+                else toast("Enable notifications in iOS Settings to get reminders", { icon: <Emoji e="🔔" /> });
               }} style={{ width:"100%", padding:"12px", background:T.esp, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#fff", cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
-                🔔 Turn on notifications
+                <Emoji e="🔔" /> Turn on notifications
               </button>
               <button onClick={async()=>{
                 const { sendTestPush } = await import("../../core/pushNotifications");
                 const r = await sendTestPush("briefing");
-                if (r && r.sent > 0) toast.success("Morning briefing sent ✓");
-                else if (r) toast("Turn on notifications first", { icon: "🔔" });
+                if (r && r.sent > 0) toast.success("Morning briefing sent");
+                else if (r) toast("Turn on notifications first", { icon: <Emoji e="🔔" /> });
                 else toast.error("Couldn't send notification");
               }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
                 Preview morning briefing
@@ -339,7 +340,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           <a
             href={`mailto:support@hernest.app?subject=${encodeURIComponent("HerNest feedback")}&body=${encodeURIComponent(`What happened:\n\nWhat I expected:\n\n—\nBuild: 2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}\nScreen: ${window.innerWidth}×${window.innerHeight}\nDevice: ${navigator.userAgent}`)}`}
             style={{ display:"block", textAlign:"center", background:T.esp, color:"#fff", borderRadius:12, padding:"12px", fontFamily:F.sans, fontSize:13, fontWeight:700, textDecoration:"none", marginBottom:12, minHeight:44, boxSizing:"border-box" }}>
-            ✦ Send feedback
+            <Emoji e="✦" size={15} /> Send feedback
           </a>
           {[
             { label:"Email support", value:"support@hernest.app", icon:"✉️" },
@@ -347,7 +348,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
             { label:"Version", value:`2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}`, icon:"ℹ️" },
           ].map(item=>(
             <div key={item.label} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
-              <span style={{ fontSize:18 }}>{item.icon}</span>
+              <Emoji e={item.icon} size={18} />
               <div style={{ flex:1 }}>
                 <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0 }}>{item.label}</p>
                 <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"2px 0 0" }}>{item.value}</p>
@@ -358,7 +359,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
 
         {/* Delete Account */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#dc2626", margin:"0 0 8px" }}>⚠ Delete Account</p>
+          <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#dc2626", margin:"0 0 8px" }}><Emoji e="⚠" size={15} /> Delete Account</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
             This will permanently delete your account and all data — profile, tasks, budget, memories, everything. This cannot be undone.
           </p>

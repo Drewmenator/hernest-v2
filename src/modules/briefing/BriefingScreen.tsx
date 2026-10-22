@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { openCleo } from "../../shared/utils/openCleo";
-import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState } from "../../shared/components";
+import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState, Emoji } from "../../shared/components";
 import { db as localDb } from "../../core/db";
 import { TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
 import toast from "react-hot-toast";
@@ -93,7 +93,7 @@ export function BriefingScreen() {
   // ── Tabs ──────────────────────────────────────────────────────────
   const tabs = [
 
-    ...(ctx?.trips?.isClose && ctx?.trips?.next ? [{ id:"travel", label:`✈ ${ctx.trips.next.dest}` }] : []),
+    ...(ctx?.trips?.isClose && ctx?.trips?.next ? [{ id:"travel", label:<><Emoji e="✈" size={14} /> {ctx.trips.next.dest}</> }] : []),
   ];
 
   // ── Tone color ────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export function BriefingScreen() {
           <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 28, color: T.esp, margin: 0 }}>Briefing</p>
         </div>
         <div role="status" style={{ background: T.cleoBg, borderRadius: 24, padding: "40px 24px", textAlign: "center" }}>
-          <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22, color: T.action }}>✦</div>
+          <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22, color: T.action }}><Emoji e="✦" size={22} /></div>
           <p style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 20, color: T.text, margin: "0 0 6px" }}>Cleo is preparing your briefing</p>
           <p style={{ fontFamily: F.sans, fontSize: 15, color: T.text2, margin: "0 0 20px" }}>Reading your week…</p>
           <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
@@ -125,9 +125,9 @@ export function BriefingScreen() {
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle eyebrow="Your daily briefing" title={getTimeWindow()==="morning"?"Good Morning":getTimeWindow()==="afternoon"?"Good Afternoon":"Good Evening"}/>
       <EmptyState
-        icon="☀"
+        icon={<Emoji e="☀" size={24} />}
         title="No briefing just yet"
-        body="Once there's a little of your day for me to read, I'll pull it together into one calm briefing. Tap below and I'll try now ✦"
+        body="Once there's a little of your day for me to read, I'll pull it together into one calm briefing. Tap below and I'll try now"
         actionLabel="Prepare my briefing"
         onAction={generate}
       />
@@ -157,11 +157,11 @@ export function BriefingScreen() {
         <div style={{ background:T.cleoBg, borderRadius:24, padding:"28px 24px", marginBottom:16, position:"relative", overflow:"hidden" }}>
           {weather && (
             <div style={{ position:"absolute", top:12, right:16, display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.7)", borderRadius:20, padding:"4px 10px", backdropFilter:"blur(4px)" }}>
-              <span style={{ fontSize:16 }}>{weather.icon}</span>
+              <Emoji e={weather.icon} size={18} />
               <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color:T.text }}>{weather.temp}°{weather.unit}</span>
             </div>
           )}
-          <div style={{ position:"absolute", top:-20, right:-20, fontSize:120, opacity:0.06, lineHeight:1 }}>{briefing.focusWord?.emoji}</div>
+          <div style={{ position:"absolute", top:-20, right:-20, fontSize:120, opacity:0.06, lineHeight:1 }}><Emoji e={briefing.focusWord?.emoji} size={110} strokeWidth={1.2} /></div>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.action, margin:"0 0 8px" }}>Today's focus</p>
           <div style={{ display:"flex", alignItems:"baseline", gap:12, marginBottom:8 }}>
             <span style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:44, color:T.text, lineHeight:1, }}>{briefing.focusWord?.word}</span>
@@ -185,7 +185,7 @@ export function BriefingScreen() {
               <div style={{ flex:1 }}>
                 <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"0 0 2px", lineHeight:1.4 }}>{p.text}</p>
                 <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>
-                  {SOURCE_EMOJIS[p.source]||"◦"} {p.whyToday}
+                  <Emoji e={SOURCE_EMOJIS[p.source]||"◦"} size={13} /> {p.whyToday}
                   {p.estimatedMinutes ? ` · ${p.estimatedMinutes}m` : ""}
                 </p>
               </div>
@@ -214,7 +214,7 @@ export function BriefingScreen() {
             ))}
             {briefing.calendar.conflicts?.map((c,i)=>(
               <div key={i} style={{ background:`${T.blush}10`, borderRadius:10, padding:"8px 12px", marginTop:8 }}>
-                <p style={{ fontFamily:F.sans, fontSize:12, color:T.blush, margin:0 }}>⚡ Conflict: {c}</p>
+                <p style={{ fontFamily:F.sans, fontSize:12, color:T.blush, margin:0 }}><Emoji e="⚡" size={13} /> Conflict: {c}</p>
               </div>
             ))}
           </Card>
@@ -226,7 +226,7 @@ export function BriefingScreen() {
             <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Tasks</p>
             {briefing.tasks.aiSuggestion && (
               <div style={{ display:"flex", gap:10, marginBottom:briefing.tasks.completionNote?10:0 }}>
-                <span style={{ color:T.gold, flexShrink:0 }}>✦</span>
+                <span style={{ color:T.gold, flexShrink:0 }}><Emoji e="✦" size={13} /></span>
                 <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0, lineHeight:1.5 }}>{briefing.tasks.aiSuggestion}</p>
               </div>
             )}
@@ -250,7 +250,7 @@ export function BriefingScreen() {
         {/* Trip section — per blueprint */}
         {briefing.trips && ctx?.trips.next && (
           <Card>
-            <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.gold, margin:"0 0 10px" }}>✈ {ctx.trips.next.dest.toUpperCase()} · {ctx.trips.next.daysUntil} DAYS</p>
+            <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.gold, margin:"0 0 10px" }}><Emoji e="✈" size={14} /> {ctx.trips.next.dest.toUpperCase()} · {ctx.trips.next.daysUntil} DAYS</p>
             <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:"0 0 8px", lineHeight:1.5 }}>{briefing.trips.statusMessage}</p>
             {briefing.trips.urgentActions?.filter(a=>a).map((a,i)=>(
               <div key={i} style={{ display:"flex", gap:10, padding:"5px 0" }}>
@@ -259,7 +259,7 @@ export function BriefingScreen() {
               </div>
             ))}
             {briefing.trips.packingStatus && (
-              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0" }}>🧳 {briefing.trips.packingStatus}</p>
+              <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0" }}><Emoji e="🧳" size={13} /> {briefing.trips.packingStatus}</p>
             )}
             <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:14, color:T.gold, margin:"10px 0 0" }}>{briefing.trips.excitementNote}</p>
           </Card>
@@ -271,13 +271,13 @@ export function BriefingScreen() {
             <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Circle</p>
             {briefing.circle.birthdayAlert && (
               <div style={{ display:"flex", gap:10, marginBottom:8 }}>
-                <span style={{ flexShrink:0 }}>🎂</span>
+                <span style={{ flexShrink:0 }}><Emoji e="🎂" size={18} /></span>
                 <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{briefing.circle.birthdayAlert}</p>
               </div>
             )}
             {briefing.circle.checkinMessage && (
               <div style={{ display:"flex", gap:10 }}>
-                <span style={{ flexShrink:0 }}>💌</span>
+                <span style={{ flexShrink:0 }}><Emoji e="💌" size={18} /></span>
                 <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{briefing.circle.checkinMessage}</p>
               </div>
             )}

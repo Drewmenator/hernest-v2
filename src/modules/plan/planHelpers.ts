@@ -133,7 +133,7 @@ export function birthdayEvents(people: Array<{ id: string; name: string; birthDa
     const [m, d] = parts.length === 3 ? [parts[1], parts[2]] : [parts[0], parts[1]];
     if (!m || !d) continue;
     for (const y of [year, year + 1]) {       // a week can span New Year
-      out.push({ id: `bday-${p.id}-${y}`, title: `🎂 ${p.name}'s birthday`, date: `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`, source: "birthday" });
+      out.push({ id: `bday-${p.id}-${y}`, title: `${p.name}'s birthday`, date: `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`, source: "birthday" });
     }
   }
   return out;

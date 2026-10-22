@@ -13,7 +13,7 @@ import toast from "react-hot-toast";
 import { trackEvent } from "../../core/analytics";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Input, Spinner } from "../../shared/components";
+import { Card, PageTitle, Input, Spinner, Emoji } from "../../shared/components";
 import { loadData, saveData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
@@ -162,7 +162,7 @@ export function StyleScreen() {
     setShown({ ...shown, wearing: true });
     saveData(uid, "style", { todayOutfit: { date: today, occasion: shown.occasion, outfit: shown.outfit, wearing: true } }).catch(() => {});
     trackEvent("outfit_worn", { occasion: shown.occasion || "auto" });
-    toast.success("Have a good day ✦");
+    toast.success("Have a good day");
   };
 
   const somethingElse = () => {
@@ -175,7 +175,7 @@ export function StyleScreen() {
     saveMemory(m);
     setPickingMissing(null);
     trackEvent("style_not_owned");
-    toast(`Got it. No more ${item.toLowerCase()}.`, { icon: "✦" });
+    toast(`Got it. No more ${item.toLowerCase()}.`, { icon: <Emoji e="✦" size={16} /> });
     if (where === "today") showToday({ ...ctx, memory: m }, shown?.occasion ?? autoOccasion, { another: true });
     else if (dress) runDress(dress.key, dress.title, { ...dress.ask, avoid: [...(dress.ask.avoid || []), ...(dress.outfit ? [dress.outfit.headline] : [])] });
   };
@@ -251,7 +251,7 @@ export function StyleScreen() {
   const forget = (item: string) => saveMemory({ ...memRef.current, notOwned: memRef.current.notOwned.filter(x => x !== item) });
 
   // ── UI ───────────────────────────────────────────────────────────
-  const context = [weather && `${weather.icon} ${weatherLine(weather)}`, todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
+  const context = [weather && weatherLine(weather), todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
   const profileOpen = editingProfile || (docLoaded && !hasProfile(profile));
 
   return (
@@ -261,7 +261,7 @@ export function StyleScreen() {
       {/* 1. Today's look */}
       <Card>
         <p style={label}>{shown?.occasion ? `Today's look · ${occasionLabel(shown.occasion)}` : "Today's look"}</p>
-        {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{context}</p>}
+        {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{weather && <><Emoji e={weather.icon} size={14} /> </>}{context}</p>}
 
         {loading || (!shown && !error) ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 0" }}>
@@ -309,7 +309,7 @@ export function StyleScreen() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {upcoming.map(e => (
                 <button key={e.id} onClick={() => dressForEvent(e)} aria-pressed={dress?.key === e.id} style={chip(dress?.key === e.id)}>
-                  {OCCASIONS.find(o => o.id === e.occasion)?.emoji} {e.title} · {whenLabel(e.date, today)}
+                  <Emoji e={OCCASIONS.find(o => o.id === e.occasion)?.emoji} size={15} /> {e.title} · {whenLabel(e.date, today)}
                 </button>
               ))}
             </div>

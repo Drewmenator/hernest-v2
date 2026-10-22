@@ -109,20 +109,20 @@ export default function App() {
       window.history.replaceState({}, "", window.location.pathname);
       // Small delay to let app load then show success
       setTimeout(() => {
-        import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected ✓"));
+        import("react-hot-toast").then(({ default: toast }) => toast.success("Google Calendar connected"));
       }, 1500);
     }
     if (params.get("upgraded") === "1") {
       window.history.replaceState({}, "", window.location.pathname);
       // Don't celebrate until the webhook has actually confirmed the sub
-      import("react-hot-toast").then(({ default: toast }) => toast("Finishing your upgrade...", { icon: "✦" }));
+      import("react-hot-toast").then(({ default: toast }) => toast("Finishing your upgrade..."));
       // Webhook may land a moment after redirect — re-check shortly
       setTimeout(() => {
         const u = useStore.getState().user;
         if (u?.uid) loadData(u.uid, "subscription").then(sub => {
           if (sub?.status === "active") {
             useStore.getState().setIsPro(true);
-            import("react-hot-toast").then(({ default: toast }) => toast.success("Welcome to HerNest Pro ✦"));
+            import("react-hot-toast").then(({ default: toast }) => toast.success("Welcome to HerNest Pro"));
           }
         }).catch(() => {});
       }, 4000);

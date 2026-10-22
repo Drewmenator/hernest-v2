@@ -11,6 +11,7 @@ import { haptic } from "../haptics";
 import { LargeTitle } from "./atmosphere";
 export { GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh, type AtmosTint } from "./atmosphere";
 export { DayTimeline, MiniBars, SparkArea, ProgressRing } from "./charts";
+export { Emoji } from "./Emoji";
 
 // ── Card ──────────────────────────────────────────────────────────
 // Standard white information card.
@@ -109,7 +110,7 @@ export function HeroCard({
 }
 
 // ── PageTitle ─────────────────────────────────────────────────────
-// Main screen heading: 28 bold, optional small line above and below.
+// Main screen heading: 32 serif (Fraunces), optional small line above and below.
 // `collapse` (top-level tab screens only): the title lifts away as you
 // scroll and a compact frosted bar takes its place.
 export function PageTitle({ eyebrow, title, subtitle, right, collapse }: { eyebrow?: string; title: string; subtitle?: string; right?: React.ReactNode; collapse?: boolean }) {
@@ -120,7 +121,7 @@ export function PageTitle({ eyebrow, title, subtitle, right, collapse }: { eyebr
         {eyebrow && (
           <p style={{ fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text2, margin: "0 0 4px" }}>{eyebrow}</p>
         )}
-        <h1 style={{ fontFamily: F.sans, fontSize: TYPE.screen, fontWeight: 700, letterSpacing: "-0.025em", color: T.text, margin: 0, lineHeight: 1.15 }}>{title}</h1>
+        <h1 style={{ fontFamily: F.display, fontSize: TYPE.screen + 4, fontWeight: 500, letterSpacing: "-0.02em", color: T.text, margin: 0, lineHeight: 1.1 }}>{title}</h1>
         {subtitle && <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text2, margin: "4px 0 0" }}>{subtitle}</p>}
       </div>
       {right}
@@ -129,11 +130,11 @@ export function PageTitle({ eyebrow, title, subtitle, right, collapse }: { eyebr
 }
 
 // ── SectionHeader ─────────────────────────────────────────────────
-// Section heading (19 semibold) with an optional text action on the right.
+// Section heading (22 serif) with an optional text action on the right.
 export function SectionHeader({ title, action, onAction, style }: { title: string; action?: string; onAction?: () => void; style?: React.CSSProperties }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: S.md, margin: `${S.xxl}px 0 ${S.sm}px`, ...style }}>
-      <h2 style={{ fontFamily: F.sans, fontSize: TYPE.section, fontWeight: 600, letterSpacing: "-0.01em", color: T.text, margin: 0 }}>{title}</h2>
+      <h2 style={{ fontFamily: F.display, fontSize: TYPE.section + 3, fontWeight: 500, letterSpacing: "-0.012em", color: T.text, margin: 0 }}>{title}</h2>
       {action && onAction && <TextButton onClick={onAction}>{action}</TextButton>}
     </div>
   );

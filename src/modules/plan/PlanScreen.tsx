@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Pill, Button, Input, AIBadge, GlowCard, Headline, ProgressRing, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
+import { Card, PageTitle, Pill, Button, Input, AIBadge, Emoji, GlowCard, Headline, ProgressRing, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
 import { PlusIcon, SparkleIcon } from "../../shared/components/Icons";
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
@@ -248,7 +248,7 @@ export function PlanScreen() {
     if (!uid) return;
     await updateItem(uid, "tasks", id, { userConfirmed: true }).catch(saveFailed);
     trackEvent("task_confirmed");
-    toast.success("Task confirmed ✓");
+    toast.success("Task confirmed");
   };
 
   const toggleTask = async (id: string) => {
@@ -258,14 +258,14 @@ export function PlanScreen() {
       const c = chores.find(c => c.id===choreId);
       if (!c) return;
       await updateItem(uid, "chores", choreId, { done: !c.done }).catch(saveFailed);
-      if (!c.done) toast.success("Chore done ✓");
+      if (!c.done) toast.success("Chore done");
       return;
     }
     const t = tasks.find(t => t.id===id);
     if (!t) return;
     const completing = t.status !== "completed";
     const r = await setTaskDone(t, completing).catch(saveFailed);
-    if (r && completing) toast.success("Task complete ✓");
+    if (r && completing) toast.success("Task complete");
   };
 
   // ── Task ownership: answer, or follow up on an unanswered ask ──────
@@ -363,7 +363,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
           await saveData(user.uid, "meals", { mealPlan:plan });
           await bus.publish("plan.meal.generated", { days:7 }, { userId:user.uid, source:"plan" });
         }
-        toast.success("Meal plan ready ✦");
+        toast.success("Meal plan ready");
       } catch(e) { console.error('[Plan] meal plan parse:', e); toast.error("Meal plan failed — tap try again"); }
     }
     setGeneratingMeals(false);
@@ -598,7 +598,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Paste newsletter text</p>
           <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>
           <Button onClick={extractFromNewsletter} disabled={!newsletterText.trim()||extracting} variant="gold">
-            {extracting?"✦ Cleo is reading...":"✦ Extract Events & Actions"}
+            <Emoji e="✦" size={14} /> {extracting?"Cleo is reading...":"Extract Events & Actions"}
           </Button>
         </Card>
 
@@ -641,7 +641,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
       {/* ── MEALS TAB per blueprint structured format ─────────────── */}
       {tab==="meals" && <>
         <Button onClick={generateMeals} disabled={generatingMeals} variant="gold" style={{ marginBottom:16 }}>
-          {generatingMeals?"✦ Planning your week...":"✦ Plan This Week's Meals"}
+          <Emoji e="✦" size={14} /> {generatingMeals?"Planning your week...":"Plan This Week's Meals"}
         </Button>
 
         {shownMealPlan && <>
@@ -655,7 +655,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               <Card key={i}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:isToday?T.gold:T.taupe, margin:0 }}>{day.dayName}{isToday?" · TODAY":""}</p>
-                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}>⏱ {day.prepTime}min</span>}
+                  {day.prepTime && <span style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe }}><Emoji e="⏱" size={13} /> {day.prepTime}min</span>}
                 </div>
                 {[
                   { label:"B", meal:day.breakfast, color:T.gold },
@@ -668,14 +668,14 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
                     <span style={{ fontFamily:F.sans, fontSize:13, color:T.esp }}>{m.meal}</span>
                   </div>
                 ))}
-                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}>💡 {day.prepNotes}</p>}
+                {day.prepNotes && <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"8px 0 0", fontStyle:"italic" }}><Emoji e="💡" size={13} /> {day.prepNotes}</p>}
               </Card>
             );
           })}
 
           {/* Shopping list per blueprint with categories */}
           {mealPlan && mealPlan.shoppingList.length > 0 && <button onClick={()=>setShowShopping(!showShopping)} style={{ width:"100%", padding:"12px", background:T.esp, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:showShopping?12:0, minHeight:48, touchAction:"manipulation" }}>
-            🛒 Shopping List ({mealPlan.shoppingList.length} items)
+            <Emoji e="🛒" size={16} /> Shopping List ({mealPlan.shoppingList.length} items)
           </button>}
 
           {mealPlan && showShopping && (
@@ -683,15 +683,15 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               {(["produce","protein","pantry","dairy","frozen","other"] as const).map(cat=>{
                 const items = mealPlan.shoppingList.filter(i=>i.category===cat);
                 if (!items.length) return null;
-                const catLabels = { produce:"🥦 Produce", protein:"🥩 Protein", pantry:"🥫 Pantry", dairy:"🥛 Dairy", frozen:"🧊 Frozen", other:"📦 Other" };
+                const catLabels = { produce:["🥦","Produce"], protein:["🥩","Protein"], pantry:["🥫","Pantry"], dairy:["🥛","Dairy"], frozen:["🧊","Frozen"], other:["📦","Other"] };
                 return (
                   <div key={cat} style={{ marginBottom:12 }}>
-                    <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px" }}>{catLabels[cat]}</p>
+                    <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 6px", display:"flex", alignItems:"center", gap:6 }}><Emoji e={catLabels[cat][0]} size={15} /> {catLabels[cat][1]}</p>
                     {items.map((item,idx)=>{
                       const globalIdx = mealPlan.shoppingList.indexOf(item);
                       return (
                         <div key={idx} onClick={()=>toggleShoppingItem(globalIdx)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle bought: ${item.item}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", cursor:"pointer", touchAction:"manipulation" }}>
-                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12 }}>{item.checked?"✓":""}</div>
+                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12 }}>{item.checked?<Emoji e="✓" size={13} strokeWidth={2.4} />:""}</div>
                           <span style={{ fontFamily:F.sans, fontSize:13, color:item.checked?T.taupe:T.esp, textDecoration:item.checked?"line-through":"none" }}>
                             {item.quantity} {item.item}
                           </span>

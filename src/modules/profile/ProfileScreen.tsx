@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Button, Input } from "../../shared/components";
+import { Card, PageTitle, Button, Input, Emoji } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { bus } from "../../core/events";
 import toast from "react-hot-toast";
@@ -117,7 +117,7 @@ export function ProfileScreen() {
       await bus.publish("profile.updated", updated, { userId: user.uid, source: "profile" });
     }
     setSaving(false);
-    toast.success("Profile saved ✓");
+    toast.success("Profile saved");
   };
 
   // ── Priority management per blueprint ─────────────────────────────
@@ -136,7 +136,7 @@ export function ProfileScreen() {
 
       {/* Avatar + name */}
       <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:20 }}>
-        <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30 }}>👩</div>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><Emoji e="👩" size={30} color="#fff" /></div>
         <div>
           <h2 style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:22, color:T.esp, margin:0 }}>{name||"Your name"}</h2>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>{user?.email}</p>
@@ -175,7 +175,7 @@ export function ProfileScreen() {
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {FOCUS_THEMES.map(t=>(
               <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:"#fff", color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
-                {t.emoji} {t.label}
+                <Emoji e={t.emoji} size={15} /> {t.label}
               </button>
             ))}
           </div>
@@ -202,7 +202,7 @@ export function ProfileScreen() {
         {/* Family people live in one place now */}
         <Card>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:22 }}>💛</span>
+            <Emoji e="💛" tile size={18} />
             <div style={{ flex:1 }}>
               <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:0 }}>Your family</p>
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>Partner, kids, grandparents and friends, with birthdays and school details</p>
@@ -221,7 +221,7 @@ export function ProfileScreen() {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
             {ENERGY_PATTERNS.map(e=>(
               <button key={e.value} onClick={()=>setEnergyPattern(e.value)} style={{ padding:"10px", borderRadius:14, border:`2px solid ${energyPattern===e.value?T.sky:T.linen}`, background:energyPattern===e.value?T.skyP:"#fff", color:energyPattern===e.value?T.sky:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", minHeight:48 }}>
-                {e.emoji} {e.label}
+                <Emoji e={e.emoji} size={15} /> {e.label}
               </button>
             ))}
           </div>

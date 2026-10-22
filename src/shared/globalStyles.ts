@@ -33,7 +33,8 @@ export const globalStyles = `
   }
   body::before {
     background:
-      radial-gradient(70% 45% at 100% 0%, rgba(214,201,232,.55) 0%, rgba(214,201,232,0) 70%),
+      radial-gradient(80% 50% at 100% 0%, rgba(207,190,230,.7) 0%, rgba(214,201,232,0) 72%),
+      radial-gradient(50% 30% at 15% 8%, rgba(255,255,255,.7) 0%, rgba(255,255,255,0) 70%),
       radial-gradient(60% 40% at 0% 100%, rgba(245,222,213,.45) 0%, rgba(245,222,213,0) 70%),
       linear-gradient(180deg, #F6F1E6 0%, ${T.cream} 45%, #F1EADB 100%);
   }

@@ -1,6 +1,6 @@
 import React from "react";
 import { T, F } from "../../config/theme";
-import { Card, AIBadge, Spinner, ProgressBar, Button } from "../../shared/components";
+import { Card, AIBadge, Spinner, ProgressBar, Button, Emoji } from "../../shared/components";
 import { estimateBudgetBreakdown, normTrip } from "./tripsShared";
 import type { Trip, ReadinessScore } from "./tripsShared";
 import { onEnterSpace } from "../../shared/utils/a11y";
@@ -45,7 +45,7 @@ export function TripDetailTabs({
             ].map(r => (
               <div key={r.label} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontFamily: F.sans, fontSize: 12, color: T.bark }}>{r.icon} {r.label}</span>
+                  <span style={{ fontFamily: F.sans, fontSize: 12, color: T.bark }}><Emoji e={r.icon} size={13} /> {r.label}</span>
                   <span style={{ fontFamily: F.sans, fontSize: 12, color: r.value >= 80 ? T.sage : r.value >= 40 ? T.gold : T.blush, fontWeight: 600 }}>{r.value}%</span>
                 </div>
                 <ProgressBar value={r.value} max={100} color={r.value >= 80 ? T.sage : r.value >= 40 ? T.gold : T.blush} height={4} />
@@ -58,7 +58,7 @@ export function TripDetailTabs({
             <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>Travellers</p>
             {trip.travellers.map((t, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${T.linen}` }}>
-                <span style={{ fontSize: 20 }}>{t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"}</span>
+                <Emoji e={t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"} tile size={16} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{t.name}</p>
                   <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, textTransform: "capitalize" }}>{t.role || t.type} · {t.age}y</p>
@@ -94,12 +94,12 @@ export function TripDetailTabs({
           {/* Generate buttons */}
           {!trip.itinerary.length && (
             <Button onClick={() => generateItinerary(trip)} disabled={planning} variant="gold">
-              {planning ? "✦ Planning itinerary..." : "✦ Generate Itinerary"}
+              <Emoji e="✦" size={14} /> {planning ? "Planning itinerary..." : "Generate Itinerary"}
             </Button>
           )}
           {!trip.packingList.length && (
             <Button onClick={() => generatePackingList(trip)} disabled={packingLoading} variant="secondary" style={{ marginTop: 8 }}>
-              {packingLoading ? "✦ Building packing list..." : "✦ Generate Packing List"}
+              <Emoji e="✦" size={14} /> {packingLoading ? "Building packing list..." : "Generate Packing List"}
             </Button>
           )}
         </>
@@ -125,7 +125,7 @@ export function TripDetailTabs({
                 { label: "Evening",   value: day.evening,   icon: "✦" },
               ].map(slot => (
                 <div key={slot.label} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.linen}` }}>
-                  <span style={{ fontSize: 14, width: 20, flexShrink: 0 }}>{slot.icon}</span>
+                  <span style={{ width: 20, flexShrink: 0 }}><Emoji e={slot.icon} size={15} /></span>
                   <div>
                     <p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, margin: "0 0 2px" }}>{slot.label}</p>
                     <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.5 }}>{slot.value}</p>
@@ -134,19 +134,19 @@ export function TripDetailTabs({
               ))}
               {day.mumMoment && (
                 <div style={{ marginTop: 10, padding: "10px 12px", background: `${T.gold}10`, borderRadius: 10, borderLeft: `3px solid ${T.gold}` }}>
-                  <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, margin: "0 0 3px" }}>✦ MUM MOMENT</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, margin: "0 0 3px" }}><Emoji e="✦" size={13} /> MUM MOMENT</p>
                   <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0, lineHeight: 1.5 }}>{day.mumMoment}</p>
                 </div>
               )}
               {day.tip && (
-                <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "10px 0 0", fontStyle: "italic" }}>💡 {day.tip}</p>
+                <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "10px 0 0", fontStyle: "italic" }}><Emoji e="💡" size={13} /> {day.tip}</p>
               )}
             </Card>
           )) : (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>No itinerary yet — let Cleo plan your days.</p>
               <Button onClick={() => generateItinerary(trip)} disabled={planning} variant="gold">
-                {planning ? "Planning..." : "✦ Generate Itinerary"}
+                <Emoji e="✦" size={14} /> {planning ? "Planning..." : "Generate Itinerary"}
               </Button>
             </div>
           )}
@@ -196,7 +196,7 @@ export function TripDetailTabs({
                             {item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}
                           </p>
                           {item.essential && !item.checked && <span style={{ fontFamily: F.sans, fontSize: 14, color: "#dc2626" }}>essential</span>}
-                          {item.weatherDependent && <span style={{ fontSize: 12 }}>🌤</span>}
+                          {item.weatherDependent && <Emoji e="🌤" size={13} />}
                         </div>
                       ))}
                     </div>
@@ -208,7 +208,7 @@ export function TripDetailTabs({
             <div style={{ textAlign: "center", padding: "32px 0" }}>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, marginBottom: 16 }}>Cleo will build a smart packing list for your family.</p>
               <Button onClick={() => generatePackingList(trip)} disabled={packingLoading} variant="gold">
-                {packingLoading ? "Building list..." : "✦ Generate Packing List"}
+                <Emoji e="✦" size={14} /> {packingLoading ? "Building list..." : "Generate Packing List"}
               </Button>
             </div>
           )}
@@ -233,7 +233,7 @@ export function TripDetailTabs({
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontFamily: F.sans, fontSize: 13, color: task.completed ? T.taupe : T.esp, margin: "0 0 2px", textDecoration: task.completed ? "line-through" : "none" }}>{task.task}</p>
-                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>{CATEGORY_ICONS[task.category]} {task.deadline}</p>
+                  <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}><Emoji e={CATEGORY_ICONS[task.category]} size={13} /> {task.deadline}</p>
                 </div>
               </div>
             ))}

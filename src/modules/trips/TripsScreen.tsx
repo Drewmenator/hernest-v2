@@ -15,6 +15,7 @@ import type { Trip, Traveller, TripDocument, PackingSection } from "./tripsShare
 import { ReadinessRing } from "./ReadinessRing";
 import { TripListView } from "./TripListView";
 import { TripDetailTabs } from "./TripDetailTabs";
+import { Emoji } from "../../shared/components";
 
 export type { TripState } from "./tripsShared";
 
@@ -151,7 +152,7 @@ export function TripsScreen() {
 
     if (user?.uid) {
       await bus.publish("trips.trip.created", trip, { userId: user.uid, source: "trips" });
-      if (totalBudget > 0) toast(`Trip to ${dest} added! ✦`, { duration: 3000 });
+      if (totalBudget > 0) toast(`Trip to ${dest} added!`, { duration: 3000 });
     }
   };
 
@@ -193,7 +194,7 @@ Make it family-friendly but include a mom moment each day.`;
         const updated = trips.map(t => t.id === trip.id ? { ...t, itinerary: parsed.days } : t);
         await persist(updated);
         setActiveTrip(normTrip({ ...trip, itinerary: parsed.days }));
-        toast.success(`${days}-day itinerary ready ✦`);
+        toast.success(`${days}-day itinerary ready`);
       } catch { toast.error("Itinerary generation failed — try again"); }
     }
     setPlanning(false);
@@ -232,7 +233,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
         const updated = trips.map(t => t.id === trip.id ? { ...t, packingList: sections } : t);
         await persist(updated);
         setActiveTrip(normTrip({ ...trip, packingList: sections }));
-        toast.success(`${sections.flatMap(s => s.items).length} items packed ✦`);
+        toast.success(`${sections.flatMap(s => s.items).length} items packed`);
       } catch { toast.error("Packing list failed — try again"); }
     }
     setPackingLoading(false);
@@ -320,7 +321,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
-              {cfg.emoji} {cfg.label}
+              <Emoji e={cfg.emoji} size={14} /> {cfg.label}
             </span>
             <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: "#fff", margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.6)", margin: 0 }}>
@@ -332,7 +333,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
               </p>
             )}
             {du === 0 && (
-              <p style={{ fontFamily: F.sans, fontSize: 14, color: "#dc2626", margin: "6px 0 0", fontWeight: 700 }}>✈ TRAVEL DAY</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, color: "#dc2626", margin: "6px 0 0", fontWeight: 700 }}><Emoji e="✈" size={14} /> TRAVEL DAY</p>
             )}
           </div>
           <ReadinessRing score={readiness.overall} size={80} />
@@ -343,11 +344,11 @@ Weather: pack for typical ${trip.destination} conditions.`;
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 16 }}>
         {([
           { id: "overview",  label: "Overview" },
-          { id: "itinerary", label: "📅 Itinerary" },
-          { id: "packing",   label: `🧳 Pack${totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}` },
-          { id: "checklist", label: `✓ Prep${completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}` },
-          { id: "budget",    label: "💰 Budget" },
-          { id: "edit",      label: "✎ Edit" },
+          { id: "itinerary", label: <><Emoji e="📅" size={14} /> Itinerary</> },
+          { id: "packing",   label: <><Emoji e="🧳" size={14} /> Pack{totalItems > 0 ? ` ${checkedItems}/${totalItems}` : ""}</> },
+          { id: "checklist", label: <><Emoji e="✓" size={14} /> Prep{completedTasks > 0 ? ` ${completedTasks}/${trip.preDeparture.length}` : ""}</> },
+          { id: "budget",    label: <><Emoji e="💰" size={14} /> Budget</> },
+          { id: "edit",      label: <><Emoji e="✎" size={14} /> Edit</> },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setDetailTab(t.id as any)}
             style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>

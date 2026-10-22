@@ -22,7 +22,7 @@ async function collectEvents(uid: string, people: Person[]): Promise<CalEvent[]>
   if (cal?.events) all.push(...(cal.events as CalEvent[]));
   if (synced?.events) all.push(...(synced.events as CalEvent[]));
   for (const t of ((trips?.trips as Array<{ id: string; dest?: string; date?: string }>) || [])) {
-    if (t?.date) all.push({ id: `trip-${t.id}`, title: `✈ ${t.dest || "Trip"}`, date: t.date, source: "trip", allDay: true });
+    if (t?.date) all.push({ id: `trip-${t.id}`, title: `${t.dest || "Trip"}`, date: t.date, source: "trip", allDay: true });
   }
   all.push(...(birthdayEvents(people, new Date().getFullYear()) as CalEvent[]));
   const seen = new Set<string>();

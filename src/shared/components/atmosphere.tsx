@@ -34,6 +34,14 @@ export function GlowCard({ tint, eyebrow, children, onClick, ariaLabel, ariaExpa
     boxShadow: a.shadow, border: "1px solid rgba(255,255,255,.55)", overflow: "hidden",
     color: T.text, fontFamily: F.sans, ...style,
   };
+  // Cleo's hero cards carry a soft sparkle in a halo, top right, behind the text.
+  const orb = tint === "cleo" && grain && (
+    <span aria-hidden="true" style={{ position: "absolute", top: -26, right: -26, width: 132, height: 132, borderRadius: "50%", zIndex: -1, pointerEvents: "none",
+      background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.35) 38%, rgba(214,201,232,0) 70%)",
+      boxShadow: "inset 0 0 0 1px rgba(255,255,255,.55)", display: "grid", placeItems: "center" }}>
+      <SparkleIcon size={34} color="rgba(122,99,174,.55)" filled />
+    </span>
+  );
   const head = eyebrow && (
     <p style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 700, color: a.ink, margin: "0 0 10px", letterSpacing: 0.1 }}>
       {tint === "cleo" && <SparkleIcon size={15} color={a.ink} filled />}
@@ -44,12 +52,12 @@ export function GlowCard({ tint, eyebrow, children, onClick, ariaLabel, ariaExpa
     return (
       <button ref={ref as React.Ref<HTMLButtonElement>} onClick={onClick} aria-label={ariaLabel} aria-expanded={ariaExpanded}
         className={grain ? "hn-press hn-grain" : "hn-press"} style={{ ...box, cursor: "pointer", touchAction: "manipulation" }}>
-        {head}{children}
+        {orb}{head}{children}
       </button>
     );
   }
   const Tag = as;
-  return <Tag ref={ref as React.Ref<HTMLElement & HTMLDivElement>} aria-label={ariaLabel} className={grain ? "hn-grain" : undefined} style={box}>{head}{children}</Tag>;
+  return <Tag ref={ref as React.Ref<HTMLElement & HTMLDivElement>} aria-label={ariaLabel} className={grain ? "hn-grain" : undefined} style={box}>{orb}{head}{children}</Tag>;
 }
 
 // ── HeroNumber ────────────────────────────────────────────────────
@@ -131,8 +139,8 @@ export function LargeTitle({ eyebrow, title, subtitle, right, compactTitle }: {
       <header style={{ display: "flex", alignItems: "flex-start", gap: S.md, margin: `${S.xs}px 0 ${S.xl}px` }}>
         <div ref={big} style={{ flex: 1, minWidth: 0, transformOrigin: "0 0", willChange: "transform, opacity" }}>
           {eyebrow && <p style={{ fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text2, margin: "0 0 4px" }}>{eyebrow}</p>}
-          <h1 style={{ fontFamily: F.sans, fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", color: T.text, margin: 0, lineHeight: 1.12, overflowWrap: "anywhere" }}>{title}</h1>
-          {subtitle && <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text2, margin: "4px 0 0" }}>{subtitle}</p>}
+          <h1 style={{ fontFamily: F.display, fontSize: 34, fontWeight: 500, letterSpacing: "-0.022em", color: T.text, margin: 0, lineHeight: 1.08, overflowWrap: "anywhere" }}>{title}</h1>
+          {subtitle && <p style={{ fontFamily: F.display, fontSize: 18, fontWeight: 400, color: T.text2, margin: "6px 0 0" }}>{subtitle}</p>}
         </div>
         {right}
       </header>

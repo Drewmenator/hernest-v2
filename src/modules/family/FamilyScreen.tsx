@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore, type FamilyMember } from "../../core/store";
-import { Card, PageTitle, EmptyState } from "../../shared/components";
+import { Card, PageTitle, EmptyState, Emoji } from "../../shared/components";
 import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
 import { displayAge, daysUntilBirthday, todayLocal } from "../../core/dateAwareness";
@@ -116,7 +116,7 @@ export function FamilyScreen() {
     };
     const updated = base ? people.map(p => p.id === base.id ? person : p) : [...people, person];
     await persist(updated);
-    toast.success(base ? "Saved ✓" : `${person.name} added ✓`);
+    toast.success(base ? "Saved" : `${person.name} added`);
     closeEdit();
   };
 
@@ -128,7 +128,7 @@ export function FamilyScreen() {
 
   const markTalked = async (p: Person) => {
     await persist(people.map(m => m.id === p.id ? { ...m, lastCheckIn: today } : m));
-    toast.success(`Nice — checked in with ${p.name} ✓`);
+    toast.success(`Nice — checked in with ${p.name}`);
   };
 
   const askGiftIdeas = (p: Person) => {
@@ -209,12 +209,12 @@ export function FamilyScreen() {
     const age = displayAge(p);
     const bday = bdayOf(p);
     const schoolBits = p.role === "child" ? [p.schoolInfo?.grade, p.schoolInfo?.schoolName].filter(Boolean).join(" · ") : "";
-    const details = [relationLabel(p), age != null ? `age ${age}` : "", bday != null && bday <= 30 ? `🎂 in ${bday}d` : "", schoolBits].filter(Boolean).join(" · ");
+    const details = [relationLabel(p), age != null ? `age ${age}` : "", bday != null && bday <= 30 ? `Birthday in ${bday}d` : "", schoolBits].filter(Boolean).join(" · ");
     return (
       <div key={p.id} style={{ padding: "14px 16px", background: T.ivory, borderRadius: 16, border: `1.5px solid ${T.linen}`, marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${p.color}25`, border: `2px solid ${p.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-            {p.emoji || ROLE_ICONS[p.role] || "✦"}
+            <Emoji e={p.emoji || ROLE_ICONS[p.role] || "✦"} size={22} color={p.color} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{p.name}</p>
@@ -225,8 +225,8 @@ export function FamilyScreen() {
         </div>
         {(p.giftIdeas || (bday != null && bday <= 30)) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingLeft: 56 }}>
-            {p.giftIdeas && <p style={{ flex: 1, fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0 }}>🎁 {p.giftIdeas}</p>}
-            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}>✦ Gift ideas</button>
+            {p.giftIdeas && <p style={{ flex: 1, fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0 }}><Emoji e="🎁" /> {p.giftIdeas}</p>}
+            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}><Emoji e="✦" size={14} /> Gift ideas</button>
           </div>
         )}
       </div>
@@ -239,7 +239,7 @@ export function FamilyScreen() {
 
       {upcoming.length > 0 && (
         <div style={{ background: `linear-gradient(135deg,${T.blush}15,${T.gold}10)`, border: `1px solid ${T.blush}30`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.blush, margin: "0 0 8px" }}><Emoji e="🎂" /> Coming up</p>
           {upcoming.map(p => {
             const d = bdayOf(p);
             return (
@@ -260,7 +260,7 @@ export function FamilyScreen() {
               <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>
                 {p.name} <span style={{ color: T.taupe, fontSize: 12 }}>· {p.lastCheckIn ? `last ${p.lastCheckIn.slice(5).replace("-", "/")}` : "no check-in yet"}</span>
               </p>
-              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 }}>✓ Talked</button>
+              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 }}><Emoji e="✓" size={14} /> Talked</button>
             </div>
           ))}
         </div>
@@ -268,10 +268,10 @@ export function FamilyScreen() {
 
       {people.length === 0 && editingId !== "new" && (
         <EmptyState
-          icon="◉"
+          icon={<Emoji e="👫" size={26} />}
           title="Who's in your nest?"
           body="Add your partner, kids, grandparents and close friends. HerNest remembers birthdays, gift ideas and school details for you."
-          actionLabel="Add your first person ✦"
+          actionLabel="Add your first person"
           onAction={() => startEdit(null)}
         />
       )}
@@ -298,7 +298,7 @@ export function FamilyScreen() {
       {people.length > 0 && (
         <button onClick={() => openCleo("Looking at my family this week, what should I be thinking about or preparing for?")}
           style={{ width: "100%", marginTop: 12, padding: "12px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 14, fontFamily: F.sans, fontSize: 13, color: T.esp, cursor: "pointer", minHeight: 44 }}>
-          ✦ Ask Cleo about your family
+          <Emoji e="✦" size={14} /> Ask Cleo about your family
         </button>
       )}
     </div>

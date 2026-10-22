@@ -95,7 +95,7 @@ export function AppShell() {
       </div>
       <TabBar />
       <CrisisSheet />
-      <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
+      <Toaster position="bottom-center" containerStyle={{ bottom: "calc(max(env(safe-area-inset-bottom, 0px), 10px) + 84px)" }} toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
     </div>
   );
 }

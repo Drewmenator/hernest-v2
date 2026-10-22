@@ -1,6 +1,6 @@
 import React from "react";
 import { T, F } from "../../config/theme";
-import { Card, PageTitle, EmptyState } from "../../shared/components";
+import { Card, PageTitle, EmptyState, Emoji } from "../../shared/components";
 import { safeDate, daysUntil, computeTripState, computeReadiness, normTrip, STATE_CONFIG } from "./tripsShared";
 import type { Trip, Traveller } from "./tripsShared";
 import { ReadinessRing } from "./ReadinessRing";
@@ -32,7 +32,7 @@ export function TripListView({
     {/* Household state banner */}
     {householdSnapshot?.householdStressLevel === "high" && (
       <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-        <span style={{ fontSize:16 }}>💛</span>
+        <Emoji e="💛" size={18} />
         <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
           Things look heavy right now. Focus on what matters most — Cleo's got the rest.
         </p>
@@ -40,7 +40,7 @@ export function TripListView({
     )}
     {householdSnapshot?.calendarLoad === "critical" && householdSnapshot?.householdStressLevel !== "high" && (
       <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-        <span style={{ fontSize:16 }}>📅</span>
+        <Emoji e="📅" size={18} />
         <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
           Busy week ahead — consider what can wait until next week.
         </p>
@@ -109,7 +109,7 @@ export function TripListView({
                     ×
                   </button>
                 )}
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"}</span>
+                <span style={{ flexShrink: 0, display: "inline-flex" }}><Emoji e={t.type === "adult" ? "👩" : t.age < 2 ? "👶" : "🧒"} size={18} /></span>
                 <input value={t.name} onChange={e => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, name: e.target.value } : tt))}
                   placeholder="Name"
                   style={{ flex: 1, background: "none", border: "none", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", minWidth: 0 }} />
@@ -142,7 +142,7 @@ export function TripListView({
 
           <button onClick={addTrip} disabled={!dest || !depDate}
             style={{ width: "100%", padding: "14px", background: dest && depDate ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: dest && depDate ? "pointer" : "not-allowed" }}>
-            Add Trip ✦
+            Add Trip
           </button>
         </Card>
       )}
@@ -164,7 +164,7 @@ export function TripListView({
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}15`, padding: "2px 10px", borderRadius: 20 }}>
-                        {cfg.emoji} {cfg.label}
+                        <Emoji e={cfg.emoji} size={14} /> {cfg.label}
                       </span>
                     </div>
                     <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 22, color: T.esp, margin: "0 0 2px", fontWeight: 700 }}>{trip.destination}</p>
@@ -177,7 +177,7 @@ export function TripListView({
                 <div style={{ display: "flex", gap: 6 }}>
                   {trip.travellers.slice(0, 4).map((t, i) => (
                     <span key={i} style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, background: T.sand, padding: "3px 8px", borderRadius: 20 }}>
-                      {t.type === "adult" ? "👩" : "🧒"} {t.name.split(" ")[0]}
+                      <Emoji e={t.type === "adult" ? "👩" : "🧒"} size={13} /> {t.name.split(" ")[0]}
                     </span>
                   ))}
                   {trip.travellers.length > 4 && (
@@ -218,8 +218,8 @@ export function TripListView({
         <EmptyState
           icon="→"
           title="Where next?"
-          body="Plan a trip and I'll help carry the load at every step — packing, prep, and budget ✦"
-          actionLabel="Plan a trip ✦"
+          body="Plan a trip and I'll help carry the load at every step — packing, prep, and budget"
+          actionLabel="Plan a trip"
           onAction={() => setShowAdd(true)}
         />
       )}

@@ -66,7 +66,7 @@ export function greetingFor(hour: number): string {
 }
 
 export function buildCheckinFallback(w: WearableDay | null, name: string, hour = new Date().getHours()): string {
-  const hi = `${greetingFor(hour)}${name ? `, ${name}` : ""} ✦`;
+  const hi = `${greetingFor(hour)}${name ? `, ${name}` : ""}`;
   if (!w || (w.sleepHours == null && w.readiness == null && w.avgHrv == null)) {
     return `${hi} I don't have last night's numbers yet. Once Apple Health or Oura syncs, your note for today will be here.`;
   }

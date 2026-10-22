@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
-import { PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, MiniBars } from "../../shared/components";
+import { Emoji, PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, MiniBars } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
 import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/components/Icons";
 import { formatMoney } from "../../shared/utils/money";
@@ -448,7 +448,7 @@ function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount,
           <div style={{ display: "flex", gap: S.sm }}>
             <Button size="sm" onClick={() => onConfirm(true)} style={{ flex: 2 }}>Mark as paid</Button>
             <Button size="sm" variant="secondary" onClick={() => onConfirm(false)} style={{ flex: 1.3 }}>Skip amount</Button>
-            <Button size="sm" variant="ghost" onClick={onCancelPay} ariaLabel="Cancel" style={{ width: 44, padding: 0, border: "none" }}>✕</Button>
+            <Button size="sm" variant="ghost" onClick={onCancelPay} ariaLabel="Cancel" style={{ width: 44, padding: 0, border: "none" }}><Emoji e="✕" size={16} /></Button>
           </div>
         </div>
       )}

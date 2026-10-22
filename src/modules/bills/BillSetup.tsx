@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F } from "../../config/theme";
-import { PageTitle } from "../../shared/components";
+import { PageTitle, Emoji } from "../../shared/components";
 import { billKey, iso, type Bill } from "../../core/bills";
 import { BILL_PRESETS, type BillPreset } from "./billPresets";
 import { DayPicker, GhostButton, PrimaryButton, TextLink } from "./billsUi";
@@ -146,7 +146,7 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
       {heading("BILLS · 3 OF 3", "Anything else?", "Daycare, the babysitter, a school fee, a subscription we didn't list. Add it whichever way is easiest.")}
       <button onClick={() => onOpenImport("screenshot")}
         style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 10, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
-        <span style={{ fontSize: 26 }} aria-hidden>📸</span>
+        <Emoji e="📸" tile size={20} />
         <span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 15, fontWeight: 700, color: T.esp }}>From a screenshot</span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 12.5, color: T.taupe, marginTop: 2 }}>Your card app, Settings → Subscriptions, or an e-bill</span>
@@ -154,7 +154,7 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
       </button>
       <button onClick={() => onOpenImport("text")}
         style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 18, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
-        <span style={{ fontSize: 26 }} aria-hidden>✍️</span>
+        <Emoji e="✍" tile size={20} />
         <span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 15, fontWeight: 700, color: T.esp }}>Type or say it</span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 12.5, color: T.taupe, marginTop: 2 }}>"Daycare 450 every other Friday"</span>

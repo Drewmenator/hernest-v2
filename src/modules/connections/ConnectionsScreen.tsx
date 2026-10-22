@@ -7,7 +7,8 @@ import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { auth } from "../../core/firebase";
-import { PageTitle } from "../../shared/components";
+import { PageTitle, Emoji } from "../../shared/components";
+import { CalendarDays, Calendar, Mail, Landmark, CircleDot, Heart, Receipt, Newspaper, RefreshCw, ChevronDown, Check } from "lucide-react";
 import { connectOAuth, disconnectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
 import { appleHealthSupported, connectAppleHealth, appleHealthState, disconnectAppleHealth, syncAppleHealth } from "../../core/appleHealth";
@@ -20,7 +21,7 @@ interface Connector {
   name: string;
   category: "Calendar" | "Email" | "School" | "Finance" | "Wellness";
   blurb: string;
-  icon: string;
+  icon: React.ReactNode;
   kind: ConnectorKind;
   oauthProvider?: "google" | "gmail" | "outlook" | "oura";
   tab?: string;
@@ -29,20 +30,20 @@ interface Connector {
 }
 
 const CONNECTORS: Connector[] = [
-  { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: "◈", kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
-  { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: "◈", kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
-  { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: "✦", kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
-  { id: "gmail", name: "Gmail", category: "Email", blurb: "School, kids' activities, appointments, flights and due dates → calendar and tasks", icon: "✉", kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
-  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Find your bills automatically. Coming soon.", icon: "◎", kind: "soon", statusDoc: "plaid", statusField: "connected" },
-  { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: "○", kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
-  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: "♡", kind: "health", statusDoc: "apple_health", statusField: "token" },
+  { id: "google_calendar", name: "Google Calendar", category: "Calendar", blurb: "Events flow into your household calendar", icon: <CalendarDays size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "oauth", oauthProvider: "google", statusDoc: "google_calendar", statusField: "accessToken" },
+  { id: "outlook_calendar", name: "Outlook Calendar", category: "Calendar", blurb: "Sync your Microsoft calendar", icon: <CalendarDays size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "oauth", oauthProvider: "outlook", statusDoc: "outlook_calendar", statusField: "accessToken" },
+  { id: "apple_calendar", name: "Apple Calendar", category: "Calendar", blurb: "Connect via iCloud in the Calendar screen", icon: <Calendar size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "deeplink", tab: "calendar", statusDoc: "apple_calendar", statusField: "email" },
+  { id: "gmail", name: "Gmail", category: "Email", blurb: "School, kids' activities, appointments, flights and due dates → calendar and tasks", icon: <Mail size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "oauth", oauthProvider: "gmail", statusDoc: "gmail", statusField: "accessToken" },
+  { id: "plaid", name: "Bank accounts", category: "Finance", blurb: "Find your bills automatically. Coming soon.", icon: <Landmark size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "soon", statusDoc: "plaid", statusField: "connected" },
+  { id: "oura", name: "Oura Ring", category: "Wellness", blurb: "Sleep, readiness & activity → your wellness score", icon: <CircleDot size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "oauth", oauthProvider: "oura", statusDoc: "oura", statusField: "accessToken" },
+  { id: "apple_health", name: "Apple Health", category: "Wellness", blurb: appleHealthSupported() ? "Sleep, steps, heart and exercise → your wellness score" : "Send sleep & steps via an iOS Shortcut", icon: <Heart size={18} strokeWidth={1.9} aria-hidden="true" />, kind: "health", statusDoc: "apple_health", statusField: "token" },
 ];
 
 // Manual data sources already built into other screens — surfaced here so this
 // screen is the complete inventory of what feeds Cleo.
 const MANUAL_SOURCES = [
-  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: "◎", tab: "budget", planTab: "" },
-  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "plan", planTab: "school" },
+  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: <Receipt size={18} strokeWidth={1.9} aria-hidden="true" />, tab: "budget", planTab: "" },
+  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: <Newspaper size={18} strokeWidth={1.9} aria-hidden="true" />, tab: "plan", planTab: "school" },
 ];
 
 const CATEGORIES: Connector["category"][] = ["Calendar", "Email", "School", "Finance", "Wellness"];
@@ -117,13 +118,13 @@ export function ConnectionsScreen() {
             ? "Apple Health didn't answer. Close HerNest fully, open it again and try once more."
             : `Couldn't connect Apple Health. ${lastAppleHealthError || "Try again in a moment."}`, { duration: 7000 });
         }
-        else if (await appleHealthState(user.uid) === "no_data") toast("Connected, but no Health data has come through yet. See the steps below.", { icon: "♡", duration: 6000 });
-        else toast.success("Apple Health connected ✓");
+        else if (await appleHealthState(user.uid) === "no_data") toast("Connected, but no Health data has come through yet. See the steps below.", { icon: <Emoji e="♡" />, duration: 6000 });
+        else toast.success("Apple Health connected");
       } else {
         await setupHealth();
       }
     } else {
-      toast("Coming in a future wave ✦", { icon: "🔌" });
+      toast("Coming in a future wave", { icon: <Emoji e="🔌" /> });
     }
   };
 
@@ -168,8 +169,8 @@ export function ConnectionsScreen() {
     await syncAppleHealth(user.uid).catch(() => false);
     await loadHealth(user.uid);
     setBusy(null);
-    if (await appleHealthState(user.uid) === "ok") toast.success("Apple Health data is coming in ✓");
-    else toast("Still nothing from Apple Health. Check the steps above.", { icon: "♡" });
+    if (await appleHealthState(user.uid) === "ok") toast.success("Apple Health data is coming in");
+    else toast("Still nothing from Apple Health. Check the steps above.", { icon: <Emoji e="♡" /> });
   };
 
   const onSyncNow = async () => {
@@ -178,7 +179,7 @@ export function ConnectionsScreen() {
     try {
       await syncAllConnectors(user.uid);
       await loadHealth(user.uid);
-      toast.success("Sources refreshed ✓");
+      toast.success("Sources refreshed");
     } catch {
       toast.error("Sync hit a snag — try again");
     }
@@ -193,10 +194,10 @@ export function ConnectionsScreen() {
       const r = await scanMailNow();
       const found = r.eventsAdded + r.tasksFound;
       if (r.error === "reauth_required") toast.error("Gmail needs reconnecting. Tap Connect to sign in again.");
-      else if (r.error === "limit_reached") toast("Cleo has done a lot today. She'll scan again tonight.", { icon: "✉" });
+      else if (r.error === "limit_reached") toast("Cleo has done a lot today. She'll scan again tonight.", { icon: <Emoji e="✉" /> });
       else if (r.error) toast.error("Scan didn't finish. Try again in a moment.");
       else if (found) toast.success(`Found ${r.eventsAdded} date${r.eventsAdded === 1 ? "" : "s"} for your calendar and ${r.tasksFound} to-do${r.tasksFound === 1 ? "" : "s"} (see Today)`);
-      else toast(r.scanned ? `Read ${r.scanned} new email${r.scanned === 1 ? "" : "s"}. Nothing to add.` : "No new family email since the last scan.", { icon: "✉" });
+      else toast(r.scanned ? `Read ${r.scanned} new email${r.scanned === 1 ? "" : "s"}. Nothing to add.` : "No new family email since the last scan.", { icon: <Emoji e="✉" /> });
       await loadHealth(user.uid);
     } catch {
       toast.error("Scan didn't finish. Try again in a moment.");
@@ -217,7 +218,7 @@ export function ConnectionsScreen() {
         {liveCount > 0 && (
           <button onClick={onSyncNow} disabled={syncing}
             style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 32 }}>
-            {syncing ? "Syncing..." : "↺ Sync now"}
+            {syncing ? "Syncing..." : <><RefreshCw size={13} strokeWidth={2} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Sync now</>}
           </button>
         )}
       </div>
@@ -245,7 +246,7 @@ export function ConnectionsScreen() {
                           : isConnected && h?.noData
                           ? <span style={{ color: T.blush }}>Connected, but no Health data has come through yet</span>
                           : isConnected && h?.lastSyncedAt
-                          ? <>✓ {h.itemCount ?? 0} item{(h.itemCount ?? 0) === 1 ? "" : "s"} · synced {timeAgo(h.lastSyncedAt)}</>
+                          ? <><Check size={13} strokeWidth={2.4} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> {h.itemCount ?? 0} item{(h.itemCount ?? 0) === 1 ? "" : "s"} · synced {timeAgo(h.lastSyncedAt)}</>
                           : c.blurb}
                       </p>
                     </div>
@@ -256,7 +257,7 @@ export function ConnectionsScreen() {
                     ) : isConnected && !hasError ? (
                       <button onClick={() => { setManaging(m => (m === c.id ? null : c.id)); setConfirmOff(null); }} aria-expanded={managing === c.id} aria-label={`${c.name} options`}
                         style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: h?.noData ? T.blush : T.sage, background: "none", border: `1.5px solid ${h?.noData ? `${T.blush}50` : `${T.sage}40`}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
-                        {h?.noData ? "Fix" : "✓ On"} ▾
+                        {h?.noData ? "Fix" : <><Check size={14} strokeWidth={2.4} aria-hidden="true" /> On</>} <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
                       </button>
                     ) : c.kind === "soon" ? (
                       <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
@@ -306,7 +307,7 @@ export function ConnectionsScreen() {
                   {c.id === "gmail" && isConnected && !hasError && (
                     <button onClick={onScanGmail} disabled={scanningGmail}
                       style={{ width: "100%", marginTop: 10, padding: "10px", background: `${T.gold}12`, border: `1.5px solid ${T.gold}30`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>
-                      {scanningGmail ? "✦ Cleo is reading your inbox..." : "✦ Scan inbox for receipts & events"}
+                      <Emoji e="✦" size={14} /> {scanningGmail ? "Cleo is reading your inbox..." : "Scan inbox for receipts & events"}
                     </button>
                   )}
                   {c.id === "apple_health" && healthSetup && (
@@ -323,7 +324,7 @@ export function ConnectionsScreen() {
                       <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
                         <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
                       </div>
-                      <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied ✓"); }}
+                      <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied"); }}
                         style={{ marginTop: 8, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>
                     </div>
                   )}

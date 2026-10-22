@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { T, F } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, Button, Input } from "../../shared/components";
+import { Card, Button, Input, Emoji } from "../../shared/components";
 import { loadData, saveData } from "../../core/firebase";
 import { bus } from "../../core/events";
 import { todayLocal } from "../../core/dateAwareness";
@@ -69,7 +69,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
     await bus.publish("plan.calendar.event.added", event, { userId: user.uid, source: "plan" });
     await reload();
     setTitle(""); setTime(""); setWho(""); setShowAdd(false);
-    toast.success("Added to your week ✓");
+    toast.success("Added to your week");
   };
 
   const askCleo = () => {
@@ -92,7 +92,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <button onClick={() => setShowAdd(!showAdd)} style={{ flex: 1, background: T.esp, color: "#fff", border: "none", borderRadius: 12, padding: "10px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>+ Add event</button>
-        <button onClick={askCleo} style={{ flex: 1, background: T.goldP, color: T.gold, border: `1px solid ${T.gold}40`, borderRadius: 12, padding: "10px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>✦ Ask Cleo</button>
+        <button onClick={askCleo} style={{ flex: 1, background: T.goldP, color: T.gold, border: `1px solid ${T.gold}40`, borderRadius: 12, padding: "10px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44 }}><Emoji e="✦" size={14} /> Ask Cleo</button>
       </div>
 
       {showAdd && (
@@ -131,7 +131,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
               const meta = KIND_META[i.kind];
               return (
                 <div key={i.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", background: isToday ? `${T.gold}08` : T.ivory, borderRadius: 14, border: `1px solid ${T.linen}`, borderLeft: `4px solid ${i.color || meta.color}`, marginBottom: 6 }}>
-                  <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{meta.icon}</span>
+                  <span style={{ fontSize: 16, width: 20, display: "inline-flex", justifyContent: "center", flexShrink: 0, color: i.color || meta.color }}><Emoji e={meta.icon} size={16} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{i.title}</p>
                     <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "2px 0 0" }}>
@@ -147,7 +147,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
 
       {undated.length > 0 && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>🧺 Chores this week</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px", display: "flex", alignItems: "center", gap: 6 }}><Emoji e="🧺" size={16} /> Chores this week</p>
           {undated.map(i => (
             <p key={i.id} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px" }}>{i.title} <span style={{ color: T.gold, fontSize: 12 }}>→ {i.who}</span></p>
           ))}
