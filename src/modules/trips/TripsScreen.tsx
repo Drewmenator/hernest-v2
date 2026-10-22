@@ -5,7 +5,7 @@ import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
-import { analyzeScenario, buildHouseholdSnapshot } from "../../core/household";
+import { buildHouseholdSnapshot } from "../../core/household/householdSnapshot";
 import toast from "react-hot-toast";
 import {
   safeDate, daysUntil, computeTripState, computeReadiness,
@@ -26,12 +26,10 @@ export function TripsScreen() {
   const { user, profile, familyMembers, householdSnapshot, setHouseholdSnapshot } = useStore();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
-  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask" | "edit">("overview");
+  const [detailTab, setDetailTab] = useState<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "edit">("overview");
   const [showAdd, setShowAdd] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [packingLoading, setPackingLoading] = useState(false);
-  const [cfoLoading, setCfoLoading] = useState(false);
-  const [cfoResult, setCfoResult] = useState<any>(null);
 
   // ── Add trip form state ──────────────────────────────────────────
   const [dest, setDest] = useState("");
@@ -266,22 +264,6 @@ Weather: pack for typical ${trip.destination} conditions.`;
     setActiveTrip(normTrip(updated));
   };
 
-  // ── Ask CFO about trip ───────────────────────────────────────────
-  const askCFO = async (question: string) => {
-    if (!user?.uid) return;
-    setCfoLoading(true);
-    try {
-      let snap = householdSnapshot;
-      if (!snap) {
-        snap = await buildHouseholdSnapshot(user.uid);
-        setHouseholdSnapshot(snap);
-      }
-      const { result } = await analyzeScenario(question, snap, user.uid, (profile as any)?.name);
-      setCfoResult(result);
-    } catch { toast.error("CFO analysis failed"); }
-    setCfoLoading(false);
-  };
-
   // ═══════════════════════════════════════════════════════════════════
   // RENDER: TRIP LIST
   // ═══════════════════════════════════════════════════════════════════
@@ -319,7 +301,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <button onClick={() => { setActiveTrip(null); setCfoResult(null); }}
+      <button onClick={() => setActiveTrip(null)}
         style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 13, color: T.taupe, cursor: "pointer", marginBottom: 12, padding: "8px 0", minHeight: 44, touchAction: "manipulation" }}>
         ← All trips
       </button>
@@ -370,10 +352,8 @@ Weather: pack for typical ${trip.destination} conditions.`;
         persist={persist} setActiveTrip={setActiveTrip}
         readiness={readiness} completedTasks={completedTasks}
         planning={planning} packingLoading={packingLoading}
-        cfoLoading={cfoLoading} cfoResult={cfoResult} setCfoResult={setCfoResult}
         generateItinerary={generateItinerary} generatePackingList={generatePackingList}
         togglePacking={togglePacking} toggleTask={toggleTask} toggleDoc={toggleDoc}
-        askCFO={askCFO}
       />
     </div>
   );

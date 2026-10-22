@@ -1,6 +1,6 @@
 # HerNest: what to cut, merge or simplify (review for approval)
 
-Date: 21 Oct 2026. Status: **all decisions made (21 Oct). Phase 0 built 21 Oct, uncommitted;** phases 1 to 4 not started.
+Date: 21 Oct 2026. Status: **all decisions made (21 Oct).** Phases 0 to 3 built 21 Oct (see each phase); phase 4 waits for usage numbers.
 
 **Revision 2 (21 Oct), after your feedback:** Thrive stays and is rethought around wellness and fitness. Style stays and is made practical. Cleo is a tab and the floating bubble goes. Pro is parked for now; the goal is a working app people come back to. Both Thrive and Style now live in a new **Me** tab (sections 3, 4a and 4b).
 
@@ -265,7 +265,8 @@ No layout change yet; just removes the embarrassing parts.
 Phases 2 and 2b don't touch the same screens, so they can be built side by side.
 
 ### Phase 3: Clear out the old machinery (M, 1 to 3 days)
-Only after phases 1 and 2 have been live for a couple of weeks with no problems.
+*Built 21 Oct on `dev` (uncommitted), at the owner's request before phases 1 and 2 had been live for two weeks.* About 9,700 lines removed. Deleted: old Budget screens, old Home and its cards (Household Pulse, Command Center, BriefingHero), Ask CFO (including the hidden Trips tab), mini-Cleo, adaptive layout, recommendations, household scores, the context graph and its event wiring, both decision engines and the money "household intelligence", the budget event listeners, and the AI request types no screen sends. The household snapshot was rewritten without money (`core/household/householdSnapshot.ts`); Cleo's tone engine now treats overdue bills as money pressure. The version-1 memory layer is reduced to the conversation fact extractor and the daily tidy-up; Profile links to "What Cleo knows" instead of keeping its own memory list. Kept on purpose: Plaid client code (for the bank upgrade), the calendar CSV importer. No saved data was deleted.
+Originally planned: only after phases 1 and 2 have been live for a couple of weeks with no problems.
 - Delete the code for: old Budget screens, Household Pulse and scores, adaptive layout, unused insight engine, context graph, both decision engines, recommendations, old calendar sync, Circle Companions, mini-Cleo, the Thrive weekly score and coach, the old Style tabs, the old memory wrapper.
 - **No saved data is deleted.** Only screens and code.
 - Roughly 8,000 to 10,000 fewer lines of code, which makes every future change faster and safer.

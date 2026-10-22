@@ -5,8 +5,6 @@
 // What this does:
 //   Module events → intelligence layer reactions
 //
-// Budget expense logged    → check insight rules, propose memory
-// Budget threshold hit     → invalidate retrieval cache, flag state
 // Trip created             → invalidate cache, flag travel_prep
 // Task completed           → invalidate cache
 // Cleo conversation ended  → memory writeback v2
@@ -18,41 +16,9 @@ import { bus } from "./events";
 import { invalidateCache, clearUserCache } from "./contextRetrieval";
 import { proposeMemory } from "./memoryServiceV2";
 
-// ─── Helper: extract spending pattern from expense ────────────────
-function buildSpendingMemoryCandidate(category: string, pct: number) {
-  return {
-    type:                "pattern" as const,
-    title:               `${category} spending tends to run high`,
-    content:             `${category} spending reached ${pct}% of budget. This may indicate a recurring pattern worth tracking.`,
-    sourceModule:        "finances" as const,
-    confidence:          pct >= 95 ? "high" as const : "medium" as const,
-    sensitivity:         "low" as const,
-    evidenceDescription: `${category} at ${pct}% of monthly budget`,
-  };
-}
-
 // ─── Main setup function ──────────────────────────────────────────
 export function connectIntelligenceLayer(userId: string): () => void {
   const unsubs: Array<() => void> = [];
-
-  // ── 1. Budget expense logged → invalidate budget cache ──────────
-  unsubs.push(bus.subscribe("budget.expense.logged", async () => {
-    invalidateCache(userId, ["budget_v2", "budget"]);
-  }));
-
-  // ── 2. Budget threshold hit → propose memory + invalidate ────────
-  unsubs.push(bus.subscribe("budget.threshold.hit", async (e: any) => {
-    const { category, percentUsed } = e.payload;
-    invalidateCache(userId, ["budget_v2", "budget"]);
-
-    // Only propose memory for consistently high spending (≥90%)
-    if (percentUsed >= 90) {
-      proposeMemory(userId, buildSpendingMemoryCandidate(category, percentUsed))
-        .catch(() => {}); // non-fatal
-    }
-
-    // (Removed: re-publishing budget.threshold.hit from its own handler looped forever.)
-  }));
 
   // ── 3. Trip created → invalidate trips + calendar cache ──────────
   unsubs.push(bus.subscribe("trips.trip.created", async () => {
@@ -138,7 +104,7 @@ export function connectIntelligenceLayer(userId: string): () => void {
   }));
 
   // ── 8b. Key data changes → invalidate briefing ───────────────────
-  ["budget.expense.logged", "plan.task.created", "plan.task.completed", "trips.trip.created"].forEach(evt => {
+  ["plan.task.created", "plan.task.completed", "trips.trip.created"].forEach(evt => {
     unsubs.push(bus.subscribe(evt as any, async () => {
       bus.publish("briefing.invalidate", {}, { userId, source: "intelligence" }).catch(() => {});
     }));
@@ -155,11 +121,6 @@ export function connectIntelligenceLayer(userId: string): () => void {
 
   unsubs.push(bus.subscribe("thrive.habit.completed", async () => {
     invalidateCache(userId, ["thrive"]);
-  }));
-
-  // ── 10. Goals updated → invalidate budget cache ──────────────────
-  unsubs.push(bus.subscribe("budget.savings.goal.created", async () => {
-    invalidateCache(userId, ["budget_v2"]);
   }));
 
   // ── Style preference → memory ────────────────────────────────────

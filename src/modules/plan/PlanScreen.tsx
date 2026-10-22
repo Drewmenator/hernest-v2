@@ -8,7 +8,6 @@ import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
 import { s } from "../../core/aiSchema";
 import { bus } from "../../core/events";
-import { buildMemoryContext } from "../../core/memory";
 import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import toast from "react-hot-toast";
 import { onEnterSpace } from "../../shared/utils/a11y";
@@ -238,7 +237,7 @@ export function PlanScreen() {
       ? kidList.map(k => k.name + (k.notes ? ` (${k.notes})` : "")).join(", ")
       : String(p?.kids?.length || 0);
     const energy = p?.energyPattern || "morning";
-    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => buildMemoryContext(user.uid)) : "";
+    const memCtx = user?.uid ? await buildMemoryContextV2(user.uid, { maxResults: 10 }).catch(() => "") : "";
 
     const sys = `You are Cleo, a meal planner.
 7 days Mon-Sun. Keep meal names under 6 words. prepTime is minutes. Shopping list max 25 items, categorized, all unchecked.

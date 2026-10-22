@@ -9,7 +9,6 @@ import { initConnectivity } from "./core/connectivity";
 import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
 import { bus } from "./core/events";
-import { useContextGraph } from "./core/graph";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { isOnboarded } from "./core/onboarding";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
@@ -26,7 +25,7 @@ import { lastMeSegment }    from "./modules/me/meSegment";
 import { CleoScreen }       from "./modules/cleo/CleoScreen";
 const PlanScreen = React.lazy(() => import("./modules/plan/PlanScreen").then(m => ({ default: m.PlanScreen })));
 // The "budget" tab is now Bills (Oct 2026 redesign). The old Budget screens
-// stay in modules/budget but are no longer shown; their data is untouched.
+// were deleted in simplify phase 3; their saved data is untouched.
 const BillsScreen = React.lazy(() => import("./modules/bills/BillsScreen").then(m => ({ default: m.BillsScreen })));
 const BriefingScreen = React.lazy(() => import("./modules/briefing/BriefingScreen").then(m => ({ default: m.BriefingScreen })));
 // Me tab: Wellness (Thrive) and Style, shown as they are.
@@ -114,20 +113,6 @@ const globalStyles = `
   @keyframes slideUp { from { transform:translateY(100%) } to { transform:translateY(0) } }
 `;
 
-
-// ── Graph event wirer — only mounts when user is logged in ────────
-function GraphWirer() {
-  const { handleEvent } = useContextGraph();
-  useEffect(() => {
-    const GRAPH_EVENTS = ["budget.expense.logged","budget.savings.goal.created","budget.threshold.hit","thrive.mood.logged","thrive.sleep.logged","trips.trip.created","plan.task.created","plan.task.completed","calendar.synced"];
-    const unsub = bus.subscribe("*", async (event: any) => {
-      if (!GRAPH_EVENTS.includes(event.type)) return;
-      try { await handleEvent({ type: event.type, source: event.source, userId: event.userId, payload: event.payload as Record<string, unknown>, timestamp: new Date(event.timestamp).toISOString() }); } catch (e) { console.warn("[GraphWirer] event failed:", e); }
-    });
-    return unsub;
-  }, [handleEvent]);
-  return null;
-}
 
 export default function App() {
   const { screen, setScreen, setUser, setAuthChecked, setProfile, setShowUpgrade, setIsOnline, activeTab, setActiveTab } = useStore();
@@ -324,7 +309,6 @@ export default function App() {
   // Screens opened from a tab (You menu, See full briefing, ...) get a way back.
   const backTo = isSubScreen(activeTab) ? tabFor(activeTab) : null;
 
-  // Graph event wiring moved to GraphWirer component
 
 
   return (
@@ -342,7 +326,6 @@ export default function App() {
               {renderScreen()}
             </React.Suspense>
           </div>
-          <GraphWirer />
           <TabBar />
           <Toaster position="bottom-center" toastOptions={{ style: { fontFamily: F.sans, fontSize: 13, background: T.esp, color: "#fff", borderRadius: 20, padding: "10px 18px" } }} />
         </div>

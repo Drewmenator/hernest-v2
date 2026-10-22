@@ -2,9 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 
 // contextBuilder pulls in Firebase at module level — stub the data layer
 vi.mock("./firebase", () => ({ loadData: vi.fn(), db: {}, auth: {} }));
-vi.mock("./memory", () => ({ buildMemoryContext: vi.fn(), loadMemoryFacts: vi.fn() }));
 vi.mock("./memoryServiceV2", () => ({ buildMemoryContextV2: vi.fn() }));
-vi.mock("./household/HouseholdIntelligence", () => ({ buildHouseholdSnapshot: vi.fn() }));
+vi.mock("./household/householdSnapshot", () => ({ buildHouseholdSnapshot: vi.fn() }));
 
 import { TONE_PROFILES, FOCUS_WORD_POOL, selectFocusWord, type ToneProfile } from "./contextBuilder";
 

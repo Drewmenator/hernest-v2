@@ -5,17 +5,12 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("./ai", () => ({ ai: vi.fn(), aiJSON: vi.fn() }));
 vi.mock("./cleoAgent", () => ({ runCleoAgent: vi.fn(), runCleoAgentStreaming: vi.fn() }));
 vi.mock("./contextBuilder", () => ({ buildAppContext: vi.fn(), buildBriefingPrompt: vi.fn() }));
-vi.mock("./household/HouseholdIntelligence", () => ({ buildHouseholdSnapshot: vi.fn() }));
+vi.mock("./household/householdSnapshot", () => ({ buildHouseholdSnapshot: vi.fn() }));
 vi.mock("./memory", () => ({ extractFactsFromConversation: vi.fn() }));
 vi.mock("./events", () => ({ bus: { publish: vi.fn(), subscribe: vi.fn() } }));
 vi.mock("./household/householdStateEngine", () => ({ computeHouseholdState: vi.fn(), buildStatePromptAddendum: vi.fn() }));
 vi.mock("./household/responseValidator", () => ({ validateResponse: vi.fn() }));
 vi.mock("./contextRetrieval", () => ({ retrieve: vi.fn(), invalidateCache: vi.fn() }));
-vi.mock("./graph/GraphService", () => ({
-  createContextGraph: vi.fn(), loadGraphFromFirestore: vi.fn(),
-  generateContextPackForCleo: vi.fn(), generateContextPackForCFO: vi.fn(),
-  formatCleoContextPackForPrompt: vi.fn(), formatCFOContextPackForPrompt: vi.fn(),
-}));
 vi.mock("./store", () => ({ useStore: { getState: vi.fn(() => ({})) } }));
 vi.mock("./identity", () => ({ getHouseholdId: vi.fn(() => null) }));
 vi.mock("./firebase", () => ({ loadData: vi.fn(), saveData: vi.fn(), db: {}, auth: {} }));

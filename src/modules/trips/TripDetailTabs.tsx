@@ -11,22 +11,20 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 export function TripDetailTabs({
   detailTab, trip, trips, persist, setActiveTrip, readiness, completedTasks,
-  planning, packingLoading, cfoLoading, cfoResult, setCfoResult,
-  generateItinerary, generatePackingList, togglePacking, toggleTask, toggleDoc, askCFO,
+  planning, packingLoading,
+  generateItinerary, generatePackingList, togglePacking, toggleTask, toggleDoc,
 }: {
-  detailTab: "overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask" | "edit";
+  detailTab: "overview" | "itinerary" | "packing" | "checklist" | "budget" | "edit";
   trip: Trip; trips: Trip[];
   persist: (updated: Trip[]) => Promise<void>;
   setActiveTrip: React.Dispatch<React.SetStateAction<Trip | null>>;
   readiness: ReadinessScore; completedTasks: number;
-  planning: boolean; packingLoading: boolean; cfoLoading: boolean;
-  cfoResult: any; setCfoResult: React.Dispatch<React.SetStateAction<any>>;
+  planning: boolean; packingLoading: boolean;
   generateItinerary: (trip: Trip) => Promise<void>;
   generatePackingList: (trip: Trip) => Promise<void>;
   togglePacking: (si: number, ii: number) => Promise<void>;
   toggleTask: (i: number) => Promise<void>;
   toggleDoc: (i: number) => Promise<void>;
-  askCFO: (question: string) => Promise<void>;
 }) {
   return (
     <>
@@ -304,60 +302,6 @@ export function TripDetailTabs({
         </Card>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════
-          TAB: ASK CFO
-      ══════════════════════════════════════════════════════════════ */}
-      {detailTab === "ask" && (
-        <>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-            {[
-              `Can we afford this ${trip.destination} trip?`,
-              `What's the impact on our emergency fund?`,
-              `Should we delay or book now?`,
-              `How does this affect our savings goals?`,
-            ].map((q, i) => (
-              <button key={i} onClick={() => askCFO(q)} disabled={cfoLoading}
-                style={{ textAlign: "left", padding: "12px 14px", background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 12, fontFamily: F.sans, fontSize: 13, color: T.esp, cursor: "pointer", lineHeight: 1.4 }}>
-                {q} →
-              </button>
-            ))}
-          </div>
-
-          {cfoLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px" }}>
-              <Spinner size={16} />
-              <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Analyzing household finances...</p>
-            </div>
-          )}
-
-          {cfoResult && !cfoLoading && (
-            <Card>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: `${cfoResult.riskLevel === "low" ? T.sage : cfoResult.riskLevel === "high" ? T.blush : T.gold}20`, color: cfoResult.riskLevel === "low" ? T.sage : cfoResult.riskLevel === "high" ? T.blush : T.gold, textTransform: "uppercase" }}>
-                  {cfoResult.riskLevel} risk
-                </span>
-                <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: `${T.gold}15`, color: T.gold, textTransform: "uppercase" }}>
-                  {cfoResult.confidence} confidence
-                </span>
-              </div>
-              <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.6 }}>{cfoResult.summary}</p>
-              <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: "0 0 8px", lineHeight: 1.6 }}>{cfoResult.observation}</p>
-              {cfoResult.tradeoffs?.length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  {cfoResult.tradeoffs.map((t: string, i: number) => (
-                    <p key={i} style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: "0 0 4px", paddingLeft: 10, borderLeft: `2px solid ${T.linen}` }}>{t}</p>
-                  ))}
-                </div>
-              )}
-              <div style={{ padding: "10px 12px", background: `${T.esp}08`, borderRadius: 10, borderLeft: `3px solid ${T.esp}` }}>
-                <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: T.taupe, margin: "0 0 4px" }}>RECOMMENDATION</p>
-                <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>✦ {cfoResult.recommendedAction}</p>
-              </div>
-              <button onClick={() => setCfoResult(null)} style={{ marginTop: 10, background: "none", border: "none", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer" }}>Ask another →</button>
-            </Card>
-          )}
-        </>
-      )}
     </>
   );
 }

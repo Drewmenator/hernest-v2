@@ -6,9 +6,8 @@ import { loadData } from "./firebase";
 import { daysUntilDue, displayAmount, type Bill } from "./bills";
 import { currencySymbol } from "../shared/utils/money";
 import { daysUntilBirthday, todayLocal } from "./dateAwareness";
-import { buildMemoryContext, loadMemoryFacts } from "./memory";
 import { buildMemoryContextV2 } from "./memoryServiceV2";
-import { buildHouseholdSnapshot } from "./household/HouseholdIntelligence";
+import { buildHouseholdSnapshot } from "./household/householdSnapshot";
 import { readWearable, type WearableDay } from "./wellnessAutoTrack";
 import type { HouseholdSnapshot } from "./store";
 
@@ -128,7 +127,6 @@ export interface AppContext {
 
   // Memory
   memory: string;
-  memoryFacts: { statement: string; type: string }[];
 
   // Meta
   tone: ToneProfile;
@@ -184,7 +182,7 @@ export async function buildAppContext(
   const [
     tasksData, thriveData,
     tripsData, schoolData, circleData, calendarData,
-    memoryFacts, wearable, billsData
+    wearable, billsData
   ] = await Promise.all([
     loadData(userId, "tasks"),
     loadData(userId, "thrive"),
@@ -192,7 +190,6 @@ export async function buildAppContext(
     loadData(userId, "school"),
     loadData(userId, "circle"),
     loadData(userId, "calendar"),
-    loadMemoryFacts(userId),
     readWearable(userId).catch(() => null),
     loadData(userId, "bills"),
   ]);
@@ -202,7 +199,7 @@ export async function buildAppContext(
 
   console.log("[Context] data loaded:", { tasks: !!tasksData, thrive: !!thriveData });
 
-  const memoryCtx = await buildMemoryContextV2(userId, { maxResults: 10 }).catch(() => buildMemoryContext(userId));
+  const memoryCtx = await buildMemoryContextV2(userId, { maxResults: 10 }).catch(() => "");
 
   // ── Tasks ───────────────────────────────────────────────────────
   const allTasks = (tasksData?.tasks as any[]) || [];
@@ -385,7 +382,6 @@ export async function buildAppContext(
 
     // Memory
     memory: memoryCtx,
-    memoryFacts,
 
     // Meta
     tone, toneConfig,

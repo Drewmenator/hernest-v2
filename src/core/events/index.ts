@@ -21,12 +21,6 @@ export type EventType =
   | "plan.calendar.event.added"
   | "plan.school.newsletter.parsed"
   | "plan.meal.generated"
-  // Budget
-  | "budget.expense.logged"
-  | "budget.expense.anomaly"
-  | "budget.threshold.hit"
-  | "budget.savings.goal.created"
-  | "budget.month.reset"
   // Thrive
   | "thrive.sleep.logged"
   | "thrive.water.logged"
@@ -108,7 +102,6 @@ const HOUSEHOLD_PUSH: Partial<Record<EventType, { screen: string; summary: (p: a
   "plan.calendar.event.added":  { screen: "calendar", summary: (p) => `added to the calendar${p?.title ? `: ${p.title}` : ""}` },
   "trips.trip.created":         { screen: "trips",    summary: (p) => `started planning a trip${p?.destination || p?.name ? ` to ${p.destination || p.name}` : ""}` },
   "plan.school.newsletter.parsed": { screen: "plan",  summary: () => `added school events to the calendar` },
-  "budget.savings.goal.created": { screen: "budget",  summary: (p) => `set a savings goal${p?.name ? `: ${p.name}` : ""}` },
 };
 
 function toLoggedEvent(e: HerNestEvent): LoggedEvent {

@@ -15,15 +15,12 @@
 import { ai, aiJSON, type Feature } from "./ai";
 import type { JsonSchema } from "./aiSchema";
 import { runCleoAgent, runCleoAgentStreaming } from "./cleoAgent";
-import { AI } from "../config";
+import { AI, FLAGS } from "../config";
 import { extractFactsFromConversation } from "./memory";
 import { bus }                       from "./events";
 import { computeHouseholdState, buildStatePromptAddendum } from "./household/householdStateEngine";
 import { validateResponse } from "./household/responseValidator";
 import { retrieve } from "./contextRetrieval";
-import { createContextGraph, loadGraphFromFirestore, generateContextPackForCleo, formatCleoContextPackForPrompt } from "./graph/GraphService";
-import { getHouseholdId }            from "./identity";
-import { FLAGS }                     from "../config";
 import { todayLocal } from "./dateAwareness";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -398,28 +395,18 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   let stateAddendum = "";
 
   try {
-    if (FLAGS.CANONICAL_CONTEXT === "graph") {
-      // Canonical path (migration Step 3d): context comes SOLELY from the
-      // household graph pack — one source of truth, no snapshot/memory-V1/V2 blend.
-      const hid = getHouseholdId() ?? userId;
-      let graph = await loadGraphFromFirestore(hid);
-      if (!graph) graph = await createContextGraph(hid);
-      context = formatCleoContextPackForPrompt(generateContextPackForCleo(graph, userId));
-      modules = ["graph"];
-      assumptions = [];
-    } else {
-      // Default path: intent-targeted retrieval (snapshot + memory). Unchanged.
-      const retrieved = await retrieve({
-        userId,
-        userMessage,
-        intent: classification.intent,
-        feature: classification.feature,
-        profile,
-      });
-      context = retrieved.contextString;
-      modules = retrieved.modulesLoaded;
-      assumptions = retrieved.assumptions;
-    }
+    // Intent-targeted retrieval (snapshot + memory). The switched-off
+    // "context graph" path was removed in simplify phase 3.
+    const retrieved = await retrieve({
+      userId,
+      userMessage,
+      intent: classification.intent,
+      feature: classification.feature,
+      profile,
+    });
+    context = retrieved.contextString;
+    modules = retrieved.modulesLoaded;
+    assumptions = retrieved.assumptions;
 
     // Build state addendum for tone adaptation (uses cached data)
     try {
@@ -427,14 +414,6 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const appCtx = await getCtx(userId, profile);
       const hState = computeHouseholdState(appCtx);
       stateAddendum = buildStatePromptAddendum(hState);
-      // Phase 4: fold the household intelligence scores + Risk Radar into context
-      // so Cleo can reference resilience/productivity and the ranked priorities.
-      try {
-        const { computeHouseholdScores } = await import("./intelligence/householdScores");
-        const s = computeHouseholdScores(appCtx);
-        const topAttention = s.attention.slice(0, 3).map(a => `${a.title} (${a.severity})`).join("; ");
-        stateAddendum += `\n\nHOUSEHOLD SCORES: Resilience ${s.resilience.score}/100 (${s.resilience.band}) — ${s.resilience.headline} · Productivity ${s.productivity.score}/100 (${s.productivity.band}).${topAttention ? `\nNEEDS ATTENTION (ranked): ${topAttention}` : ""}`;
-      } catch { /* non-fatal */ }
     } catch (e) { /* non-fatal */ }
 
   } catch (e) {
@@ -605,40 +584,6 @@ export async function askCleoStreaming(
     userMessage: message,
     conversationHistory: history,
     options: { allowMemoryWriteback: true, contextDepth: "full", onToken },
-  });
-  return result.text;
-}
-
-// For CFO / finances screen
-export async function askCFO(
-  userId: string,
-  profile: Record<string, unknown>,
-  message: string,
-  history: { role: "user" | "assistant"; content: string }[] = []
-): Promise<string> {
-  const result = await orchestrate({
-    userId,
-    profile,
-    sourceModule: "finances",
-    userMessage: message,
-    conversationHistory: history,
-    options: { allowMemoryWriteback: true, contextDepth: "full" },
-  });
-  return result.text;
-}
-
-// For wellness / thrive screen
-export async function askWellness(
-  userId: string,
-  profile: Record<string, unknown>,
-  message: string
-): Promise<string> {
-  const result = await orchestrate({
-    userId,
-    profile,
-    sourceModule: "wellness",
-    userMessage: message,
-    options: { allowMemoryWriteback: false, contextDepth: "light" },
   });
   return result.text;
 }

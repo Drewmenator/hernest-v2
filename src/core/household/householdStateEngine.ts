@@ -3,12 +3,10 @@
 // NOT a mental health or emotion system.
 // Operational household awareness only.
 //
-// Uses signals from finances, calendar, tasks, wellness, trips,
-// memory, and goals to compute weighted state scores.
+// Uses signals from bills, calendar, tasks, wellness, trips and
+// memory to compute weighted state scores.
 // Multiple states can coexist (e.g. busy + financial_pressure).
 
-import type { HouseholdSnapshot } from "../store";
-import { currencySymbol } from "../../shared/utils/money";
 import type { AppContext } from "../contextBuilder";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -98,35 +96,12 @@ function scoreTaskPressure(ctx: AppContext): number {
   return Math.min(100, score);
 }
 
+// Money pressure now comes from bills only (the old Budget totals it used to
+// read are no longer kept): overdue bills weigh most, then bills due this week.
 function scoreFinancialPressure(ctx: AppContext): number {
-  const pct     = ctx.budget.pct;           // spent / budget
-  const status  = ctx.budget.status;
-  const projected = ctx.budget.projected;
-  const limit   = ctx.budget.limit;
-
-  let score = 0;
-
-  // Spending pressure
-  const statusScore = { healthy: 0, watch: 20, warning: 45, critical: 75 }[status] ?? 0;
-  score += statusScore;
-
-  // Projection overshoot
-  if (limit > 0 && projected > limit * 1.1) score += 20;
-  else if (limit > 0 && projected > limit) score += 10;
-
-  // Debt pressure
-  if (ctx.budget.totalDebt > 0) {
-    const dti = ctx.budget.monthlyIncome > 0
-      ? (ctx.budget.totalDebt / (ctx.budget.monthlyIncome * 12)) * 100
-      : 0;
-    if (dti > 40) score += 20;
-    else if (dti > 20) score += 10;
-  }
-
-  // Savings rate pressure
-  if (ctx.budget.savingsRate < 5 && ctx.budget.monthlyIncome > 0) score += 15;
-
-  return Math.min(100, score);
+  const overdue = ctx.bills.overdue.length;
+  const dueSoon = ctx.bills.dueSoon.filter(b => !b.autopay).length;
+  return Math.min(100, overdue * 35 + Math.max(0, dueSoon - 1) * 8);
 }
 
 function scoreTravelPrep(ctx: AppContext): number {
@@ -185,13 +160,8 @@ function scoreWellnessPressure(ctx: AppContext): number {
 }
 
 function scoreDecisionHeavy(ctx: AppContext): number {
-  // Proxy: multiple goals at risk + upcoming major events. (Income is no
-  // longer collected, so "income not set" no longer counts as uncertainty.)
-  const goalsAtRisk = ctx.budget.savingsGoals.filter(g => g.pct < 30).length;
-  const hasTrip     = !!ctx.trips.next;
-
-  const score = goalsAtRisk * 15 + (hasTrip ? 10 : 0);
-  return Math.min(100, score);
+  // Proxy: an upcoming major event. (Savings goals went with the old Budget.)
+  return ctx.trips.next ? 10 : 0;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -280,10 +250,8 @@ function buildSignals(ctx: AppContext, state: HouseholdState): string[] {
       break;
 
     case "financial_pressure":
-      if (ctx.budget.status === "critical") signals.push("Spending at critical level");
-      else if (ctx.budget.status === "warning") signals.push("Spending above budget");
-      if (ctx.budget.totalDebt > 0) signals.push(`${currencySymbol()}${ctx.budget.totalDebt.toLocaleString()} total debt`);
-      if (ctx.budget.savingsRate < 5) signals.push("Low savings rate");
+      if (ctx.bills.overdue.length) signals.push(`${ctx.bills.overdue.length} bill${ctx.bills.overdue.length === 1 ? "" : "s"} overdue`);
+      if (ctx.bills.dueSoon.length) signals.push(`${ctx.bills.dueSoon.length} bill${ctx.bills.dueSoon.length === 1 ? "" : "s"} due this week`);
       break;
 
     case "travel_prep":
@@ -420,41 +388,4 @@ ${suppressNotifications ? "Note: Suppress non-essential suggestions — househol
 
 Tone instruction: ${toneInstructions[cleoTone]}
 `.trim();
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// SNAPSHOT ADAPTER
-// Builds state from HouseholdSnapshot when full AppContext unavailable
-// ═══════════════════════════════════════════════════════════════════
-
-export function computeStateFromSnapshot(snapshot: HouseholdSnapshot): Partial<HouseholdStateResult> {
-  const calendarScore = {
-    light: 10, normal: 30, heavy: 65, critical: 90
-  }[snapshot.calendarLoad] ?? 30;
-
-  const stressScore = {
-    low: 10, moderate: 40, high: 75
-  }[snapshot.householdStressLevel] ?? 30;
-
-  const goalsAtRisk = snapshot.activeGoals.filter(g => g.riskStatus !== "on_track").length;
-  const financialScore = Math.min(100, goalsAtRisk * 20 + (snapshot.financial.cashRemaining < 0 ? 40 : 0));
-
-  const combined = Math.max(calendarScore, stressScore, financialScore);
-
-  let state: HouseholdState = "calm";
-  if (combined >= 75) state = "overloaded";
-  else if (combined >= 50) state = "busy";
-  else if (financialScore >= 40) state = "financial_pressure";
-
-  return {
-    primary: {
-      state,
-      confidence: combined,
-      topSignals: [`Calendar: ${snapshot.calendarLoad}`, `Stress: ${snapshot.householdStressLevel}`],
-    },
-    cleoTone: selectCleoTone(state),
-    dashboardMode: selectDashboardMode(state),
-    suppressNotifications: combined >= 75,
-    computedAt: new Date().toISOString(),
-  };
 }

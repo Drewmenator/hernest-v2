@@ -18,7 +18,6 @@
 
 import { loadData } from "./firebase";
 import { currencySymbol } from "../shared/utils/money";
-import { createContextGraph, getRelevantContextForAI } from "./graph/GraphService";
 import type { OrchestratorFeature, AIIntent } from "./aiOrchestrator";
 import { todayLocal } from "./dateAwareness";
 import { summariseBills } from "./contextBuilder";
@@ -423,27 +422,6 @@ function buildContextString(
   return lines.join("\n");
 }
 
-// ── Relationship retrieval ────────────────────────────────────────
-// Pulls cross-module patterns from Context Graph
-// Called separately and appended to context string
-async function retrieveRelationships(
-  userId: string,
-  userMessage: string,
-  budget: "minimal" | "standard" | "full"
-): Promise<string> {
-  if (budget === "minimal") return "";
-  try {
-    const graph = await createContextGraph(userId);
-    const hasData = graph.relationships.length > 0 || graph.finances.length > 0;
-    if (!hasData) return "";
-    const items = getRelevantContextForAI(userMessage, "cleo", graph, budget === "full" ? 8 : 4);
-    if (!items.length) return "";
-    return "\nCROSS-MODULE PATTERNS:\n" + items.join("\n");
-  } catch {
-    return ""; // non-fatal
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // MAIN RETRIEVAL FUNCTION
 // The single entry point — replaces scattered loadData calls
@@ -537,9 +515,9 @@ export async function retrieve(params: {
     assumptions
   );
 
-  // ── Append relationship context ─────────────────────────────────
-  const relationshipContext = await retrieveRelationships(userId, userMessage, reqs.contextBudget);
-  const finalContextStr = contextString + relationshipContext;
+  // (The "cross-module patterns" from the context graph were removed in
+  // simplify phase 3: the graph was rebuilt from scratch on every message.)
+  const finalContextStr = contextString;
 
   const elapsed = Date.now() - startTime;
   console.log(`[Retrieval] ${intent}/${feature}: ${modulesLoaded.join(",")} — ${relevantMemories.length}/${totalMemoriesAvailable} memories — ${elapsed}ms`);

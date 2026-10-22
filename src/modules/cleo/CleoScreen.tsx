@@ -7,7 +7,7 @@ import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
 import { saveData, loadData } from "../../core/firebase";
-import { buildHouseholdSnapshot, buildIntelligencePromptContext } from "../../core/household";
+import { buildHouseholdSnapshot } from "../../core/household/householdSnapshot";
 import toast from "react-hot-toast";
 import { CLEO_PREFILL_KEY } from "../../shared/utils/openCleo";
 
@@ -104,11 +104,9 @@ export function CleoScreen() {
         const snap = householdSnapshot || await buildHouseholdSnapshot(user.uid);
         if (!householdSnapshot) setHouseholdSnapshot(snap);
 
-        const ctxStr = buildIntelligencePromptContext(snap, {
-          profileName: profile?.name,
-          kids: profile?.kids?.map((k: any) => k.name),
-        });
-        setHouseholdCtxStr(ctxStr);
+        // Only used for the "Household-aware" label; Cleo's real context is
+        // built per message by the orchestrator.
+        setHouseholdCtxStr(snap.lastRefreshed);
       } catch (e) {
         console.warn("[Cleo] household context build failed:", e);
       }
@@ -126,7 +124,6 @@ export function CleoScreen() {
     const buildProactiveOpening = async () => {
       try {
         const snap = householdSnapshot || await buildHouseholdSnapshot(user?.uid || "");
-        const f = snap?.financial;
         const observations: string[] = [];
 
         // Check stress level
@@ -140,20 +137,9 @@ export function CleoScreen() {
         }
 
         // Check upcoming trip
-        if (f?.upcomingTripObligation) {
-          const { name: dest, daysUntil } = f.upcomingTripObligation;
+        if (snap?.upcomingTrip) {
+          const { name: dest, daysUntil } = snap.upcomingTrip;
           observations.push(`${dest} is ${daysUntil} day${daysUntil === 1 ? "" : "s"} away — anything left to sort before you go?`);
-        }
-
-        // Check overspend
-        if (f?.topOverspendCategories?.length > 0) {
-          observations.push(`${f.topOverspendCategories[0]} is running a little hot this month — nothing urgent, worth a glance when you have a moment.`);
-        }
-
-        // Check goals at risk
-        const atRiskGoal = snap?.activeGoals?.find(g => g.riskStatus === "at_risk" || g.riskStatus === "off_track");
-        if (atRiskGoal) {
-          observations.push(`Your "${atRiskGoal.name}" goal needs some attention — it's ${atRiskGoal.riskStatus.replace("_", " ")}.`);
         }
 
         const proactiveNote = observations.length > 0

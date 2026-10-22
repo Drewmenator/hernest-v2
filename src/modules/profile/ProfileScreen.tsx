@@ -2,10 +2,9 @@ import React, { useState, useEffect } from "react";
 import { T, F } from "../../config/theme";
 import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, HeroCard, Button, Input } from "../../shared/components";
+import { Card, PageTitle, Button, Input } from "../../shared/components";
 import { saveData, loadData } from "../../core/firebase";
 import { bus } from "../../core/events";
-import { loadMemoryFacts, saveMemoryFacts, deleteMemoryFact, type MemoryFact } from "../../core/memory";
 import toast from "react-hot-toast";
 
 // ── Types per blueprint ────────────────────────────────────────────
@@ -27,15 +26,6 @@ const FOCUS_THEMES = [
   { value:"growth",   label:"Growth",    emoji:"🌱" },
   { value:"joy",      label:"Joy",       emoji:"✨" },
   { value:"balance",  label:"Balance",   emoji:"⚖" },
-];
-
-const FACT_TYPES = [
-  { id:"family",     label:"Family",     emoji:"👨‍👩‍👧", color:T.gold },
-  { id:"health",     label:"Health",     emoji:"💊",    color:T.blush },
-  { id:"preference", label:"Preference", emoji:"✨",    color:T.lav },
-  { id:"goal",       label:"Goal",       emoji:"🎯",    color:T.teal },
-  { id:"schedule",   label:"Schedule",   emoji:"📅",    color:T.sky },
-  { id:"temporary",  label:"Temporary",  emoji:"⏳",    color:T.taupe },
 ];
 
 const SECTIONS = ["personal","health","goals","memory"] as const;
@@ -79,12 +69,6 @@ export function ProfileScreen() {
   const [nextTrip, setNextTrip]     = useState("");
   const [savingsGoal, setSavingsGoal] = useState("");
 
-  // Memory
-  const [memories, setMemories]     = useState<MemoryFact[]>([]);
-  const [newFact, setNewFact]       = useState("");
-  const [factType, setFactType]     = useState<MemoryFact["type"]>("preference");
-  const [memFilter, setMemFilter]   = useState("all");
-
   useEffect(() => {
     if (!user?.uid) return;
     loadData(user.uid, "profile").then(d => {
@@ -109,7 +93,6 @@ export function ProfileScreen() {
       setNextTrip(p.nextTrip||p.tripGoal||"");
       setSavingsGoal(p.savingsGoal||"");
     });
-    loadMemoryFacts(user.uid).then(setMemories);
   }, [user?.uid]);
 
   // ── Save helpers ──────────────────────────────────────────────────
@@ -137,30 +120,6 @@ export function ProfileScreen() {
     toast.success("Profile saved ✓");
   };
 
-  // ── Memory ────────────────────────────────────────────────────────
-  const addFact = async () => {
-    if (!newFact.trim() || !user?.uid) return;
-    const fact: MemoryFact = {
-      id: crypto.randomUUID(), statement: newFact.trim(), type: factType,
-      source: "user-stated", confidence: 1.0, createdAt: Date.now(),
-      expiresAt: factType==="temporary" ? Date.now() + 7*24*60*60*1000 : undefined,
-    };
-    const updated = [fact, ...memories];
-    setMemories(updated);
-    setNewFact("");
-    await saveMemoryFacts(user.uid, [fact]);
-    // The memory store assigns its own id; reload so delete targets the right one.
-    loadMemoryFacts(user.uid).then(setMemories);
-    await bus.publish("cleo.memory.updated", { fact }, { userId: user.uid, source: "profile" });
-    toast.success("Cleo will remember that ✦");
-  };
-
-  const deleteFact = async (id: string) => {
-    const updated = memories.filter(f=>f.id!==id);
-    setMemories(updated);
-    if (user?.uid) await deleteMemoryFact(user.uid, id);
-  };
-
   // ── Priority management per blueprint ─────────────────────────────
   const togglePriority = (area: string) => {
     const existing = priorities.find(p=>p.area===area);
@@ -170,11 +129,6 @@ export function ProfileScreen() {
       setPriorities(p => [...p, { rank:p.length+1, area, why:"" }]);
     }
   };
-
-  const filteredMemories = memFilter==="all" ? memories : memories.filter(f=>f.type===memFilter);
-
-  // ── Memory pattern summary ────────────────────────────────────────
-  const byType = memories.reduce((acc,f) => ({ ...acc, [f.type]:(acc[f.type]||0)+1 }), {} as Record<string,number>);
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
@@ -340,65 +294,15 @@ export function ProfileScreen() {
         <Button onClick={save} variant="gold" disabled={saving}>{saving?"Saving...":"Save Goals"}</Button>
       </>}
 
-      {/* ── MEMORY per blueprint ───────────────────────────────────── */}
-      {section==="memory" && <>
-        <HeroCard eyebrow="CLEO'S MEMORY" title="What Cleo knows" subtitle={`${memories.length} facts · Updated from conversations`} color={T.esp}/>
-
-        {/* Memory type breakdown per blueprint */}
-        {memories.length > 0 && (
-          <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:12 }}>
-            {Object.entries(byType).map(([type,count])=>{
-              const meta = FACT_TYPES.find(t=>t.id===type);
-              return (
-                <button key={type} onClick={()=>setMemFilter(memFilter===type?"all":type)} style={{ display:"flex", alignItems:"center", gap:4, padding:"5px 12px", borderRadius:20, flexShrink:0, border:`1.5px solid ${memFilter===type?meta?.color||T.esp:T.linen}`, background:memFilter===type?`${meta?.color||T.esp}15`:"#fff", color:memFilter===type?meta?.color||T.esp:T.taupe, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>
-                  <span>{meta?.emoji}</span><span>{meta?.label} ({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
+      {/* ── MEMORY: one place to manage it now (What Cleo knows) ─────── */}
+      {section==="memory" && (
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>TELL CLEO SOMETHING</p>
-          <Input value={newFact} onChange={setNewFact} placeholder="e.g. Maya is allergic to nuts" style={{ marginBottom:10 }}/>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-            {FACT_TYPES.map(t=>(
-              <button key={t.id} onClick={()=>setFactType(t.id as any)} style={{ padding:"5px 12px", borderRadius:20, border:`1.5px solid ${factType===t.id?t.color:T.linen}`, background:factType===t.id?`${t.color}15`:"#fff", color:factType===t.id?t.color:T.bark, fontFamily:F.sans, fontSize:11, cursor:"pointer" }}>
-                {t.emoji} {t.label}
-              </button>
-            ))}
-          </div>
-          <Button onClick={addFact} disabled={!newFact.trim()} variant="secondary">Tell Cleo ✦</Button>
+          <p style={{ fontFamily:F.sans, fontSize:14, color:T.bark, margin:"0 0 12px", lineHeight:1.6 }}>
+            Everything Cleo remembers is in one place now: see it, add to it, or ask her to forget something.
+          </p>
+          <Button onClick={() => setActiveTab("memory")} variant="secondary">Open What Cleo knows</Button>
         </Card>
-
-        {filteredMemories.length > 0 && (
-          <Card>
-            <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:T.taupe, margin:"0 0 12px" }}>CLEO KNOWS ({filteredMemories.length})</p>
-            {filteredMemories.map(f=>{
-              const meta = FACT_TYPES.find(t=>t.id===f.type);
-              const isExpiring = f.expiresAt && f.expiresAt - Date.now() < 24*60*60*1000;
-              return (
-                <div key={f.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:`1px solid ${T.linen}` }}>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{meta?.emoji}</span>
-                  <div style={{ flex:1 }}>
-                    <p style={{ fontFamily:F.sans, fontSize:13, color:T.esp, margin:0 }}>{f.statement}</p>
-                    <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, margin:"2px 0 0", textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                      {f.source} · {meta?.label}
-                      {f.confidence < 1 ? ` · ${Math.round(f.confidence*100)}% confident` : ""}
-                      {isExpiring ? " · expiring soon" : ""}
-                    </p>
-                  </div>
-                  <button onClick={()=>deleteFact(f.id)} style={{ background:"none", border:"none", color:T.taupe, cursor:"pointer", fontSize:18, flexShrink:0, minHeight:36 }}>×</button>
-                </div>
-              );
-            })}
-          </Card>
-        )}
-
-        {memories.length === 0 && (
-          <Card><p style={{ fontFamily:F.sans, fontSize:14, color:T.taupe, textAlign:"center", padding:"20px 0", lineHeight:1.6 }}>Cleo's memory is empty.<br/>Chat with Cleo or add facts above to help her know you better.</p></Card>
-        )}
-      </>}
+      )}
 
       {/* Sign out */}
       <button onClick={async()=>{ const { signOutCompletely } = await import("../../core/signOut"); await signOutCompletely(); }} style={{ width:"100%", padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:14, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", marginTop:8, minHeight:44 }}>

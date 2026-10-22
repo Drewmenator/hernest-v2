@@ -22,7 +22,7 @@ export function TripListView({
   travellers: Traveller[]; setTravellers: React.Dispatch<React.SetStateAction<Traveller[]>>;
   addTrip: () => Promise<void>;
   setActiveTrip: React.Dispatch<React.SetStateAction<Trip | null>>;
-  setDetailTab: React.Dispatch<React.SetStateAction<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "ask" | "edit">>;
+  setDetailTab: React.Dispatch<React.SetStateAction<"overview" | "itinerary" | "packing" | "checklist" | "budget" | "edit">>;
 }) {
   const upcoming = trips.filter(t => daysUntil(t.departureDate) >= -7 && t.state !== "completed");
   const past = trips.filter(t => t.state === "completed" || daysUntil(t.departureDate) < -7);

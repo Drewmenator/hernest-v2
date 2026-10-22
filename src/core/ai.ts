@@ -4,11 +4,8 @@ import type { JsonSchema } from "./aiSchema";
 
 export type Feature =
   | "cleo_chat" | "morning_briefing" | "style_stylist"
-  | "budget_coach" | "wellness_coach" | "meal_plan"
-  | "trip_planner" | "school_calendar" | "receipt_scanner"
-  | "csv_import" | "gift_advisor" | "briefing_ask"
-  | "sunday_reset" | "travel_brief" | "wellness_score"
-  | "circle_match" | "debrief" | "household_cfo" | "gmail_extract" | "cleo_checkin"
+  | "wellness_coach" | "meal_plan" | "trip_planner" | "school_calendar"
+  | "gift_advisor" | "household_cfo" | "gmail_extract" | "cleo_checkin"
   | "bill_scan" | "bill_parse";
 
 // Model choice and output limits live on the server (api/_lib/claudeRequest.js),
