@@ -58,25 +58,67 @@ describe("Wellness screen", () => {
 });
 
 describe("Style screen", () => {
-  it("opens straight on today's outfit using the weather, with old saved looks still readable", async () => {
+  const look = (headline: string, items: string[]) => ({ text: JSON.stringify({ headline, pieces: items.map(item => ({ item, note: "" })), why: "Rain later.", tip: null, backup: "Leggings, long tee, sneakers" }) });
+
+  it("opens on today's look from an old doc, with only size, style words and budget to set", async () => {
     (loadData as Mock).mockResolvedValue({
-      vibe: "Smart casual", budget: "Mid-range", size: "8",
-      saved: [{ id: "o1", occasion: "work", mood: "polished", savedAt: 1, rec: { rationale: "Sharp.", outfit: { top: { name: "White shirt" }, shoes: { name: "Loafers" }, accessories: [] } } }],
+      vibe: "Smart casual", budget: "Mid-range", size: "8", bodyShape: "Pear",
+      saved: [{ id: "o1", occasion: "work", savedAt: 1, rec: { outfit: { top: { name: "White shirt" } } } }],
       wishlist: [{ id: "w1", name: "Trench coat", category: "Clothing", addedAt: 1 }],
     });
-    (ai as Mock).mockResolvedValue({ text: JSON.stringify({ headline: "Dark jeans, cream knit, rain jacket", pieces: [{ item: "Dark jeans", note: "easy" }], why: "Rain later.", tip: null }) });
+    (ai as Mock).mockResolvedValue(look("Dark jeans, cream knit, rain jacket", ["Dark jeans", "Cream knit", "Rain jacket"]));
     render(<StyleScreen />);
     await screen.findByText("Dark jeans, cream knit, rain jacket");
     const prompt = (ai as Mock).mock.calls[0][1] as string;
     expect(prompt).toContain("54°F and light rain");
     expect(prompt).toContain("Nothing on her calendar");
-    expect(screen.getByText("White shirt, Loafers")).toBeTruthy();
-    expect(screen.getByText(/Want to buy \(1\)/)).toBeTruthy();
+    expect(prompt).not.toContain("Pear");
     expect(screen.getByText(/Size 8 \(old entry, pick a US size\) · Casual, Polished/)).toBeTruthy();
+    // trimmed: no saved looks gallery, wish list or body shape question
+    expect(screen.queryByText(/Saved looks/)).toBeNull();
+    expect(screen.queryByText(/Want to buy/)).toBeNull();
+    expect(screen.queryByText(/body shape/i)).toBeNull();
+    // the backup only shows in "Dress me for..."
+    expect(screen.queryByText(/Or keep it simple/)).toBeNull();
+  });
 
-    fireEvent.click(screen.getByText("Something else"));
-    fireEvent.click(screen.getByText(/Date night/));
+  it("Wear this, Don't have that and Dressier teach Cleo and change the next idea", async () => {
+    (loadData as Mock).mockResolvedValue({ styleWords: ["Classic"] });
+    (ai as Mock).mockResolvedValue(look("Dark jeans, cream knit, ankle boots", ["Dark jeans", "Cream knit", "Ankle boots"]));
+    render(<StyleScreen />);
+    await screen.findByText("Dark jeans, cream knit, ankle boots");
+
+    fireEvent.click(screen.getByText("Wear this"));
+    await screen.findByText("✓ Wearing this today");
+    const lastMemory = () => {
+      const saves = (saveData as Mock).mock.calls.filter(([, coll, d]) => coll === "style" && d.memory);
+      return saves[saves.length - 1][2].memory;
+    };
+    expect(lastMemory().liked).toEqual(["Dark jeans, cream knit, ankle boots"]);
+
+    fireEvent.click(screen.getByText("Don't have that"));
+    fireEvent.click(screen.getByRole("button", { name: "Ankle boots" }));
     await waitFor(() => expect((ai as Mock).mock.calls.length).toBe(2));
-    expect((ai as Mock).mock.calls[1][1]).toContain("Occasion: Date night.");
+    expect(lastMemory().notOwned).toEqual(["Ankle boots"]);
+    expect((ai as Mock).mock.calls[1][1]).toContain("She doesn't own these, so never suggest them: Ankle boots.");
+
+    await screen.findByText("Dressier");
+    fireEvent.click(screen.getByText("Dressier"));
+    await waitFor(() => expect((ai as Mock).mock.calls.length).toBe(3));
+    expect((ai as Mock).mock.calls[2][1]).toContain("Make it a step dressier than:");
+  });
+
+  it("Dress me for... takes a typed occasion, checks it like any typed text, and shows a backup", async () => {
+    (loadData as Mock).mockResolvedValue({});
+    (ai as Mock).mockResolvedValue(look("Linen dress, flat sandals, wrap", ["Linen dress", "Flat sandals", "Wrap"]));
+    render(<StyleScreen />);
+    await screen.findByText("Linen dress, flat sandals, wrap");
+    fireEvent.change(screen.getByPlaceholderText("e.g. beach wedding Saturday"), { target: { value: "beach wedding Saturday" } });
+    fireEvent.click(screen.getByText("Go"));
+    await screen.findByText(/Or keep it simple/);
+    const [, prompt, , , opts] = (ai as Mock).mock.calls[1];
+    expect(prompt).toContain("Outfit for: beach wedding Saturday.");
+    expect(opts.userText).toBe("beach wedding Saturday");
+    expect(screen.getByText("For beach wedding Saturday")).toBeTruthy();
   });
 });

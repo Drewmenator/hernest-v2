@@ -1,8 +1,12 @@
-// ─── Style (made practical) ────────────────────────────────────────
-// "What do I wear today?" in one tap. Opens straight on today's outfit, built
-// from the weather and her calendar, so she types nothing first. Then: events
-// coming up worth planning for, saved looks (with the old wishlist as "Want
-// to buy") and a short set-once profile in US sizes and her currency.
+// ─── Style: one answer, one question ───────────────────────────────
+// 1. Today's look: opens on one outfit built from the weather, her calendar
+//    and what she's taught Cleo. Wear this / Something else / Dressier /
+//    More casual / Don't have that. No quiz and no closet photos: her taps
+//    are how Cleo learns what she likes and owns.
+// 2. "Dress me for...": type an occasion or tap an upcoming event; one
+//    outfit plus a simpler backup.
+// 3. Your style: size, style words and budget, set once.
+// Saved looks and the wish list are no longer shown; their data is kept.
 // Export name stays StyleScreen so the Me tab can render it.
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -20,17 +24,17 @@ import type { WeatherData } from "../../core/weather";
 import type { SimpleEvent } from "../../core/upcomingEvents";
 import { weatherForOutfit } from "./styleWeather";
 import {
-  OCCASIONS, STYLE_WORDS, US_SIZES, BODY_SHAPES, BUDGET_STEPS, OUTFIT_SYSTEM,
+  OCCASIONS, STYLE_WORDS, US_SIZES, BUDGET_STEPS, OUTFIT_SYSTEM,
   occasionLabel, occasionForDay, comingUp, weatherLine, dayLine, whenLabel, formatTime,
-  readStyleProfile, hasProfile, profileLine, isOldSize, buildOutfitPrompt, parseOutfit, lookView,
-  type Outfit, type SavedLook, type StyleProfile,
+  readStyleProfile, hasProfile, profileLine, isOldSize, buildOutfitPrompt, parseOutfit,
+  readStyleMemory, remember,
+  type Outfit, type StyleProfile, type StyleMemory, type Shift,
 } from "./styleLogic";
 
-interface WishItem { id: string; name: string; category: string; addedAt: number; }
-interface Shown { outfit: Outfit; occasion: string | null; }
-interface DayContext { weather: WeatherData | null; todays: SimpleEvent[]; profile: StyleProfile; }
+interface Shown { outfit: Outfit; occasion: string | null; wearing?: boolean }
+interface DayContext { weather: WeatherData | null; todays: SimpleEvent[]; profile: StyleProfile; memory: StyleMemory }
+interface Ask { occasion: string | null; event?: SimpleEvent; occasionText?: string; avoid?: string[]; shift?: { to: Shift; from: string } | null }
 
-const HEIGHTS = ["Petite (under 5'4\")", "Average (5'4\"-5'7\")", "Tall (5'7\"+)"];
 const MAX_WORDS = 3;
 
 const OUTFIT_SCHEMA = s.object({
@@ -38,6 +42,7 @@ const OUTFIT_SCHEMA = s.object({
   pieces: s.array(s.object({ item: s.string(), note: s.string("max 8 words") })),
   why: s.string("one or two short sentences"),
   tip: s.nullable(s.string()),
+  backup: s.nullable(s.string("a second, simpler outfit in one line")),
 });
 
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" };
@@ -51,8 +56,9 @@ const actionBtn = (primary: boolean): React.CSSProperties => ({
   background: primary ? T.action : "#fff", color: primary ? "#fff" : T.esp,
   fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
 });
+const smallBtn: React.CSSProperties = { ...actionBtn(false), fontSize: 12, fontWeight: 600, padding: "9px 6px", minHeight: 40 };
 
-function OutfitView({ outfit }: { outfit: Outfit }) {
+function OutfitView({ outfit, showBackup = false }: { outfit: Outfit; showBackup?: boolean }) {
   return (
     <>
       <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
@@ -65,7 +71,21 @@ function OutfitView({ outfit }: { outfit: Outfit }) {
       </ul>
       {outfit.why && <p style={{ fontFamily: F.sans, fontSize: 13, color: T.bark, margin: "0 0 6px", lineHeight: 1.5 }}>{outfit.why}</p>}
       {outfit.tip && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, fontStyle: "italic" }}>Tip: {outfit.tip}</p>}
+      {showBackup && outfit.backup && <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "8px 0 0" }}><strong style={{ fontWeight: 600 }}>Or keep it simple:</strong> {outfit.backup}</p>}
     </>
+  );
+}
+
+// "Which one don't you have?" Tapping a piece remembers it and swaps it out.
+function NotOwnedPicker({ outfit, onPick, onCancel }: { outfit: Outfit; onPick: (item: string) => void; onCancel: () => void }) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 8px" }}>Which one don't you have? Cleo won't suggest it again.</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {outfit.pieces.map(p => <button key={p.item} onClick={() => onPick(p.item)} style={chip(false)}>{p.item}</button>)}
+        <button onClick={onCancel} style={linkBtn}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
@@ -84,53 +104,84 @@ export function StyleScreen() {
   const [profile, setProfile] = useState<StyleProfile>(readStyleProfile(null));
   const [draft, setDraft] = useState<StyleProfile>(readStyleProfile(null));
   const [editingProfile, setEditingProfile] = useState(false);
-  const [moreProfile, setMoreProfile] = useState(false);
+  const [memory, setMemory] = useState<StyleMemory>(readStyleMemory(null));
+  const memRef = useRef<StyleMemory>(readStyleMemory(null));
 
   const [shown, setShown] = useState<Shown | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [askOther, setAskOther] = useState(false);
+  const [pickingMissing, setPickingMissing] = useState<"today" | "dress" | null>(null);
   const tried = useRef<string[]>([]);
 
-  const [plan, setPlan] = useState<{ eventId: string; outfit: Outfit | null; loading: boolean } | null>(null);
-
-  const [saved, setSaved] = useState<SavedLook[]>([]);
-  const [wishlist, setWishlist] = useState<WishItem[]>([]);
-  const [savedTab, setSavedTab] = useState<"looks" | "buy">("looks");
-  const [wishText, setWishText] = useState("");
+  // "Dress me for..."
+  const [occasionText, setOccasionText] = useState("");
+  const [dress, setDress] = useState<{ key: string; title: string; outfit: Outfit | null; loading: boolean; ask: Ask } | null>(null);
 
   const todays = events.filter(e => e.date === today);
-  const ctx: DayContext = { weather, todays, profile };
+  const ctx: DayContext = { weather, todays, profile, memory };
   const upcoming = comingUp(events, today);
   const autoOccasion = occasionForDay(todays);
 
-  const askForOutfit = async (c: DayContext, opts: { occasion: string | null; event?: SimpleEvent; avoid?: string[] }): Promise<Outfit | null> => {
+  const saveMemory = (m: StyleMemory) => {
+    memRef.current = m;
+    setMemory(m);
+    if (uid) saveData(uid, "style", { memory: m }).catch(() => {});
+  };
+
+  const askForOutfit = async (c: DayContext, a: Ask): Promise<Outfit | null> => {
     const prompt = buildOutfitPrompt({
-      weather: weatherLine(c.weather), events: opts.event ? [] : c.todays, occasion: opts.occasion,
-      eventTitle: opts.event?.title,
-      when: opts.event ? `${whenLabel(opts.event.date, today)}${opts.event.time ? ` at ${formatTime(opts.event.time)}` : ""}` : undefined,
-      profile: c.profile, currencyCode: currency, avoid: opts.avoid || [],
+      weather: weatherLine(c.weather), events: a.event || a.occasionText ? [] : c.todays, occasion: a.occasion,
+      eventTitle: a.event?.title, occasionText: a.occasionText,
+      when: a.event ? `${whenLabel(a.event.date, today)}${a.event.time ? ` at ${formatTime(a.event.time)}` : ""}` : undefined,
+      profile: c.profile, currencyCode: currency, avoid: a.avoid || [], memory: memRef.current, shift: a.shift,
     });
-    const res = await ai(OUTFIT_SYSTEM, prompt, "style_stylist", [], { schema: OUTFIT_SCHEMA });
+    // A typed occasion is her own words: checked for distress first (crisis.ts).
+    const res = await ai(OUTFIT_SYSTEM, prompt, "style_stylist", [], { schema: OUTFIT_SCHEMA, ...(a.occasionText ? { userText: a.occasionText } : {}) });
     return res.error ? null : parseOutfit(res.text);
   };
 
-  const showToday = async (c: DayContext, occasion: string | null, another = false) => {
+  // ── Today's look ─────────────────────────────────────────────────
+  const showToday = async (c: DayContext, occasion: string | null, opts: { another?: boolean; shift?: Shift } = {}) => {
     if (!uid || loading) return;
-    setLoading(true); setError(""); setAskOther(false);
-    if (!another) tried.current = [];
-    const outfit = await askForOutfit(c, { occasion, avoid: tried.current.slice(-3) });
+    setLoading(true); setError(""); setPickingMissing(null);
+    if (!opts.another && !opts.shift) tried.current = [];
+    const shift = opts.shift && shown ? { to: opts.shift, from: shown.outfit.headline } : null;
+    const outfit = await askForOutfit(c, { occasion, avoid: tried.current.slice(-3), shift });
     setLoading(false);
     if (!outfit) { setError("Cleo couldn't put a look together just now. Try again in a moment."); return; }
     tried.current.push(outfit.headline);
     setShown({ outfit, occasion });
     saveData(uid, "style", { todayOutfit: { date: today, occasion, outfit } }).catch(() => {});
     bus.publish("style.outfit.generated", { occasion: occasion || "today" }, { userId: uid, source: "style" }).catch(() => {});
-    trackEvent("outfit_generated", { occasion: occasion || "auto", another });
+    trackEvent("outfit_generated", { occasion: occasion || "auto", another: !!opts.another, shift: opts.shift || null });
+  };
+
+  const wearThis = () => {
+    if (!uid || !shown) return;
+    saveMemory(remember(memRef.current, "liked", shown.outfit.headline));
+    setShown({ ...shown, wearing: true });
+    saveData(uid, "style", { todayOutfit: { date: today, occasion: shown.occasion, outfit: shown.outfit, wearing: true } }).catch(() => {});
+    trackEvent("outfit_worn", { occasion: shown.occasion || "auto" });
+    toast.success("Have a good day ✦");
+  };
+
+  const somethingElse = () => {
+    if (shown && !shown.wearing) saveMemory(remember(memRef.current, "passed", shown.outfit.headline));
+    showToday(ctx, shown?.occasion ?? autoOccasion, { another: true });
+  };
+
+  const dontHave = (item: string, where: "today" | "dress") => {
+    const m = remember(memRef.current, "notOwned", item);
+    saveMemory(m);
+    setPickingMissing(null);
+    trackEvent("style_not_owned");
+    toast(`Got it. No more ${item.toLowerCase()}.`, { icon: "✦" });
+    if (where === "today") showToday({ ...ctx, memory: m }, shown?.occasion ?? autoOccasion, { another: true });
+    else if (dress) runDress(dress.key, dress.title, { ...dress.ask, avoid: [...(dress.ask.avoid || []), ...(dress.outfit ? [dress.outfit.headline] : [])] });
   };
 
   // ── Load: style doc, weather, calendar; then open straight on today's
-  // outfit (no typing, no picking) unless one was already made today ────
+  // look (no typing, no picking) unless one was already made today ────
   useEffect(() => {
     if (!uid) return;
     let alive = true;
@@ -139,10 +190,10 @@ export function StyleScreen() {
       if (!alive) return;
       const p = readStyleProfile(d);
       setProfile(p); setDraft(p);
-      setSaved(Array.isArray(d?.saved) ? (d!.saved as SavedLook[]) : []);
-      setWishlist(Array.isArray(d?.wishlist) ? (d!.wishlist as WishItem[]) : []);
-      const t = d?.todayOutfit as { date?: string; occasion?: string | null; outfit?: Outfit } | undefined;
-      if (t?.date === today && t.outfit) { setShown({ outfit: t.outfit, occasion: t.occasion ?? null }); tried.current = [t.outfit.headline]; }
+      const m = readStyleMemory(d);
+      memRef.current = m; setMemory(m);
+      const t = d?.todayOutfit as { date?: string; occasion?: string | null; outfit?: Outfit; wearing?: boolean } | undefined;
+      if (t?.date === today && t.outfit) { setShown({ outfit: t.outfit, occasion: t.occasion ?? null, wearing: !!t.wearing }); tried.current = [t.outfit.headline]; }
       setDocLoaded(true);
     });
     Promise.all([
@@ -154,67 +205,50 @@ export function StyleScreen() {
       setWeather(w); setEvents(evs); setCtxLoaded(true);
       const cached = (d?.todayOutfit as { date?: string } | undefined)?.date === today;
       const dayEvents = evs.filter(e => e.date === today);
-      if (!cached) showToday({ weather: w, todays: dayEvents, profile: readStyleProfile(d) }, occasionForDay(dayEvents));
+      if (!cached) showToday({ weather: w, todays: dayEvents, profile: readStyleProfile(d), memory: readStyleMemory(d) }, occasionForDay(dayEvents));
     });
     return () => { alive = false; };
     // showToday only reads stable refs/setters; reload when the day or city changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, today, city]);
 
-  const planFor = async (e: SimpleEvent & { occasion: string }) => {
-    if (plan?.eventId === e.id && plan.outfit) { setPlan(null); return; }
-    setPlan({ eventId: e.id, outfit: null, loading: true });
-    const outfit = await askForOutfit(ctx, { occasion: e.occasion, event: e });
-    setPlan({ eventId: e.id, outfit, loading: false });
+  // ── Dress me for... ──────────────────────────────────────────────
+  const runDress = async (key: string, title: string, ask: Ask) => {
+    setPickingMissing(null);
+    setDress({ key, title, outfit: null, loading: true, ask });
+    const outfit = await askForOutfit(ctx, ask);
+    setDress({ key, title, outfit, loading: false, ask });
     if (!outfit) toast.error("Couldn't get an idea for that one. Try again.");
-    trackEvent("outfit_planned_ahead", { occasion: e.occasion });
+  };
+  const dressForEvent = (e: SimpleEvent & { occasion: string }) => {
+    if (dress?.key === e.id && dress.outfit) { setDress(null); return; }
+    runDress(e.id, e.title, { occasion: e.occasion, event: e });
+    trackEvent("outfit_planned_ahead", { occasion: e.occasion, from: "calendar" });
+  };
+  const dressForTyped = () => {
+    const text = occasionText.trim();
+    if (!text) return;
+    runDress(`typed:${text}`, text, { occasion: null, occasionText: text.slice(0, 120) });
+    trackEvent("outfit_planned_ahead", { from: "typed" });
+  };
+  const dressAnother = () => {
+    if (!dress) return;
+    runDress(dress.key, dress.title, { ...dress.ask, avoid: [...(dress.ask.avoid || []), ...(dress.outfit ? [dress.outfit.headline] : [])].slice(-3) });
   };
 
-  // ── Saved looks + want to buy ────────────────────────────────────
-  const saveLook = async (outfit: Outfit, occasion: string | null, title?: string) => {
-    if (!uid) return;
-    if (saved.some(l => l.outfit?.headline === outfit.headline)) { toast("Already saved"); return; }
-    const look: SavedLook = { id: crypto.randomUUID(), occasion: occasion || "today", ...(title ? { title } : {}), outfit, savedAt: Date.now() };
-    const updated = [look, ...saved];
-    setSaved(updated);
-    await saveData(uid, "style", { saved: updated });
-    bus.publish("style.outfit.saved", { occasion: look.occasion }, { userId: uid, source: "style" }).catch(() => {});
-    trackEvent("outfit_saved", { occasion: look.occasion });
-    toast.success("Saved ♥");
-  };
-  const removeLook = async (id: string) => {
-    if (!uid) return;
-    const updated = saved.filter(l => l.id !== id);
-    setSaved(updated);
-    await saveData(uid, "style", { saved: updated });
-  };
-  const addWish = async () => {
-    if (!uid || !wishText.trim()) return;
-    const updated = [{ id: crypto.randomUUID(), name: wishText.trim(), category: "Clothing", addedAt: Date.now() }, ...wishlist];
-    setWishlist(updated); setWishText("");
-    await saveData(uid, "style", { wishlist: updated });
-  };
-  const removeWish = async (id: string) => {
-    if (!uid) return;
-    const updated = wishlist.filter(w => w.id !== id);
-    setWishlist(updated);
-    await saveData(uid, "style", { wishlist: updated });
-  };
-
-  // ── Profile (set once) ───────────────────────────────────────────
+  // ── Your style (set once) ────────────────────────────────────────
   const saveProfile = async () => {
     if (!uid) return;
     setProfile(draft); setEditingProfile(false);
-    await saveData(uid, "style", {
-      size: draft.size, styleWords: draft.words, budgetAmount: draft.budget, bodyShape: draft.bodyShape, height: draft.height,
-    });
-    bus.publish("style.preference.updated", { words: draft.words, bodyShape: draft.bodyShape }, { userId: uid, source: "style" }).catch(() => {});
+    await saveData(uid, "style", { size: draft.size, styleWords: draft.words, budgetAmount: draft.budget });
+    bus.publish("style.preference.updated", { words: draft.words }, { userId: uid, source: "style" }).catch(() => {});
     trackEvent("style_profile_saved", { hasSize: !!draft.size, words: draft.words.length, hasBudget: !!draft.budget });
     toast.success("Got it. Cleo will dress you for this.");
   };
   const toggleWord = (w: string) => setDraft(d => ({
     ...d, words: d.words.includes(w) ? d.words.filter(x => x !== w) : d.words.length >= MAX_WORDS ? d.words : [...d.words, w],
   }));
+  const forget = (item: string) => saveMemory({ ...memRef.current, notOwned: memRef.current.notOwned.filter(x => x !== item) });
 
   // ── UI ───────────────────────────────────────────────────────────
   const context = [weather && `${weather.icon} ${weatherLine(weather)}`, todays.length ? dayLine(todays) : "Nothing on your calendar"].filter(Boolean).join(" · ");
@@ -224,9 +258,9 @@ export function StyleScreen() {
     <div style={{ animation: "fadeUp .45s ease both" }}>
       <PageTitle eyebrow="Just for you" title="Style" />
 
-      {/* 1. Today's outfit */}
+      {/* 1. Today's look */}
       <Card>
-        <p style={label}>{shown?.occasion ? `TODAY'S OUTFIT · ${occasionLabel(shown.occasion).toUpperCase()}` : "Today's outfit"}</p>
+        <p style={label}>{shown?.occasion ? `Today's look · ${occasionLabel(shown.occasion)}` : "Today's look"}</p>
         {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{context}</p>}
 
         {loading || (!shown && !error) ? (
@@ -241,106 +275,86 @@ export function StyleScreen() {
         ) : null}
         {error && shown && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.red, margin: "8px 0 0" }}>{error}</p>}
 
-        {!loading && (shown || error) && (
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-            <button onClick={() => showToday(ctx, shown?.occasion ?? autoOccasion, !!shown)} style={actionBtn(true)}>{shown ? "Another idea" : "Try again"}</button>
-            {shown && <button onClick={() => saveLook(shown.outfit, shown.occasion)} style={actionBtn(false)}>Save ♥</button>}
-            <button onClick={() => setAskOther(o => !o)} aria-expanded={askOther} style={actionBtn(false)}>Something else</button>
-          </div>
+        {!loading && error && !shown && (
+          <button onClick={() => showToday(ctx, autoOccasion)} style={{ ...actionBtn(true), width: "100%", marginTop: 8 }}>Try again</button>
         )}
-        {askOther && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-            {OCCASIONS.map(o => <button key={o.id} onClick={() => showToday(ctx, o.id)} style={chip(false)}>{o.emoji} {o.label}</button>)}
-          </div>
-        )}
-      </Card>
-
-      {/* 2. Coming up */}
-      {upcoming.length > 0 && (
-        <Card>
-          <p style={label}>Coming up</p>
-          {upcoming.map((e, i) => {
-            const open = plan?.eventId === e.id;
-            return (
-              <div key={e.id} style={{ borderTop: i ? `1px solid ${T.linen}` : "none", padding: "8px 0" }}>
-                <button onClick={() => planFor(e)} aria-expanded={open}
-                  style={{ display: "flex", width: "100%", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", minHeight: 44 }}>
-                  <span style={{ fontSize: 18 }}>{OCCASIONS.find(o => o.id === e.occasion)?.emoji}</span>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ display: "block", fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp }}>{e.title}</span>
-                    <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{whenLabel(e.date, today)}{e.time ? ` · ${formatTime(e.time)}` : ""}</span>
-                  </span>
-                  <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText }}>{open && plan?.outfit ? "Hide" : "Get an idea"}</span>
-                </button>
-                {open && (
-                  <div style={{ padding: "10px 0 4px" }}>
-                    {plan!.loading ? <Spinner size={16} /> : plan!.outfit ? (
-                      <>
-                        <OutfitView outfit={plan!.outfit} />
-                        <button onClick={() => saveLook(plan!.outfit!, e.occasion, e.title)} style={{ ...linkBtn, marginTop: 6 }}>Save this look ♥</button>
-                      </>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {/* 3. Saved looks + want to buy */}
-      <Card>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button onClick={() => setSavedTab("looks")} style={chip(savedTab === "looks")}>Saved looks ({saved.length})</button>
-          <button onClick={() => setSavedTab("buy")} style={chip(savedTab === "buy")}>Want to buy ({wishlist.length})</button>
-        </div>
-        {savedTab === "looks" ? (
-          saved.length === 0
-            ? <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Tap Save on a look you like and it lives here for the next busy morning.</p>
-            : saved.map((l, i) => {
-              const v = lookView(l);
-              return (
-                <div key={l.id} style={{ display: "flex", gap: 8, padding: "10px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 2px" }}>
-                      {v.title}{l.savedAt ? ` · ${new Date(l.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
-                    </p>
-                    <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: 0 }}>{v.headline || "Saved look"}</p>
-                    {v.note && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: "4px 0 0", lineHeight: 1.5 }}>{v.note}</p>}
-                  </div>
-                  <button onClick={() => removeLook(l.id)} aria-label="Remove saved look" style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 18, minWidth: 44, minHeight: 44 }}>×</button>
-                </div>
-              );
-            })
-        ) : (
+        {!loading && shown && (
           <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <Input value={wishText} onChange={setWishText} placeholder="e.g. Black ankle boots" style={{ flex: 1 }} />
-              <button onClick={addWish} disabled={!wishText.trim()} style={{ ...actionBtn(true), flex: "0 0 auto", padding: "0 16px", opacity: wishText.trim() ? 1 : 0.5 }}>Add</button>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {shown.wearing
+                ? <span style={{ ...actionBtn(false), display: "flex", alignItems: "center", justifyContent: "center", color: T.sage, borderColor: `${T.sage}60` }}>✓ Wearing this today</span>
+                : <button onClick={wearThis} style={actionBtn(true)}>Wear this</button>}
+              <button onClick={somethingElse} style={actionBtn(false)}>Something else</button>
             </div>
-            {wishlist.length === 0
-              ? <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: 0 }}>Things you'd like to buy, so you remember when you're out.</p>
-              : wishlist.map((w, i) => (
-                <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
-                  <span style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: T.esp }}>{w.name}</span>
-                  <button onClick={() => removeWish(w.id)} aria-label={`Remove ${w.name}`} style={{ background: "none", border: "none", color: T.taupe, cursor: "pointer", fontSize: 18, minWidth: 44, minHeight: 44 }}>×</button>
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button onClick={() => showToday(ctx, shown.occasion, { shift: "dressier" })} style={smallBtn}>Dressier</button>
+              <button onClick={() => showToday(ctx, shown.occasion, { shift: "casual" })} style={smallBtn}>More casual</button>
+              <button onClick={() => setPickingMissing(p => (p === "today" ? null : "today"))} aria-expanded={pickingMissing === "today"} style={smallBtn}>Don't have that</button>
+            </div>
+            {pickingMissing === "today" && <NotOwnedPicker outfit={shown.outfit} onPick={i => dontHave(i, "today")} onCancel={() => setPickingMissing(null)} />}
           </>
         )}
       </Card>
 
-      {/* 4. Your style (set once) */}
+      {/* 2. Dress me for... */}
+      <Card>
+        <p style={label}>Dress me for...</p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Input value={occasionText} onChange={setOccasionText} placeholder="e.g. beach wedding Saturday" label="What are you dressing for?" style={{ flex: 1 }} />
+          <button onClick={dressForTyped} disabled={!occasionText.trim()} style={{ ...actionBtn(true), flex: "0 0 auto", padding: "0 16px", opacity: occasionText.trim() ? 1 : 0.5 }}>Go</button>
+        </div>
+        {upcoming.length > 0 && (
+          <>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "12px 0 6px" }}>Or from your calendar</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {upcoming.map(e => (
+                <button key={e.id} onClick={() => dressForEvent(e)} aria-pressed={dress?.key === e.id} style={chip(dress?.key === e.id)}>
+                  {OCCASIONS.find(o => o.id === e.occasion)?.emoji} {e.title} · {whenLabel(e.date, today)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {dress && (
+          <div style={{ padding: "14px 0 0" }}>
+            {dress.loading ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Spinner size={16} /><span style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe }}>Dressing you for {dress.title}...</span></div>
+            ) : dress.outfit ? (
+              <>
+                <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 6px" }}>For {dress.title}</p>
+                <OutfitView outfit={dress.outfit} showBackup />
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button onClick={dressAnother} style={smallBtn}>Another idea</button>
+                  <button onClick={() => setPickingMissing(p => (p === "dress" ? null : "dress"))} aria-expanded={pickingMissing === "dress"} style={smallBtn}>Don't have that</button>
+                </div>
+                {pickingMissing === "dress" && <NotOwnedPicker outfit={dress.outfit} onPick={i => dontHave(i, "dress")} onCancel={() => setPickingMissing(null)} />}
+              </>
+            ) : null}
+          </div>
+        )}
+      </Card>
+
+      {/* 3. Your style (set once) */}
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <p style={label}>Your style</p>
           {!profileOpen && <button onClick={() => { setDraft(profile); setEditingProfile(true); }} style={linkBtn}>Edit</button>}
         </div>
         {!profileOpen ? (
-          <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>{profileLine(profile, n => formatMoney(n))}</p>
+          <>
+            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>{profileLine(profile, n => formatMoney(n))}</p>
+            {memory.notOwned.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 6px" }}>Cleo won't suggest (tap to undo)</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {memory.notOwned.map(i => <button key={i} onClick={() => forget(i)} aria-label={`Suggest ${i} again`} style={{ ...chip(false), fontSize: 12, padding: "6px 10px", minHeight: 32 }}>{i} ×</button>)}
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <>
-            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>Three quick things and Cleo's ideas fit you better.</p>
+            <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>Three quick things. After that, Cleo learns from what you wear and skip.</p>
             <p style={{ ...label, margin: "0 0 8px" }}>Size (US)</p>
             {isOldSize(draft.size) && (
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 8px" }}>You saved "{draft.size}" before. Pick your US size so ideas fit.</p>
@@ -348,7 +362,7 @@ export function StyleScreen() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {US_SIZES.map(sz => <button key={sz} onClick={() => setDraft(d => ({ ...d, size: d.size === sz ? "" : sz }))} style={chip(draft.size === sz)}>{sz}</button>)}
             </div>
-            <p style={{ ...label, margin: "0 0 8px" }}>STYLE WORDS (UP TO {MAX_WORDS})</p>
+            <p style={{ ...label, margin: "0 0 8px" }}>Style words (up to {MAX_WORDS})</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {STYLE_WORDS.map(w => <button key={w} onClick={() => toggleWord(w)} style={chip(draft.words.includes(w))}>{w}</button>)}
             </div>
@@ -360,17 +374,6 @@ export function StyleScreen() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setMoreProfile(m => !m)} style={linkBtn}>{moreProfile ? "Hide extras" : "More (optional): body shape, height"}</button>
-            {moreProfile && (
-              <>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 10px" }}>
-                  {BODY_SHAPES.map(b => <button key={b} onClick={() => setDraft(d => ({ ...d, bodyShape: d.bodyShape === b ? "" : b }))} style={chip(draft.bodyShape === b)}>{b}</button>)}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                  {HEIGHTS.map(h => <button key={h} onClick={() => setDraft(d => ({ ...d, height: d.height === h ? "" : h }))} style={chip(draft.height === h)}>{h}</button>)}
-                </div>
-              </>
-            )}
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={saveProfile} disabled={!hasProfile(draft)} style={{ ...actionBtn(true), opacity: hasProfile(draft) ? 1 : 0.5 }}>Save</button>
               {editingProfile && <button onClick={() => setEditingProfile(false)} style={actionBtn(false)}>Cancel</button>}

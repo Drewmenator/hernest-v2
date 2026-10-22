@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F, S, TYPE } from "../../config/theme";
 import { useStore } from "../../core/store";
+import { loadData } from "../../core/firebase";
+import { todayLocal } from "../../core/dateAwareness";
 import { openCleo } from "../../shared/utils/openCleo";
 import { type Bill } from "../../core/bills";
 import { payBill, undoBillPayment } from "../bills/billActions";
@@ -346,22 +348,29 @@ function MomentForYou({ weather }: { weather: WeatherData | null }) {
   const uid = useStore(s => s.user?.uid);
   const setActiveTab = useStore(s => s.setActiveTab);
   const [body, setBody] = useState<{ sleep: number | null; steps: number | null } | null>(null);
+  const [look, setLook] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) return;
     import("../../core/wellnessAutoTrack").then(m => m.readWearable(uid))
       .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps } : null)).catch(() => {});
+    // Today's look from Style, if Cleo already put one together today
+    loadData(uid, "style").then((d: Record<string, unknown> | null) => {
+      const t = d?.todayOutfit as { date?: string; outfit?: { headline?: string } } | undefined;
+      setLook(t && t.date === todayLocal() && t.outfit?.headline ? t.outfit.headline : null);
+    }).catch(() => {});
   }, [uid]);
   const parts = [
     body?.sleep ? `You slept ${Math.round(body.sleep * 10) / 10} hours` : null,
     body?.steps ? `${body.steps.toLocaleString("en-US")} steps so far` : null,
     weather ? `${weather.condition}, ${weather.temp}°${weather.unit}` : null,
+    look ? `Today's look: ${look}` : null,
   ].filter(Boolean);
   if (!parts.length) return null;
   return (
     <TintCard tint="personal" eyebrow="A moment for yourself" style={{ marginTop: S.xxl }}>
       <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text, margin: 0, lineHeight: 1.5 }}>{parts.join(". ")}.</p>
-      <TextButton color={T.personalInk} onClick={() => setActiveTab(weather ? "style" : "me")}>
-        {weather ? "See today's outfit ›" : "Open Me ›"}
+      <TextButton color={T.personalInk} onClick={() => setActiveTab(weather || look ? "style" : "me")}>
+        {look ? "Wear it or swap it ›" : weather ? "See today's outfit ›" : "Open Me ›"}
       </TextButton>
     </TintCard>
   );

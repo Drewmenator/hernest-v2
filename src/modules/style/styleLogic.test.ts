@@ -4,6 +4,7 @@ vi.mock("../../core/firebase", () => ({ loadData: vi.fn() }));
 import {
   occasionFor, occasionForDay, comingUp, weatherLine, formatTime, dayLine, whenLabel,
   readStyleProfile, profileLine, buildOutfitPrompt, parseOutfit, lookView, occasionLabel,
+  readStyleMemory, remember,
 } from "./styleLogic";
 import { eventsInWindow } from "../../core/upcomingEvents";
 
@@ -124,7 +125,8 @@ describe("outfit prompt + answer", () => {
   });
   it("parses the answer and rejects junk", () => {
     const o = parseOutfit(JSON.stringify({ headline: "Jeans, knit", pieces: [{ item: "Dark jeans", note: "goes with all" }, { item: " " }], why: "Rain later.", tip: "" }));
-    expect(o).toEqual({ headline: "Jeans, knit", pieces: [{ item: "Dark jeans", note: "goes with all" }], why: "Rain later.", tip: null });
+    expect(o).toEqual({ headline: "Jeans, knit", pieces: [{ item: "Dark jeans", note: "goes with all" }], why: "Rain later.", tip: null, backup: null });
+    expect(parseOutfit(JSON.stringify({ headline: "x", pieces: [{ item: "Jeans", note: "" }], why: "", tip: null, backup: " Leggings, tee " }))?.backup).toBe("Leggings, tee");
     expect(parseOutfit("not json")).toBeNull();
     expect(parseOutfit(JSON.stringify({ headline: "x", pieces: [] }))).toBeNull();
   });
@@ -139,5 +141,37 @@ describe("saved looks", () => {
     const v = lookView({ id: "2", occasion: "evening", mood: "elegant", savedAt: 1, rec: { rationale: "Works.", outfit: { top: { name: "Silk cami" }, bottom: { name: "Wide trousers" }, shoes: { name: "Block heels" }, accessories: [{ name: "Gold hoops" }], bag: null } } });
     expect(v).toEqual({ title: "Evening", headline: "Silk cami, Wide trousers, Block heels, Gold hoops", lines: ["Silk cami", "Wide trousers", "Block heels", "Gold hoops"], note: "Works." });
     expect(occasionLabel("nope")).toBe("Today");
+  });
+});
+
+describe("Cleo learns from her taps, no quiz", () => {
+  const profile = { size: "M / 8-10", words: ["Classic"], budget: 100, bodyShape: "Pear", height: "" };
+  it("remembers newest first, no duplicates, capped", () => {
+    let m = readStyleMemory(null);
+    m = remember(m, "notOwned", "Ankle boots");
+    m = remember(m, "notOwned", "Trench coat");
+    m = remember(m, "notOwned", "ankle boots ");
+    expect(m.notOwned).toEqual(["ankle boots", "Trench coat"]);
+    for (let i = 0; i < 15; i++) m = remember(m, "liked", `Look ${i}`);
+    expect(m.liked).toHaveLength(10);
+    expect(m.liked[0]).toBe("Look 14");
+    expect(readStyleMemory({ memory: { liked: ["a", 3, ""], notOwned: "bad" } })).toEqual({ liked: ["a"], notOwned: [], passed: [] });
+  });
+
+  it("puts what she liked, doesn't own, and a dressier/casual nudge into the prompt", () => {
+    const memory = { liked: ["Jeans, white tee, blazer"], notOwned: ["Ankle boots", "Trench coat"], passed: [] };
+    const p = buildOutfitPrompt({ weather: "", events: [], occasion: null, profile, currencyCode: "USD", avoid: [], memory, shift: { to: "dressier", from: "Leggings, hoodie" } });
+    expect(p).toContain("Looks she wore and liked (lean this way): Jeans, white tee, blazer.");
+    expect(p).toContain("She doesn't own these, so never suggest them: Ankle boots, Trench coat.");
+    expect(p).toContain("Make it a step dressier than: Leggings, hoodie.");
+    expect(p).not.toContain("Body shape"); // no longer asked or sent
+  });
+
+  it("dresses her for something she typed", () => {
+    const p = buildOutfitPrompt({ weather: "70°F and sunny", events: [ev("School run")], occasion: null, occasionText: "beach wedding Saturday", profile, currencyCode: "USD", avoid: [] });
+    expect(p).toContain("Outfit for: beach wedding Saturday.");
+    expect(p).toContain("Weather today (may differ on the day)");
+    expect(p).not.toContain("School run");
+    expect(p).not.toContain("Occasion:");
   });
 });
