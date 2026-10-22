@@ -29,7 +29,8 @@ export interface BillPayment {
   paidOn: string;   // YYYY-MM-DD
   amount?: number;
   by?: string;      // uid of whoever ticked it off
-  auto?: boolean;   // ticked off automatically because the bill is on autopay
+  auto?: boolean;   // an autopay payment
+  confirmedBy?: string; // uid of whoever confirmed the autopay went through
 }
 
 export interface Bill {
@@ -47,6 +48,7 @@ export interface Bill {
   paidThrough?: string;     // due date of the last repeat marked paid
   lastPaidDate?: string;    // YYYY-MM-DD
   payments?: BillPayment[]; // newest first, capped
+  autopayFailed?: string;   // due date of a repeat whose autopay didn't go through
   source?: "manual" | "setup" | "screenshot" | "text";
   category?: string;        // legacy field from the old Bills tab
 }
@@ -170,25 +172,73 @@ export function markPaid(bill: Bill, now: Date = new Date(), amount?: number, by
     lastPaidDate: paidOn,
     payments: [payment, ...(bill.payments || [])].slice(0, MAX_PAYMENTS),
     ...(amt && !bill.amount ? { amount: amt } : {}),
+    autopayFailed: undefined,
   };
 }
 
-// Autopay bills pay themselves: once a due date has passed, record it as paid
-// on that date so the bill never shows as overdue. Returns the same object if
-// nothing changed (so callers can tell whether to save).
-export function settleAutopay(bill: Bill, now: Date = new Date()): Bill {
-  if (!bill.autopay) return bill;
+// ── Autopay ─────────────────────────────────────────────────────────
+// Autopay never counts as paid on its own. Once an autopay bill's date has
+// passed, it waits for someone to confirm the payment went through (or say
+// it didn't, which turns it into an ordinary overdue bill). Payments saved
+// before this rule (auto: true, no confirmedBy) still read as "autopay ran".
+//
+//   scheduled  the date hasn't come yet
+//   check      the date has passed: did it go through?
+//   failed     someone said it didn't go through: treat as overdue
+export type AutopayStatus = "scheduled" | "check" | "failed";
+
+export function autopayStatus(bill: Bill, now: Date = new Date()): AutopayStatus | null {
+  if (!bill.autopay) return null;
+  const due = nextDueDate(bill, now);
+  const days = daysUntilDue(bill, now);
+  if (!due || days == null) return null;
+  if (days >= 0) return "scheduled";
+  return bill.autopayFailed === due ? "failed" : "check";
+}
+
+// Whether the bill is being looked after by autopay (so it isn't "overdue"
+// or "needs paying"). A failed autopay is not covered.
+export function autopayCovers(bill: Bill, now: Date = new Date()): boolean {
+  const st = autopayStatus(bill, now);
+  return st === "scheduled" || st === "check";
+}
+
+// The past repeats waiting to be confirmed, oldest first.
+export function autopayDueDates(bill: Bill, now: Date = new Date()): string[] {
+  if (autopayStatus(bill, now) !== "check") return [];
   const today = startOfDay(now);
-  let b = bill;
+  const out: string[] = [];
+  let b: Bill = bill;
   for (let i = 0; i < 60; i++) {
-    const due = parseLocal(nextDueDate(b, now) || undefined);
-    if (!due || due.getTime() >= today.getTime()) break;
-    const dueIso = iso(due);
-    const { amount } = displayAmount(b);
-    const payment: BillPayment = { due: dueIso, paidOn: dueIso, auto: true, ...(amount ? { amount } : {}) };
-    b = { ...b, paidThrough: dueIso, lastPaidDate: dueIso, payments: [payment, ...(b.payments || [])].slice(0, MAX_PAYMENTS) };
+    const due = nextDueDate(b, now);
+    const d = parseLocal(due || undefined);
+    if (!due || !d || d.getTime() >= today.getTime()) break;
+    out.push(due);
+    b = { ...b, paidThrough: due };
   }
-  return b;
+  return out;
+}
+
+// "Confirm paid": record every past repeat as paid on its due date,
+// confirmed by `by`. `firstDue` is the repeat the person was looking at; if
+// it's no longer the one waiting (someone else confirmed), null = no change.
+export function confirmAutopay(bill: Bill, firstDue: string, now: Date = new Date(), by?: string): Bill | null {
+  const dues = autopayDueDates(bill, now);
+  if (!dues.length || dues[0] !== firstDue) return null;
+  const { amount } = displayAmount(bill);
+  let payments = bill.payments || [];
+  for (const due of dues) {
+    payments = [{ due, paidOn: due, auto: true, ...(by ? { confirmedBy: by } : {}), ...(amount ? { amount } : {}) }, ...payments];
+  }
+  const last = dues[dues.length - 1];
+  return { ...bill, paidThrough: last, lastPaidDate: last, payments: payments.slice(0, MAX_PAYMENTS), autopayFailed: undefined };
+}
+
+// "It didn't go through": the repeat becomes an ordinary overdue bill, with
+// reminders, until someone marks it paid.
+export function autopayDidNotRun(bill: Bill, due: string, now: Date = new Date()): Bill | null {
+  if (autopayStatus(bill, now) !== "check" || nextDueDate(bill, now) !== due) return null;
+  return { ...bill, autopayFailed: due };
 }
 
 // Undo the most recent tick-off (for a mistaken tap).
@@ -235,12 +285,12 @@ export function monthlyEstimate(bills: Bill[]): number {
   return Math.round(bills.reduce((s, b) => s + (displayAmount(b).amount || 0) * (PER_MONTH[b.cadence] ?? 0), 0));
 }
 
-export type BillGroup = "overdue" | "week" | "month" | "later" | "nodate" | "done";
+export type BillGroup = "check" | "overdue" | "week" | "month" | "later" | "nodate" | "done";
 
 export function groupOf(bill: Bill, now: Date = new Date()): BillGroup {
   const days = daysUntilDue(bill, now);
   if (days == null) return bill.cadence === "once" && bill.paidThrough ? "done" : "nodate";
-  if (days < 0) return "overdue";
+  if (days < 0) return autopayStatus(bill, now) === "check" ? "check" : "overdue";
   if (days <= 6) return "week";
   const due = parseLocal(nextDueDate(bill, now)!)!;
   return due.getMonth() === now.getMonth() && due.getFullYear() === now.getFullYear() ? "month" : "later";

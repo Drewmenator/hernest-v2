@@ -104,12 +104,19 @@ export function planBillReminders(bills: Bill[], now: Date = new Date(), opts: P
 
     for (const d of repeats(bill, now, until)) {
       const due = iso(d);
-      if (bill.autopay) {
+      // An autopay that didn't go through is reminded like any unpaid bill.
+      if (bill.autopay && bill.autopayFailed !== due) {
         const { amount } = displayAmount(bill);
         add({
           at: at(d, -1, hour), kind: "autopay", billId: bill.id, due, canMarkPaid: false,
           title: `${bill.name} goes out tomorrow`,
           body: amount ? `It's on autopay. Make sure ${money(amount)} is in the account.` : "It's on autopay. Make sure the money is in the account.",
+        });
+        // Autopay isn't counted as paid until someone checks it went through.
+        add({
+          at: at(d, 1, hour), kind: "autopay", billId: bill.id, due, canMarkPaid: false,
+          title: `Did your ${bill.name} autopay go through?`,
+          body: "Open Bills to confirm it, or tell HerNest it didn't.",
         });
         continue;
       }

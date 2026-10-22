@@ -41,7 +41,7 @@ describe("daysUntilDue", () => {
 });
 
 // ── Paid / overdue behaviour (Bills redesign, Oct 2026) ──────────────
-import { markPaid, undoPaid, settleAutopay, displayAmount, groupOf, monthlyEstimate, dueLabel, paidThisMonth, billKey, type Bill } from "./bills";
+import { markPaid, undoPaid, autopayStatus, autopayCovers, autopayDueDates, confirmAutopay, autopayDidNotRun, displayAmount, groupOf, monthlyEstimate, dueLabel, paidThisMonth, billKey, type Bill } from "./bills";
 
 const OCT21 = new Date(2026, 9, 21);
 const rent = (over: Partial<Bill> = {}): Bill => ({ id: "r", name: "Rent", cadence: "monthly", dueDay: 1, addedOn: "2026-09-15", ...over });
@@ -128,18 +128,54 @@ describe("amounts and totals", () => {
   });
 });
 
-describe("autopay", () => {
-  it("past autopay repeats tick themselves off, so they never show overdue", () => {
-    const b: Bill = { id: "a", name: "Car", cadence: "monthly", dueDay: 5, autopay: true, amount: 320, addedOn: "2026-08-20" };
-    const s = settleAutopay(b, OCT21);
-    expect(s.payments?.map(p => p.due)).toEqual(["2026-10-05", "2026-09-05"]);
-    expect(s.payments?.[0]).toMatchObject({ auto: true, amount: 320 });
-    expect(nextDueDate(s, OCT21)).toBe("2026-11-05");
+describe("autopay never counts as paid on its own", () => {
+  const car = (extra: Partial<Bill> = {}): Bill =>
+    ({ id: "a", name: "Car", cadence: "monthly", dueDay: 5, autopay: true, amount: 320, addedOn: "2026-08-20", ...extra });
+
+  it("before the date it is scheduled; after the date it waits for a check, with nothing recorded", () => {
+    const upcoming = car({ dueDay: 25, addedOn: "2026-10-01" });
+    expect(autopayStatus(upcoming, OCT21)).toBe("scheduled");
+    const past = car();
+    expect(autopayStatus(past, OCT21)).toBe("check");
+    expect(past.payments).toBeUndefined();
+    expect(groupOf(past, OCT21)).toBe("check");
+    expect(autopayCovers(past, OCT21)).toBe(true);
   });
-  it("leaves non-autopay and up-to-date bills untouched", () => {
-    const manual = rent();
-    expect(settleAutopay(manual, OCT21)).toBe(manual);
-    const upToDate: Bill = { id: "a", name: "Car", cadence: "monthly", dueDay: 25, autopay: true, addedOn: "2026-10-01" };
-    expect(settleAutopay(upToDate, OCT21)).toBe(upToDate);
+
+  it("lists every past repeat waiting to be confirmed, oldest first", () => {
+    expect(autopayDueDates(car(), OCT21)).toEqual(["2026-09-05", "2026-10-05"]);
+  });
+
+  it("Confirm paid records each past repeat as a confirmed autopay payment", () => {
+    const c = confirmAutopay(car(), "2026-09-05", OCT21, "u1")!;
+    expect(c.payments?.map(p => p.due)).toEqual(["2026-10-05", "2026-09-05"]);
+    expect(c.payments?.[0]).toMatchObject({ auto: true, confirmedBy: "u1", amount: 320, paidOn: "2026-10-05" });
+    expect(nextDueDate(c, OCT21)).toBe("2026-11-05");
+    expect(autopayStatus(c, OCT21)).toBe("scheduled");
+  });
+
+  it("a second confirm for the same repeat changes nothing", () => {
+    const c = confirmAutopay(car(), "2026-09-05", OCT21, "u1")!;
+    expect(confirmAutopay(c, "2026-09-05", OCT21, "u2")).toBeNull();
+  });
+
+  it("It didn't go through turns it into an ordinary overdue bill until marked paid", () => {
+    const f = autopayDidNotRun(car(), "2026-09-05", OCT21)!;
+    expect(autopayStatus(f, OCT21)).toBe("failed");
+    expect(autopayCovers(f, OCT21)).toBe(false);
+    expect(groupOf(f, OCT21)).toBe("overdue");
+    const paid = markPaid(f, OCT21, 320, "u1");
+    expect(paid.autopayFailed).toBeUndefined();
+    expect(autopayStatus(paid, OCT21)).toBe("check"); // the October repeat still needs its own check
+  });
+
+  it("only the repeat being looked at can be marked failed", () => {
+    expect(autopayDidNotRun(car(), "2026-10-05", OCT21)).toBeNull();
+    expect(autopayDidNotRun(car({ dueDay: 25, addedOn: "2026-10-01" }), "2026-10-25", OCT21)).toBeNull();
+  });
+
+  it("leaves bills without autopay alone", () => {
+    expect(autopayStatus(rent(), OCT21)).toBeNull();
+    expect(autopayDueDates(rent(), OCT21)).toEqual([]);
   });
 });
