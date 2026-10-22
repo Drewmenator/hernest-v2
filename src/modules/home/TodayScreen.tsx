@@ -25,7 +25,8 @@ import { showUndoToast } from "../../shared/components/undoToast";
 import { haptic } from "../../shared/haptics";
 import { PlusIcon, SparkleIcon, CheckIcon, BudgetIcon, PlanIcon, CalendarIcon, StarIcon, TripsIcon } from "../../shared/components/Icons";
 import type { WeatherData } from "../../core/weather";
-import { loadHomeDocs, invalidateHomeDocs } from "./homeData";
+import { loadHomeDocs, refreshHomeDocs } from "./homeData";
+import { onAppResumed } from "../../core/healthRefresh";
 import { GetStartedCard } from "./GetStartedCard";
 import { MailInboxCard } from "./MailInboxCard";
 import {
@@ -37,7 +38,10 @@ import { Avatar, YouMenu } from "../me/YouMenu";
 import { useTripsEnabled } from "../me/extras";
 
 // ── Cleo's briefing ─────────────────────────────────────────────────
-function Briefing({ weather }: { weather: WeatherData | null }) {
+// `refreshKey` changes on resume and at midnight: re-check the saved
+// briefing then (a new day, or one cleared because sleep, the calendar or
+// bills changed, gets written fresh).
+function Briefing({ weather, refreshKey }: { weather: WeatherData | null; refreshKey: number }) {
   const uid = useStore(s => s.user?.uid);
   const profile = useStore(s => s.profile);
   const familyMembers = useStore(s => s.familyMembers);
@@ -62,9 +66,10 @@ function Briefing({ weather }: { weather: WeatherData | null }) {
       else write();   // first open of the day
     });
     return () => { alive = false; };
-    // Only on open: a new weather reading shouldn't write a second note.
+    // On open, resume and at midnight; a new weather reading alone
+    // shouldn't write a second note.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, !!profile]);
+  }, [uid, !!profile, refreshKey]);
 
   const weatherLine = weather ? `${weather.temp}°${weather.unit}, ${weather.condition.toLowerCase()}` : null;
   const body: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.body, color: T.text, lineHeight: 1.5, margin: 0 };
@@ -202,14 +207,20 @@ function useTodayData(tripsOn: boolean) {
         tasks,
         bills,
         week: billsThisWeek(bills),
-        events: eventsTodayTomorrow([...((d.calendar?.events as never[]) || []), ...(school as never[])]),
+        events: eventsTodayTomorrow([
+          ...((d.calendar?.events as never[]) || []),
+          ...((d.calendarSynced?.events as never[]) || []),   // connected calendars + email dates
+          ...(school as never[]),
+        ]),
         trip: nt && nt.days <= 60 ? { dest: nt.trip.destination || "your trip", days: nt.days } : null,
       });
     }).catch(() => { if (alive) { setFailed(true); setData(EMPTY); } });
     return () => { alive = false; };
   }, [uid, profile, familyMembers, tripsOn, tick]);
 
-  const reload = () => { invalidateHomeDocs(); setTick(t => t + 1); };
+  // Fresh read (skips the short caches), and again whenever the app resumes.
+  const reload = () => { refreshHomeDocs(); setTick(t => t + 1); };
+  useEffect(() => onAppResumed(() => { refreshHomeDocs(); setTick(t => t + 1); }), []);
   return { data, failed, reload };
 }
 
@@ -462,15 +473,28 @@ export function TodayScreen() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const tripsOn = useTripsEnabled();
   const { data, failed, reload } = useTodayData(tripsOn);
+  // "Now" for the greeting, the date and the briefing. Moves forward when
+  // the app resumes and just after midnight, so an app left open overnight
+  // doesn't greet you with yesterday.
+  const [stamp, setStamp] = useState(() => Date.now());
+  useEffect(() => onAppResumed(() => setStamp(Date.now())), []);
+  useEffect(() => {
+    const n = new Date(stamp);
+    const toMidnight = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5).getTime() - n.getTime();
+    const t = setTimeout(() => { setStamp(Date.now()); reload(); }, toMidnight);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stamp]);
 
   useEffect(() => {
     import("../../core/weather").then(m => m.getWeatherByLocation()).then(w => { if (w) setWeather(w); }).catch(() => {});
-  }, []);
+  }, [stamp]);
 
-  const hour = new Date().getHours();
+  const now = new Date(stamp);
+  const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const sub = hour < 12 ? "A calm start to the day" : hour < 17 ? "Here's the rest of your day" : "Here's where things stand tonight";
-  const date = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const date = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
     <div style={{ animation: "fadeUp .35s ease both" }}>
@@ -490,7 +514,7 @@ export function TodayScreen() {
 
       <GetStartedCard />
       <TodayHero data={data} failed={failed} />
-      <Briefing weather={weather} />
+      <Briefing weather={weather} refreshKey={stamp} />
       <QuickActions />
       <NeedsYou data={data} failed={failed} reload={reload} />
       <MailInboxCard />

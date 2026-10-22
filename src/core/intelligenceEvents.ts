@@ -114,6 +114,10 @@ export function connectIntelligenceLayer(userId: string): () => void {
   // ── 9. Thrive logged → invalidate thrive cache ───────────────────
   unsubs.push(bus.subscribe("thrive.sleep.logged", async () => {
     invalidateCache(userId, ["thrive"]);
+    // Last night's sleep arrives once a morning (often after the first look):
+    // rewrite the briefing so it includes it, instead of keeping the
+    // sleep-less one all day.
+    bus.publish("briefing.invalidate", { reason: "sleep_logged" }, { userId, source: "intelligence" }).catch(() => {});
   }));
 
   unsubs.push(bus.subscribe("thrive.mood.logged", async () => {

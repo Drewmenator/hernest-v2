@@ -17,7 +17,8 @@ import {
   monthlyEstimate, paidThisMonth, daysUntilDue, nextDueDate, iso, autopayStatus, autopayDueDates,
 } from "../../core/bills";
 import { takeBillFocus, onBillFocus } from "../../core/billReminders";
-import { syncBillReminders } from "../../core/localNotifications";
+import { watchBillReminders } from "../../core/localNotifications";
+import { todayLocal } from "../../core/dateAwareness";
 import { payBill, undoBillPayment, confirmAutopayPayment, markAutopayFailed } from "./billActions";
 import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
@@ -50,6 +51,18 @@ function refreshBill(b: Bill, now: Date): Bill | null {
   return b.addedOn ? null : { ...b, addedOn: iso(now) };
 }
 
+// Bring every bill up to date. Each one is updated in its own transaction, so
+// two phones doing this at once can't record an autopay twice.
+function refreshAll(uid: string, list: Bill[]) {
+  const now = new Date();
+  for (const b of list) {
+    if (refreshBill(b, now)) mutateItem<Bill>(uid, "bills", b.id, cur => refreshBill(cur, now), b).catch(() => {});
+  }
+}
+
+// Re-run the bring-up-to-date pass when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
+
 function seenSetup(): boolean {
   try { return localStorage.getItem(SETUP_DONE_KEY) === "1"; } catch { return false; }
 }
@@ -73,25 +86,46 @@ export function BillsScreen() {
   // Live list: a change on either phone shows on both.
   useEffect(() => {
     if (!uid) return;
+    // Reminders are rebuilt by the app-wide bill watcher on every change (so a
+    // paid, moved or removed bill stops reminding, even when the other person
+    // made the change). Starting it here is a no-op when it already runs.
+    void watchBillReminders(uid);
     let first = true;
     return subscribeItems<Bill>(uid, "bills", items => {
       const list = items.filter(b => b && b.name);
       setBills(list);
-      // Rebuild the reminders so a paid, moved or removed bill stops reminding,
-      // including when the other person made the change.
-      syncBillReminders(list, uid);
       if (first) {
         first = false;
         setLoaded(true);
         if (!list.length && !seenSetup()) setView({ kind: "setup" });
-        // Each bill is brought up to date in its own transaction, so two
-        // phones doing this at once can't record an autopay twice.
-        const now = new Date();
-        for (const b of list) {
-          if (refreshBill(b, now)) mutateItem<Bill>(uid, "bills", b.id, cur => refreshBill(cur, now), b).catch(() => {});
-        }
+        refreshAll(uid, list);
       }
     });
+  }, [uid]);
+
+  // The local day. Groups like Overdue and This week depend on it, so it moves
+  // on when the app comes back to the front and at midnight while Bills is open.
+  const [day, setDay] = useState(() => todayLocal());
+  useEffect(() => {
+    const msToMidnight = () => {
+      const n = new Date();
+      return new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5).getTime() - n.getTime();
+    };
+    const timer = window.setTimeout(() => setDay(todayLocal()), msToMidnight());
+    return () => window.clearTimeout(timer);
+  }, [day]);
+  useEffect(() => {
+    if (!uid) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setDay(todayLocal());
+      if (Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      refreshAll(uid, billsRef.current);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [uid]);
 
   const addBills = async (added: Bill[]) => {
@@ -106,7 +140,7 @@ export function BillsScreen() {
     for (const k of Object.keys(g) as BillGroup[]) g[k].sort((a, b) => (daysUntilDue(a, now) ?? 9999) - (daysUntilDue(b, now) ?? 9999));
     return g;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bills]);
+  }, [bills, day]);
 
   const paidList = paidThisMonth(bills, now);
 

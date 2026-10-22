@@ -24,3 +24,4 @@ export async function loadData(_uid: string, col: string): Promise<LoadResult> {
   if (col === "tasks") return { tasks: sampleTasks };
   return store[col] ?? null;
 }
+export const clearDataCaches = () => {};

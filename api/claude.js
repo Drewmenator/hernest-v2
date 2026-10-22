@@ -11,6 +11,9 @@ export default async function handler(req, res) {
   if (built.error) return res.status(built.status).json({ error: built.error });
   const upstreamBody = built.upstream;
   const feature = req.body.feature;
+  // The user's IANA zone, so the household's daily AI limit resets at local
+  // midnight. Invalid or missing → aiUsage's US default.
+  const tz = String(req.headers["x-hn-tz"] || req.body?.tz || "") || undefined;
 
   const idToken = req.headers["authorization"]?.split("Bearer ")[1];
   if (!idToken) return res.status(401).json({ error: "Unauthorized" });
@@ -31,7 +34,7 @@ export default async function handler(req, res) {
   let householdId;
   try {
     householdId = await householdIdFor(adminDb, uid);
-    const quota = await takeQuota(adminDb, { uid, householdId });
+    const quota = await takeQuota(adminDb, { uid, householdId, tz });
     if (!quota.ok) {
       return res.status(429).json({ error: quota.reason, message: LIMIT_MESSAGES[quota.reason] });
     }
@@ -40,7 +43,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: "temporarily_unavailable" });
   }
 
-  const record = (usage) => recordUsage(adminDb, { householdId, uid, feature, model: upstreamBody.model, usage });
+  const record = (usage) => recordUsage(adminDb, { householdId, uid, feature, model: upstreamBody.model, usage, tz });
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

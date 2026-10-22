@@ -73,12 +73,13 @@ async function completeRegistration(uid: string, FirebaseMessaging: any): Promis
     });
 
     // On-device notifications: standing evening check-in reminder, bill
-    // reminders, task reminders, and tap routing (permission is already granted, so these won't prompt).
+    // reminders (kept live by watchBillReminders), task reminders, and tap routing (permission is already granted, so these won't prompt).
     import("./localNotifications").then(l => {
       l.ensureDailyCheckinReminder();
       l.initLocalNotificationTaps();
       l.syncBillRemindersFromCloud(uid);
       l.watchTaskReminders(uid);
+      l.watchBillReminders(uid);
     }).catch(() => {});
 
     await FirebaseMessaging.addListener("notificationActionPerformed", (e: any) => {

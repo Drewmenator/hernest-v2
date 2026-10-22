@@ -3,11 +3,10 @@ import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { openCleo } from "../../shared/utils/openCleo";
 import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState, Emoji } from "../../shared/components";
-import { db as localDb } from "../../core/db";
 import { TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
 import toast from "react-hot-toast";
 import { getWeatherByLocation, type WeatherData } from "../../core/weather";
-import { generateBriefing, type Briefing } from "./generateBriefing";
+import { cachedBriefing, generateBriefing, type Briefing } from "./generateBriefing";
 
 // ── Energy level display ───────────────────────────────────────────
 const ENERGY_COLORS: Record<string,string> = {
@@ -17,6 +16,9 @@ const ENERGY_COLORS: Record<string,string> = {
 const URGENCY_COLORS: Record<string,string> = {
   "critical": T.danger, "high": T.gold, "medium": T.esp, "low": T.taupe
 };
+
+// Look for a newer briefing when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
 
 const SOURCE_EMOJIS: Record<string,string> = {
   task:"✓", calendar:"◈", school:"◆", budget:"◎", bills:"◎", trip:"→", circle:"✦", health:"◦"
@@ -39,56 +41,60 @@ export function BriefingScreen() {
   const [travelLoading, setTravelLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const hasFetched = React.useRef(false);
-  useEffect(() => {
-    if (!user?.uid || !profile || hasFetched.current) return;
-    hasFetched.current = true;
-    getWeatherByLocation().then(w => { if (w) setWeather(w); });
-
-    // Check cache — only generate if stale (3 windows per day)
-    const checkCacheAndGenerate = async () => {
-      try {
-        const cached = await localDb.getTodayBriefing();
-        if (cached?.data && cached?.generatedAt) {
-          const now = new Date();
-          const cachedAt = new Date(cached.generatedAt);
-          const currentWindow = getTimeWindow();
-          const cachedHour = cachedAt.getHours();
-          const cachedWindow =
-            cachedHour >= 6 && cachedHour < 12 ? "morning" :
-            cachedHour >= 12 && cachedHour < 17 ? "afternoon" : "evening";
-          const sameDay = cachedAt.toDateString() === now.toDateString();
-          if (sameDay && cachedWindow === currentWindow) {
-            setBriefing(cached.data as unknown as Briefing);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (e) { console.warn("[Briefing] cache check failed:", e); }
-      generate();
-    };
-    checkCacheAndGenerate();
-  }, [user?.uid, profile?.name]);
+  const showCachedOrWrite = async (isAlive: () => boolean) => {
+    const cached = await cachedBriefing();
+    if (!isAlive()) return;
+    if (cached) { setBriefing(cached); setLoading(false); return; }
+    generate();
+  };
 
   // ── Generate full cross-module briefing ───────────────────────────
   const generate = async () => {
     if (!user?.uid) { setLoading(false); return; }
-    // Reset hasFetched so manual retry always works
-    hasFetched.current = false;
     if (!briefing) setLoading(true);
 
     try {
       const { briefing: parsed, ctx: appCtx } = await generateBriefing({ uid: user.uid, profile, familyMembers, weather });
       setCtx(appCtx);
       setBriefing(parsed);
-
-
     } catch(e) {
       console.error("[Briefing] catch error:", e);
       toast.error("Cleo couldn't write your briefing. Tap Prepare my briefing to try again.");
     }
     setLoading(false);
   };
+
+  // Effects call this through a ref so they use the latest weather and briefing.
+  const showRef = useRef(showCachedOrWrite);
+  useEffect(() => { showRef.current = showCachedOrWrite; });
+  const uid = user?.uid;
+  const hasProfile = !!profile;
+
+  // Same path as Today: one briefing per day, from the shared cache. A new
+  // one is written only when there is none for today (first open of the day,
+  // or the cache was cleared because her data changed).
+  useEffect(() => {
+    if (!uid || !hasProfile) return;
+    let alive = true;
+    getWeatherByLocation().then(w => { if (alive && w) setWeather(w); });
+    showRef.current(() => alive);
+    return () => { alive = false; };
+  }, [uid, hasProfile]);
+
+  // Coming back to the front (at most every 5 minutes): pick up a briefing
+  // Today wrote meanwhile, or write one if the cache was cleared.
+  useEffect(() => {
+    if (!uid || !hasProfile) return;
+    let alive = true;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      showRef.current(() => alive);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; document.removeEventListener("visibilitychange", onVisible); };
+  }, [uid, hasProfile]);
 
   // ── Tabs ──────────────────────────────────────────────────────────
   const tabs = [

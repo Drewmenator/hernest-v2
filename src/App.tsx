@@ -1,5 +1,5 @@
 // ─── HerNest V2 App ───────────────────────────────────────────────
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
 import { auth } from "./core/firebase";
@@ -7,6 +7,7 @@ import { loadData } from "./core/firebase";
 import { initConnectivity } from "./core/connectivity";
 import { connectIntelligenceLayer } from "./core/intelligenceEvents";
 import { useStore } from "./core/store";
+import { withTimeout } from "./core/timeout";
 import { bus } from "./core/events";
 import { bootstrapHousehold, acceptInvite } from "./core/householdService";
 import { isOnboarded } from "./core/onboarding";
@@ -23,6 +24,9 @@ import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
 
 export default function App() {
   const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab } = useStore();
+  // Signed in but the household or profile is taking too long to load:
+  // say so with a Try again, rather than "Loading…" forever.
+  const [slowStart, setSlowStart] = React.useState(false);
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)
@@ -37,6 +41,7 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       clearTimeout(loadingTimeout);
       if (u) {
+        const slow = setTimeout(() => { if (useStore.getState().screen === "loading") setSlowStart(true); }, 12_000);
         // Shared-device guard: different account than last time → wipe
         // non-uid-scoped local caches (briefings etc.) before anything loads.
         try {
@@ -51,7 +56,8 @@ export default function App() {
         setUser({ uid: u.uid, email: u.email || "", displayName: u.displayName });
         // Usage tracking (off unless VITE_POSTHOG_KEY is set): the uid only.
         import("./core/analytics").then(m => m.identifyUser(u.uid)).catch(() => {});
-        await bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" });
+        // Listeners must not hold up the start (never wait more than 5s).
+        await withTimeout(bus.publish("auth.user.signed_in", { uid: u.uid }, { userId: u.uid, source: "app" }), 5000);
         // ── Household identity (migration Step 1) ──
         // Accept any pending invite, then resolve + provision the household so
         // getHouseholdId() is populated before household-scoped data loads.
@@ -95,6 +101,14 @@ export default function App() {
         import("./core/healthRefresh").then(m => m.startHealthRefreshOnResume(() => useStore.getState().user?.uid)).catch(() => {});
         // Native push: register this device for FCM (no-op on web). Fire-and-forget.
         import("./core/pushNotifications").then(m => m.registerPush(u.uid)).catch(() => {});
+        // Family list into the app now, so birthdays reach Today and the
+        // briefing without visiting Your family first.
+        loadData(u.uid, "family").then(d => {
+          const members = (d?.members as never[]) || [];
+          if (members.length && !useStore.getState().familyMembers.length) useStore.getState().setFamilyMembers(members);
+        }).catch(() => {});
+        clearTimeout(slow);
+        setSlowStart(false);
         setScreen(isOnboarded(profileData) ? "app" : "onboarding");
       } else {
         setUser(null);
@@ -177,9 +191,21 @@ export default function App() {
   if (screen === "loading") {
     return (
       <div style={{ height: "100svh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
+        <style>{globalStyles}</style>
         <div style={{ textAlign: "center" }}>
           <h1 style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 40, color: T.text, fontWeight: 800 }}>HerNest</h1>
           <p style={{ fontFamily: F.sans, fontSize: 14, color: T.text2, marginTop: 8 }}>Loading…</p>
+          {slowStart && (
+            <div role="alert" style={{ marginTop: 20, maxWidth: 300 }}>
+              <p style={{ fontFamily: F.sans, fontSize: 15, color: T.text, margin: "0 0 12px", lineHeight: 1.5 }}>
+                This is taking longer than usual. Check your connection, then try again.
+              </p>
+              <button onClick={() => window.location.reload()}
+                style={{ minHeight: 44, padding: "0 22px", borderRadius: 12, border: "none", background: T.action, color: T.onAction, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+                Try again
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

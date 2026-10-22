@@ -12,6 +12,13 @@ import { buildHouseholdSnapshot } from "./household/householdSnapshot";
 import { readWearable, vsUsual, type WearableDay } from "./wellnessAutoTrack";
 import type { HouseholdSnapshot } from "./store";
 
+// Whole days from `today` to `date` (both YYYY-MM-DD, local calendar days).
+function localDayDiff(date: string, today: string): number {
+  const a = new Date(`${date.slice(0, 10)}T00:00:00`).getTime();
+  const b = new Date(`${today}T00:00:00`).getTime();
+  return Math.round((a - b) / 86400000);
+}
+
 // ── Tone Profiles (unchanged) ─────────────────────────────────────
 export const TONE_PROFILES = {
   thriving:   { color: "#D4A574", affirmationTheme: "growth",    energyStyle: "ambitious",  label: "Thriving" },
@@ -202,7 +209,7 @@ export async function buildAppContext(
   const [
     tasksData, thriveData,
     tripsData, schoolData, circleData, calendarData,
-    wearable, billsData
+    wearable, billsData, syncedData
   ] = await Promise.all([
     loadData(userId, "tasks"),
     loadData(userId, "thrive"),
@@ -212,6 +219,7 @@ export async function buildAppContext(
     loadData(userId, "calendar"),
     readWearable(userId).catch(() => null),
     loadData(userId, "bills"),
+    loadData(userId, "calendar_synced"),   // Google / Outlook / iPhone + email dates
   ]);
 
   const budgetData = null as Record<string, unknown> | null;
@@ -234,7 +242,7 @@ export async function buildAppContext(
   const completionRate = allTasks.length ? doneTasks.length / allTasks.length : 0;
 
   // ── Calendar ────────────────────────────────────────────────────
-  const manualEvents = (calendarData?.events as any[]) || [];
+  const manualEvents = [...((calendarData?.events as any[]) || []), ...((syncedData?.events as any[]) || [])];
   const schoolEvents = (schoolData?.events as any[]) || [];
   const allEvents = [
     ...manualEvents,
@@ -297,12 +305,10 @@ export async function buildAppContext(
   // ── Trips ───────────────────────────────────────────────────────
   const allTrips = (tripsData?.trips as any[]) || [];
   const futureTrips = allTrips
-    .filter((t:any)=>new Date(t.date)>today)
-    .sort((a:any,b:any)=>new Date(a.date).getTime()-new Date(b.date).getTime());
+    .filter((t:any)=>typeof t.date === "string" && t.date.slice(0,10) > todayStr)
+    .sort((a:any,b:any)=>String(a.date).localeCompare(String(b.date)));
   const nextTrip = futureTrips[0];
-  const daysUntil = nextTrip
-    ? Math.ceil((new Date(nextTrip.date).getTime()-today.getTime())/(1000*60*60*24))
-    : null;
+  const daysUntil = nextTrip ? localDayDiff(nextTrip.date, todayStr) : null;
   const packingList = nextTrip?.packingList || [];
   const packingPct = packingList.length
     ? Math.round(packingList.filter((i:any)=>i.done).length/packingList.length*100)
@@ -312,7 +318,7 @@ export async function buildAppContext(
   const allSchool = (schoolData?.events as any[]) || [];
   const urgentToday = allSchool.filter((e:any)=>e.date===todayStr&&e.requiresAction);
   const thisWeek = allSchool.filter((e:any)=>{
-    const diff=(new Date(e.date).getTime()-today.getTime())/(1000*60*60*24);
+    const diff = typeof e.date === "string" ? localDayDiff(e.date, todayStr) : -1;
     return diff>=0&&diff<=7;
   });
 

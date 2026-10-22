@@ -18,6 +18,7 @@ import { createItem, listItems } from "./householdItems";
 import { AI } from "../config";
 import { limitReached } from "./ai";
 import { reminderFromToolInput, formatRemindAt } from "./taskReminders";
+import { timeoutSignal } from "./timeout";
 
 const MAX_ITERS = 5;
 
@@ -206,11 +207,13 @@ export async function runCleoAgent(params: {
       body: JSON.stringify({
         system: params.system,
         feature: "cleo_chat",
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
         model: params.model || AI.SONNET,
         messages: convo,
         tools: TOOLS,
         max_tokens: 2000,
       }),
+      signal: timeoutSignal(60_000),   // never leave Cleo "thinking" forever
     });
 
     if (res.status === 429) throw new Error(await limitReached(res));
@@ -266,8 +269,10 @@ async function streamClaude(params: {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${params.idToken}` },
     body: JSON.stringify({
       system: params.system, feature: "cleo_chat", model: params.model,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       messages: params.messages, tools: TOOLS, max_tokens: 2000, stream: true,
     }),
+    signal: timeoutSignal(90_000),   // a stream cut off when the phone sleeps ends with Try again
   });
   if (res.status === 429) throw new Error(await limitReached(res));
   // Server crisis backstop answers with JSON instead of a stream.

@@ -87,12 +87,20 @@ export async function ensureDailyCheckinReminder(): Promise<void> {
 
 // ── Bill reminders ────────────────────────────────────────────────
 // Replace this device's bill notifications with a fresh plan (billReminders.ts).
-// Called whenever the bills change and once per launch, so a bill marked paid
-// (here or, after the next launch, by a partner) stops reminding.
+// Called whenever the bills change (watchBillReminders, on this phone or a
+// partner's) and once per launch, so a bill marked paid stops reminding.
+// Syncs run one at a time: each one cancels and reschedules every bill alert,
+// so two running at once could leave an older plan behind.
 const BILL_ACTIONS = "BILL_DUE";
+let billSync: Promise<void> = Promise.resolve();
 
-export async function syncBillReminders(bills: Bill[], uid: string): Promise<void> {
-  if (!isNative()) return;
+export function syncBillReminders(bills: Bill[], uid: string): Promise<void> {
+  if (!isNative()) return Promise.resolve();
+  billSync = billSync.then(() => runBillSync(bills, uid));
+  return billSync;
+}
+
+async function runBillSync(bills: Bill[], uid: string): Promise<void> {
   try {
     const { LocalNotifications } = await import("@capacitor/local-notifications");
     if (!(await hasPermission(LocalNotifications))) return;
@@ -132,6 +140,37 @@ export async function syncBillRemindersFromCloud(uid: string): Promise<void> {
     const d = await loadData(uid, "bills");
     if (!d) return;
     await syncBillReminders(((d.bills as Bill[]) || []).filter(b => b && b.name), uid);
+  } catch { /* non-fatal */ }
+}
+
+// Keep bill alerts in step with the live bill list (this phone or a
+// partner's) for as long as the app is open, and rebuild them when the app
+// comes back to the front (at most every 5 minutes) so the 35-day plan keeps
+// reaching ahead while the app is only ever resumed. Started once per sign-in.
+const BILL_RESUME_GAP_MS = 5 * 60 * 1000;
+let billWatch: { uid: string; stop: () => void } | null = null;
+
+export async function watchBillReminders(uid: string): Promise<void> {
+  if (!isNative() || billWatch?.uid === uid) return;
+  billWatch?.stop();
+  billWatch = null;
+  try {
+    const { subscribeItems } = await import("./householdItems");
+    if (billWatch) return;   // another call started it while this one loaded
+    let latest: Bill[] | null = null;
+    let lastSync = 0;
+    const sync = (list: Bill[]) => { lastSync = Date.now(); void syncBillReminders(list, uid); };
+    const stopItems = subscribeItems<Bill>(uid, "bills", items => {
+      latest = items.filter(b => b && b.name);
+      sync(latest);
+    });
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !latest) return;
+      if (Date.now() - lastSync < BILL_RESUME_GAP_MS) return;
+      sync(latest);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    billWatch = { uid, stop: () => { stopItems(); document.removeEventListener("visibilitychange", onVisible); } };
   } catch { /* non-fatal */ }
 }
 
@@ -194,6 +233,7 @@ export async function ensureReminderPermission(uid: string): Promise<boolean | n
     const { LocalNotifications } = await import("@capacitor/local-notifications");
     if (await hasPermission(LocalNotifications)) {
       void watchTaskReminders(uid);
+      void watchBillReminders(uid);
       return true;
     }
     const { enablePush } = await import("./pushNotifications");

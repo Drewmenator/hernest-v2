@@ -70,7 +70,13 @@ function scoreToQuality(score: number | null): "poor" | "fair" | "good" | "excel
   return score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 55 ? "fair" : "poor";
 }
 
-// Latest wearable snapshot — Oura preferred (richer), Apple Health fallback.
+// The newest night across sources; Oura wins a tie (pure, tested).
+export function pickWearable(candidates: WearableDay[]): WearableDay | null {
+  if (!candidates.length) return null;
+  return [...candidates].sort((a, b) => b.date.localeCompare(a.date) || (a.source === "oura" ? -1 : b.source === "oura" ? 1 : 0))[0];
+}
+
+// Latest wearable snapshot: the newest night, Oura first on a tie.
 export async function readWearable(uid: string): Promise<WearableDay | null> {
   const recentCutoff = new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0];
   try {
@@ -79,8 +85,12 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
       getDoc(doc(db, "users", uid, "integrations", "apple_health")),
     ]);
     const oura = ouraSnap.data();
+    // Every recent source is a candidate; the newest night wins, and on the
+    // same night Oura wins (a ring worn to sleep measures it best). Before,
+    // a 2-day-old Oura reading beat a fresh Apple Health one.
+    const candidates: WearableDay[] = [];
     if (oura?.date && oura.date >= recentCutoff && (oura.lastSleepHours != null || oura.steps != null)) {
-      return {
+      candidates.push({
         source: "oura", date: oura.date,
         sleepHours: oura.lastSleepHours ?? null,
         sleepScore: oura.sleepScore ?? null,
@@ -96,13 +106,13 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         sedentaryMins: oura.sedentaryMins ?? null,
         activityScore: oura.activityScore ?? null,
         history: (oura.history as WearableDayPoint[]) ?? [],
-      };
+      });
     }
     // Apple Health read directly on the iPhone (src/core/appleHealth.ts):
     // richer than the Shortcut (heart data, a week of history), so it wins.
     const native = await loadData(uid, "apple_health").catch(() => null);
     if (native?.date && (native.date as string) >= recentCutoff && (native.lastSleepHours != null || native.lastSteps != null)) {
-      return {
+      candidates.push({
         source: "apple_health", date: native.date as string,
         sleepHours: (native.lastSleepHours as number) ?? null,
         sleepScore: null, readiness: null,
@@ -115,12 +125,12 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         activeMins: (native.exerciseMins as number) ?? null,
         mindfulMins: (native.mindfulMins as number) ?? null,
         history: (native.history as WearableDayPoint[]) ?? [],
-      };
+      });
     }
 
     const ah = ahSnap.data();
     if (ah?.date && ah.date >= recentCutoff && (ah.lastSleepHours != null || ah.lastSteps != null)) {
-      return {
+      candidates.push({
         source: "apple_health", date: ah.date,
         sleepHours: ah.lastSleepHours ?? null,
         sleepScore: null, readiness: null,
@@ -129,8 +139,9 @@ export async function readWearable(uid: string): Promise<WearableDay | null> {
         stressDay: null, stressHighMins: null, recoveryHighMins: null,
         activeCalories: null, sedentaryMins: null, activityScore: null,
         history: [],
-      };
+      });
     }
+    return pickWearable(candidates);
   } catch (e) {
     console.warn("[WellnessAutoTrack] wearable read failed:", e);
   }

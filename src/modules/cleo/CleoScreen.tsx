@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F, TYPE, ATMOS, ATMOS_TEXT2, SHADOWS, alpha } from "../../config/theme";
-import { useStore } from "../../core/store";
+import { useStore, type HouseholdSnapshot } from "../../core/store";
+import { todayLocal } from "../../core/dateAwareness";
 import { Spinner, CleoActionCard, GlowCard, Headline, Detail } from "../../shared/components";
 import { Target, HeartHandshake, Wallet, CalendarDays, MessageCircleHeart, SquarePen, ThumbsUp, ThumbsDown } from "lucide-react";
 import { SparkleIcon, MicIcon, ArrowUpIcon, StopIcon } from "../../shared/components/Icons";
@@ -27,6 +28,28 @@ const QUICK_REPLIES = [
   { text: "Help me plan my week", Icon: CalendarDays },
   { text: "I need to vent", Icon: MessageCircleHeart },
 ];
+
+// The household snapshot (trip countdown, calendar load) is reused for 10
+// minutes on the same local day, then rebuilt.
+const SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
+function snapshotIsFresh(snap: HouseholdSnapshot, now: Date = new Date()): boolean {
+  const built = new Date(snap.lastRefreshed);
+  if (Number.isNaN(built.getTime())) return false;
+  const age = now.getTime() - built.getTime();
+  return age >= 0 && age < SNAPSHOT_MAX_AGE_MS && todayLocal(built) === todayLocal(now);
+}
+
+// The chat kept for this app session, tagged with the local day it was saved.
+// Older saves were a plain list of messages with no day, so they count as stale.
+interface SavedSession { date: string; msgs: Msg[] }
+function readSavedSession(raw: string | null, today: string = todayLocal()): Msg[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as SavedSession | Msg[] | null;
+    if (!parsed || Array.isArray(parsed)) return null;
+    return parsed.date === today && Array.isArray(parsed.msgs) && parsed.msgs.length ? parsed.msgs : null;
+  } catch { return null; }
+}
 
 // Cleo's mark: the sparkle inside a soft halo of light. Large in the
 // opening hero, small beside her messages.
@@ -80,15 +103,28 @@ export function CleoScreen() {
     });
   }, []);
 
+  // The saved snapshot is reused only while fresh (see snapshotIsFresh), so
+  // a trip countdown or a busy week doesn't go stale over days. Both effects
+  // below share one rebuild.
+  const snapBuild = useRef<Promise<HouseholdSnapshot> | null>(null);
+  const freshSnapshot = (uid: string): Promise<HouseholdSnapshot> => {
+    if (householdSnapshot && snapshotIsFresh(householdSnapshot)) return Promise.resolve(householdSnapshot);
+    if (!snapBuild.current) {
+      snapBuild.current = buildHouseholdSnapshot(uid)
+        .then(snap => { setHouseholdSnapshot(snap); return snap; })
+        .finally(() => { snapBuild.current = null; });
+    }
+    return snapBuild.current;
+  };
+
   // ── Load household context on mount ──────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Use existing snapshot if available, otherwise build one
+    // Use the saved snapshot while it's fresh, otherwise build a new one
     const buildCtx = async () => {
       try {
-        const snap = householdSnapshot || await buildHouseholdSnapshot(user.uid);
-        if (!householdSnapshot) setHouseholdSnapshot(snap);
+        const snap = await freshSnapshot(user.uid);
 
         // Only used for the "Household-aware" label; Cleo's real context is
         // built per message by the orchestrator.
@@ -101,15 +137,18 @@ export function CleoScreen() {
   }, [user?.uid]);
 
   // ── Session restore ───────────────────────────────────────────────
+  // Only today's chat comes back; yesterday's (and its "Good morning") is dropped.
   useEffect(() => {
-    const saved = sessionStorage.getItem(`cleo_session_${user?.uid}`);
-    if (saved) {
-      try { setMsgs(JSON.parse(saved)); return; } catch {}
-    }
+    const key = `cleo_session_${user?.uid}`;
+    let saved: string | null = null;
+    try { saved = sessionStorage.getItem(key); } catch { /* private mode */ }
+    const restored = readSavedSession(saved);
+    if (restored) { setMsgs(restored); return; }
+    if (saved) { try { sessionStorage.removeItem(key); } catch { /* private mode */ } }
     // Build proactive opening based on household state
     const buildProactiveOpening = async () => {
       try {
-        const snap = householdSnapshot || await buildHouseholdSnapshot(user?.uid || "");
+        const snap = await freshSnapshot(user?.uid || "");
         const observations: string[] = [];
 
         // Check stress level
@@ -195,7 +234,9 @@ export function CleoScreen() {
 
   useEffect(() => {
     if (user?.uid && msgs.length > 1) {
-      sessionStorage.setItem(`cleo_session_${user.uid}`, JSON.stringify(msgs));
+      try {
+        sessionStorage.setItem(`cleo_session_${user.uid}`, JSON.stringify({ date: todayLocal(), msgs } satisfies SavedSession));
+      } catch { /* private mode or full */ }
     }
   }, [msgs]);
 

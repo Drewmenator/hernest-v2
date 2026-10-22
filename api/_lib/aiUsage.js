@@ -5,11 +5,12 @@
 // split by feature, so we can see what the pilot really costs.
 //
 // Firestore (admin SDK only; firestore.rules denies all client access):
-//   ai_usage/{YYYY-MM-DD}/households/{householdId}
+//   ai_usage/{YYYY-MM-DD}/households/{householdId}   (the user's LOCAL date)
 //     { date, householdId, calls, inputTokens, outputTokens, cacheReadTokens,
 //       cacheWriteTokens, costUsd, features: { [feature]: same fields } }
 //   ai_burst/{uid}  { minute: "YYYY-MM-DDTHH:MM", count }
 import { FieldValue } from "firebase-admin/firestore";
+import { localParts, isValidTimeZone } from "./localTime.js";
 
 const int = (v, d) => {
   const n = parseInt(v ?? "", 10);
@@ -81,7 +82,12 @@ export function sseUsageTracker() {
   };
 }
 
-export const dayKey = (now = new Date()) => now.toISOString().slice(0, 10);
+// The daily limit resets at the user's local midnight, not UTC midnight (which
+// is 7-8pm on the US east coast). The client sends its IANA zone (header
+// x-hn-tz or body tz); without a valid one we use the US pilot's default.
+export const DEFAULT_USAGE_TZ = "America/Chicago";
+export const usageTimeZone = (tz) => (isValidTimeZone(tz) ? tz : DEFAULT_USAGE_TZ);
+export const dayKey = (now = new Date(), tz) => localParts(now, usageTimeZone(tz))?.date || now.toISOString().slice(0, 10);
 const minuteKey = (now) => now.toISOString().slice(0, 16);
 
 // Household = the owner's uid when this user joined someone's household.
@@ -99,9 +105,9 @@ export const usageDocPath = (date, householdId) => `ai_usage/${date}/households/
 
 // Checks both limits and counts the call in one transaction, so parallel
 // requests can't all slip past. Returns { ok: true } or { ok: false, reason }.
-export async function takeQuota(db, { uid, householdId, now = new Date(), env = process.env }) {
+export async function takeQuota(db, { uid, householdId, now = new Date(), env = process.env, tz }) {
   const lim = limits(env);
-  const date = dayKey(now);
+  const date = dayKey(now, tz);
   const minute = minuteKey(now);
   const dayRef = db.doc(usageDocPath(date, householdId));
   const burstRef = db.doc(`ai_burst/${uid}`);
@@ -123,7 +129,7 @@ export async function takeQuota(db, { uid, householdId, now = new Date(), env = 
 
 // Adds one call's tokens + cost to the household's daily doc. Never throws:
 // a failed write must not break the reply the user is waiting for.
-export async function recordUsage(db, { householdId, uid, feature, model, usage, now = new Date() }) {
+export async function recordUsage(db, { householdId, uid, feature, model, usage, now = new Date(), tz }) {
   const costUsd = estimateCostUsd(model, usage);
   const inc = (v) => FieldValue.increment(v);
   const fields = {
@@ -136,7 +142,7 @@ export async function recordUsage(db, { householdId, uid, feature, model, usage,
   // One line per call in the Vercel logs, for spot checks.
   console.log(JSON.stringify({ tag: "ai_usage", householdId, uid, feature, model, ...usage, costUsd }));
   try {
-    await db.doc(usageDocPath(dayKey(now), householdId)).set({
+    await db.doc(usageDocPath(dayKey(now, tz), householdId)).set({
       ...fields,
       features: { [feature]: { calls: inc(1), ...fields } },
     }, { merge: true });

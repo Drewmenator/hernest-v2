@@ -11,7 +11,7 @@ vi.mock("./_lib/secure.js", () => ({
 
 import handler from "./claude.js";
 
-function call(body) {
+function call(body, headers = {}) {
   const res = {
     statusCode: 200, body: undefined, chunks: [],
     status(c) { this.statusCode = c; return this; },
@@ -19,7 +19,7 @@ function call(body) {
     setHeader() {}, flushHeaders() {},
     write(c) { this.chunks.push(c); }, end() { return this; },
   };
-  return handler({ method: "POST", headers: { authorization: "Bearer t" }, body }, res).then(() => res);
+  return handler({ method: "POST", headers: { authorization: "Bearer t", ...headers }, body }, res).then(() => res);
 }
 
 const chat = (text, extra = {}) => ({ feature: "cleo_chat", messages: [{ role: "user", content: text }], ...extra });
@@ -51,6 +51,19 @@ describe("/api/claude", () => {
     expect(day.features.cleo_chat.inputTokens).toBe(500);
     expect(day.features.cleo_chat.cacheReadTokens).toBe(2000);
     expect(day.costUsd).toBeGreaterThan(0);
+  });
+
+  it("counts the call on the user's local day (body tz or x-hn-tz header)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-22T03:00:00Z")); // 11pm Oct 21 New York, 12pm Oct 22 Tokyo
+    try {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ content: [], usage: { input_tokens: 1, output_tokens: 1 } }) })));
+      await call(chat("hi", { tz: "America/New_York" }));
+      await call(chat("hi"), { "x-hn-tz": "Asia/Tokyo" });
+      await call(chat("hi")); // no zone → America/Chicago (10pm Oct 21)
+      expect(state.db.store.get("ai_usage/2026-10-21/households/alice").calls).toBe(2);
+      expect(state.db.store.get("ai_usage/2026-10-22/households/alice").calls).toBe(1);
+    } finally { vi.useRealTimers(); }
   });
 
   it("records tokens from a streamed reply", async () => {

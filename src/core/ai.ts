@@ -119,9 +119,15 @@ export async function aiWithFiles(
   return send(idToken, { system, feature, messages: [{ role: "user", content }], ...(schema ? { schema } : {}) });
 }
 
+const AI_TIMEOUT_MS = 60_000;
+
 // showCrisis: the request carries the person's own words, so a server-side
 // crisis match should open the crisis sheet (not just fail quietly).
 async function send(idToken: string, body: Record<string, unknown>, showCrisis = false): Promise<AIResult> {
+  // Give up after a minute (the phone may have slept mid-request), so a
+  // "Cleo is writing..." state always ends in an answer or a Try again.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), AI_TIMEOUT_MS);
   try {
     const res = await fetch("/api/claude", {
       method: "POST",
@@ -129,7 +135,9 @@ async function send(idToken: string, body: Record<string, unknown>, showCrisis =
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify(body),
+      // tz: the daily AI limit resets at the user's own midnight.
+      body: JSON.stringify({ ...body, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      signal: abort.signal,
     });
 
     if (res.status === 429) {
@@ -157,8 +165,10 @@ async function send(idToken: string, body: Record<string, unknown>, showCrisis =
     // An empty reply becomes a soft fallback rather than a hard "having a moment".
     if (!text) return { text: "", error: "Empty response from model", code: "empty_response" };
     return { text };
-  } catch (e) {
-    return { text: "", error: "Network error", code: "network_error" };
+  } catch {
+    return { text: "", error: abort.signal.aborted ? "Timed out" : "Network error", code: abort.signal.aborted ? "timeout" : "network_error" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

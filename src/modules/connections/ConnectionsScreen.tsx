@@ -322,7 +322,7 @@ export function ConnectionsScreen() {
                         <p style={{ fontFamily: "monospace", fontSize: 12, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
                       </div>
                       <div style={{ background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
-                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
+                        <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps], "tz": "${Intl.DateTimeFormat().resolvedOptions().timeZone}" }`}</p>
                       </div>
                       <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied"); }}
                         style={{ marginTop: 8, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Copy token</button>

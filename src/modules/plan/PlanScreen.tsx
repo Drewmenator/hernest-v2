@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
 import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
@@ -53,6 +53,9 @@ interface DayMeal { date: string; dayName: string; breakfast?: string; lunch?: s
 interface MealPlan { days: DayMeal[]; shoppingList: ShoppingItem[]; generatedAt: number; fromFamily?: boolean; }
 
 const CATS = ["family","work","home","travel","personal"] as const;
+
+// Re-read shared docs when the app comes back to the front, at most this often.
+const RESUME_GAP_MS = 5 * 60 * 1000;
 
 // Time stamp for completions (outside the component so it reads as an event-time value).
 const stamp = () => Date.now();
@@ -122,6 +125,7 @@ export function PlanScreen() {
   const [mealPlan, setMealPlan] = useState<MealPlan|null>(null);
   const [generatingMeals, setGeneratingMeals] = useState(false);
   const [showShopping, setShowShopping] = useState(false);
+  const shoppingSave = useRef<Promise<void>>(Promise.resolve());
 
   const today = todayLocal();
   // Chores show alongside tasks, with who does them.
@@ -154,15 +158,32 @@ export function PlanScreen() {
     return () => { offTasks(); offChores(); };
   }, [user?.uid]);
 
+  // School, meals and family are read on open and again when the app comes
+  // back to the front (at most every 5 minutes), so a partner's changes show.
+  const [resumeTick, setResumeTick] = useState(0);
+  useEffect(() => {
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < RESUME_GAP_MS) return;
+      last = Date.now();
+      setResumeTick(t => t + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     if (!user?.uid) return;
-    loadData(user.uid, "school").then(d => { if(d?.events) setSchoolEvents(d.events as any); });
-    loadData(user.uid, "meals").then(d => { if(d?.mealPlan) setMealPlan(d.mealPlan as any); });
+    let alive = true;
+    loadData(user.uid, "school").then(d => { if(alive && d?.events) setSchoolEvents(d.events as any); });
+    loadData(user.uid, "meals").then(d => { if(alive && d?.mealPlan) setMealPlan(d.mealPlan as any); });
     ensurePeopleMerged(user.uid).then(() => loadData(user.uid, "family")).then(d => {
+      if (!alive) return;
       setPeople((d?.members as Person[]) || []);
       setFamilyDinners((d?.meals as FamilyDinner[]) || []);
     });
-  }, [user?.uid]);
+    return () => { alive = false; };
+  }, [user?.uid, resumeTick]);
 
   // Each write touches one record only, so two people editing at once both keep their change.
   const uid = user?.uid;
@@ -370,11 +391,28 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
     setGeneratingMeals(false);
   };
 
+  // Ticks one item. The saved plan is read again right before writing, so a
+  // partner's ticks (or a newer plan) made since this screen loaded are kept.
   const toggleShoppingItem = async (index: number) => {
     if (!mealPlan) return;
-    const updated = { ...mealPlan, shoppingList: mealPlan.shoppingList.map((item,i) => i===index?{...item,checked:!item.checked}:item) };
-    setMealPlan(updated);
-    if (user?.uid) await saveData(user.uid, "meals", { mealPlan:updated });
+    const target = mealPlan.shoppingList[index];
+    if (!target) return;
+    const checked = !target.checked;
+    const sameItem = (i: ShoppingItem) => i.item === target.item && i.category === target.category;
+    const tick = (plan: MealPlan): MealPlan => ({ ...plan, shoppingList: plan.shoppingList.map(i => sameItem(i) ? { ...i, checked } : i) });
+    setMealPlan(p => p ? tick(p) : p);
+    const owner = user?.uid;
+    if (!owner) return;
+    // One save at a time, so two quick taps can't undo each other.
+    shoppingSave.current = shoppingSave.current.then(async () => {
+      try {
+        const saved = (await loadData(owner, "meals"))?.mealPlan as MealPlan | undefined;
+        const updated = tick(saved?.shoppingList ? saved : mealPlan);
+        setMealPlan(updated);
+        await saveData(owner, "meals", { mealPlan:updated });
+      } catch (e) { console.error("[Plan] shopping list save failed:", e); toast.error("Couldn't save. Try again."); }
+    });
+    await shoppingSave.current;
   };
 
   // Sort pending tasks by priority score per blueprint

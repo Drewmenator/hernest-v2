@@ -1,0 +1,38 @@
+import { describe, it, expect, vi } from "vitest";
+vi.mock("./firebase", () => ({ auth: {}, loadData: vi.fn(), saveData: vi.fn(), db: {} }));
+vi.mock("./events", () => ({ bus: { publish: vi.fn() } }));
+import { mergeSyncedEvents } from "./connectorSync";
+
+const range = { from: "2026-10-20", to: "2026-11-20" };
+
+describe("mergeSyncedEvents", () => {
+  it("drops my cancelled events in the synced range when the list is complete", () => {
+    const existing = [
+      { id: "a", source: "google", syncedBy: "me", date: "2026-10-25" },   // cancelled
+      { id: "b", source: "google", syncedBy: "me", date: "2026-10-26" },
+      { id: "p", source: "google", syncedBy: "partner", date: "2026-10-25" }, // partner's
+      { id: "o", source: "google", syncedBy: "me", date: "2026-12-01" },   // outside range
+      { id: "w", source: "work", syncedBy: "me", date: "2026-10-25" },     // other source
+    ];
+    const out = mergeSyncedEvents(existing, [{ id: "b", source: "google", date: "2026-10-27" }], "me", "google", { complete: true, range });
+    expect(out.map(e => e.id).sort()).toEqual(["b", "o", "p", "w"]);
+    expect(out.find(e => e.id === "b")).toMatchObject({ date: "2026-10-27", syncedBy: "me" });
+  });
+
+  it("only merges when the list may be partial", () => {
+    const existing = [{ id: "a", source: "google", syncedBy: "me", date: "2026-10-25" }];
+    const out = mergeSyncedEvents(existing, [], "me", "google", { complete: false, range });
+    expect(out.map(e => e.id)).toEqual(["a"]);
+  });
+
+  it("keeps older untagged events (they age out)", () => {
+    const existing = [{ id: "old", source: "google", date: "2026-10-25" }];
+    const out = mergeSyncedEvents(existing, [], "me", "google", { complete: true, range });
+    expect(out.map(e => e.id)).toEqual(["old"]);
+  });
+
+  it("drops events older than the cutoff", () => {
+    const out = mergeSyncedEvents([{ id: "x", date: "2026-10-01" }], [], "me", "google", {}, "2026-10-15");
+    expect(out).toEqual([]);
+  });
+});

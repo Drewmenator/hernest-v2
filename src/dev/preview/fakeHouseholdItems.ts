@@ -26,3 +26,4 @@ export async function mutateItem(_u: string, k: Kind, id: string, fn: (cur: Any)
   if (next) { lists[k] = lists[k].map(x => x.id === id ? next : x); emit(k); }
   return next;
 }
+export const clearItemsCache = () => {};
