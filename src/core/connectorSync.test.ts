@@ -25,10 +25,20 @@ describe("mergeSyncedEvents", () => {
     expect(out.map(e => e.id)).toEqual(["a"]);
   });
 
-  it("keeps older untagged events (they age out)", () => {
+  it("clears older untagged events too (saved before syncs were tagged)", () => {
     const existing = [{ id: "old", source: "google", date: "2026-10-25" }];
     const out = mergeSyncedEvents(existing, [], "me", "google", { complete: true, range });
-    expect(out.map(e => e.id)).toEqual(["old"]);
+    expect(out).toEqual([]);
+  });
+
+  it("iPhone sync clears only iPhone events, not web iCloud or Google ones", () => {
+    const existing = [
+      { id: "device_colleague_1", source: "apple", syncedBy: "me", date: "2026-10-25" },
+      { id: "apple_web_1", source: "apple", syncedBy: "me", date: "2026-10-25" },
+      { id: "google_1", source: "google", syncedBy: "me", date: "2026-10-25" },
+    ];
+    const out = mergeSyncedEvents(existing, [{ id: "device_mine_1", source: "apple", date: "2026-10-26" }], "me", "device", { complete: true, range });
+    expect(out.map(e => e.id).sort()).toEqual(["apple_web_1", "device_mine_1", "google_1"]);
   });
 
   it("drops events older than the cutoff", () => {

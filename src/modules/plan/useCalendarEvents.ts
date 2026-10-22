@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { loadData, db, auth } from "../../core/firebase";
 import { bus } from "../../core/events";
 import { saveSyncedEvents, type SyncMeta } from "../../core/connectorSync";
-import { deviceCalendarSupported, deviceCalendarConnected, fetchDeviceEvents } from "../../core/deviceCalendar";
+import { deviceCalendarSupported, deviceCalendarConnected, readDeviceCalendar } from "../../core/deviceCalendar";
 import { birthdayEvents } from "./planHelpers";
 import type { Person } from "../../core/familyPeople";
 
@@ -133,7 +133,12 @@ export function useCalendarEvents(uid: string | undefined, people: Person[]) {
     (async () => {
       if (connected.google) await fetchFrom("google");
       if (connected.outlook) await fetchFrom("outlook");
-      if (connected.apple && onDevice) await merge("device", (await fetchDeviceEvents().catch(() => [])) as CalEvent[]);
+      if (connected.apple && onDevice) {
+        // Only the chosen iPhone calendars; the full list, so events from
+        // unticked or removed calendars are cleared.
+        const r = await readDeviceCalendar(uid).catch(() => null);
+        if (r) await merge("device", r.events as CalEvent[], { complete: true, range: r.range });
+      }
       else if (connected.apple) await fetchFrom("apple");
     })();
   }, [uid, connected, resumeTick]);

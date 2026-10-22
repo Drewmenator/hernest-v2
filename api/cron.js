@@ -14,7 +14,7 @@ import { sendDailyPushesTo } from "./_lib/push.js";
 import { morningDue, localParts, wallClockNow, userTimeZones, hourlyTriggerAlive, claimMorning } from "./_lib/localTime.js";
 import { freshGoogleToken } from "./_lib/googleToken.js";
 import { scanFamilyMail } from "./_lib/familyMail.js";
-import { fetchGoogleEvents, mergeSyncedEvents, combineFetches } from "./_lib/calendarEvents.js";
+import { fetchGoogleEvents, mergeSyncedEvents, combineFetches, pickedCalendars } from "./_lib/calendarEvents.js";
 
 async function refreshGoogle(uid, data) {
   let accessToken = openToken(data.accessToken);
@@ -224,7 +224,9 @@ export default async function handler(req, res) {
         try {
           const token = await refreshGoogle(uid, d.data());
           if (!token) { failed++; allFetched = false; continue; }
-          const fetched = await fetchGoogleEvents(token, { tz: zones.get(uid) });
+          const fetched = await fetchGoogleEvents(token, { tz: zones.get(uid), choice: await pickedCalendars(adminDb, uid, "google") });
+          // Who synced each event, so the app only ever clears its own.
+          fetched.events = fetched.events.map(e => ({ ...e, syncedBy: uid }));
           parts.push(fetched);
           await d.ref.set({ lastSyncedAt: Date.now(), itemCount: fetched.events.length, lastError: null }, { merge: true });
           refreshed++;

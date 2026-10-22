@@ -18,7 +18,7 @@ import { pickMainSleep, resolveSleepScore, sleepHours, buildOuraHistory, ouraRan
 import { freshGoogleToken } from "./_lib/googleToken.js";
 import { scanFamilyMail } from "./_lib/familyMail.js";
 import { localParts } from "./_lib/localTime.js";
-import { fetchGoogleEvents, mapOutlookEvent, outlookHeaders, parseICSEvents, zoneOr, zonedMidnight, localDate } from "./_lib/calendarEvents.js";
+import { fetchGoogleEvents, listGoogleCalendars, pickedCalendars, chooseGoogleCalendars, isOwnGoogleCalendar, mapOutlookEvent, outlookHeaders, parseICSEvents, zoneOr, zonedMidnight, localDate } from "./_lib/calendarEvents.js";
 
 const APP_URL = process.env.APP_URL || "https://hernest-v2.vercel.app";
 
@@ -235,6 +235,21 @@ async function handleCallback(req, res) {
 
 // ═══ SYNC: GOOGLE CALENDAR ══════════════════════════════════════════
 
+// For the picker: every Google calendar, which are the person's own, and
+// which are ticked now.
+async function listGoogle(req, res, uid) {
+  const tok = await freshGoogleToken(uid, "google_calendar");
+  if (tok.error === "not_connected") return res.status(404).json({ error: "Not connected" });
+  if (tok.error) return res.status(401).json({ error: "reauth_required" });
+  const list = await listGoogleCalendars(tok.accessToken);
+  if (!list) return res.status(502).json({ error: "google_failed" });
+  const ticked = new Set(chooseGoogleCalendars(list, await pickedCalendars(adminDb, uid, "google")).map(c => c.id));
+  res.json({ calendars: list.map(c => ({
+    id: c.id, name: c.summaryOverride || c.summary || "Calendar", color: c.backgroundColor || "#4285F4",
+    own: isOwnGoogleCalendar(c), picked: ticked.has(c.id),
+  })) });
+}
+
 async function syncGoogle(req, res, uid) {
   const timezone = zoneOr(req.query.tz);
   const tok = await freshGoogleToken(uid, "google_calendar");
@@ -245,7 +260,8 @@ async function syncGoogle(req, res, uid) {
   }
   // From local midnight (not "now"), so events that already started today
   // are refreshed too. Times are HH:MM on the user's clock.
-  const { events: allEvents, complete, from, to } = await fetchGoogleEvents(tok.accessToken, { tz: timezone });
+  const choice = await pickedCalendars(adminDb, uid, "google");
+  const { events: allEvents, complete, from, to } = await fetchGoogleEvents(tok.accessToken, { tz: timezone, choice });
   await writeMeta(uid, "google_calendar", { lastSyncedAt: Date.now(), itemCount: allEvents.length, lastError: null });
   // complete + range let the client replace this source's events in [from, to)
   // instead of merging, so cancelled events disappear.
@@ -542,6 +558,16 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error("[Connectors] health_token error:", e?.message);
       return res.status(500).json({ error: "token_failed" });
+    }
+  }
+
+  if (action === "calendars" && provider === "google") {
+    const uid = await verifyAuth(req);
+    if (!uid) return res.status(401).json({ error: "Unauthorized" });
+    try { return await listGoogle(req, res, uid); }
+    catch (e) {
+      console.error("[Connectors] calendars error:", e?.message);
+      return res.status(500).json({ error: "calendars_failed" });
     }
   }
 
