@@ -22,7 +22,7 @@ import { OnboardingScreen } from "./modules/onboarding/OnboardingScreen";
 
 
 export default function App() {
-  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab, setActiveTab } = useStore();
+  const { screen, setScreen, setUser, setAuthChecked, setProfile, setIsOnline, activeTab } = useStore();
   // Auth listener
   useEffect(() => {
     // Capture a pending partner invite before auth redirects (migration Step 1)

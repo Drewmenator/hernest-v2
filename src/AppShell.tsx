@@ -5,10 +5,23 @@ import React from "react";
 import { Toaster } from "react-hot-toast";
 import { useStore } from "./core/store";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
+import { Skeleton } from "./shared/components";
 import { F, T } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
 import { CrisisSheet } from "./shared/components/CrisisSheet";
 import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
+// While a tab's code loads: the shape of a page, shimmering.
+function ScreenSkeleton() {
+  return (
+    <div role="status" aria-label="Loading">
+      <Skeleton width={120} height={13} style={{ margin: "8px 0 10px" }} />
+      <Skeleton width="55%" height={30} radius={10} style={{ marginBottom: 24 }} />
+      <Skeleton height={190} radius={24} style={{ marginBottom: 12 }} />
+      <Skeleton height={120} radius={24} style={{ marginBottom: 12 }} />
+      <Skeleton height={120} radius={24} />
+    </div>
+  );
+}
 const EB = ({ name, children }: { name: string; children: React.ReactNode }) => <ErrorBoundary name={name}>{children}</ErrorBoundary>;
 
 // Screens
@@ -69,14 +82,14 @@ export function AppShell() {
 
 
   return (
-    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", background: T.cream, position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100svh", position: "relative", paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <div style={{ padding: "16px 20px calc(120px + env(safe-area-inset-bottom, 0px))", animation: "fadeUp .3s ease both" }}>
         {backTo && (
           <button onClick={() => setActiveTab(backTo)} style={{ background: "none", border: "none", padding: "4px 0", marginBottom: 4, fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 44 }}>
             ‹ {TAB_LABEL[backTo] || "Back"}
           </button>
         )}
-        <React.Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><div style={{width:24,height:24,borderRadius:"50%",border:"2px solid #5E4A8C30",borderTop:"2px solid #5E4A8C",animation:"spin 0.8s linear infinite"}}/></div>}>
+        <React.Suspense fallback={<ScreenSkeleton />}>
           {renderScreen()}
         </React.Suspense>
       </div>

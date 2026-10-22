@@ -1,5 +1,5 @@
 // ─── Design preview ────────────────────────────────────────────────
-// Open /preview.html?tab=home|budget|thrive|plan|cleo with
+// Open /preview.html?tab=home|budget|thrive|plan|cleo (add &flat=1 for no texture) with
 // `npx vite --config vite.preview.config.ts` to see the real screens with a
 // made-up household, no sign-in needed (also from the iOS Simulator's
 // Safari). Dev only: the app build never includes this file.
@@ -10,7 +10,10 @@ import { globalStyles } from "../../shared/globalStyles";
 import { AppShell } from "../../AppShell";
 import { PREVIEW_UID } from "./sampleData";
 
-const tab = new URLSearchParams(location.search).get("tab") || "home";
+const params = new URLSearchParams(location.search);
+const tab = params.get("tab") || "home";
+// ?flat=1 turns the paper texture off, to compare textured and flat.
+if (params.get("flat")) document.documentElement.classList.add("hn-flat");
 const s = useStore.getState();
 s.setUser({ uid: PREVIEW_UID, email: "preview@example.com", displayName: "Jess Rivera" });
 s.setProfile({ name: "Jess Rivera", kids: [{ name: "Maya" }, { name: "Leo" }] } as never);

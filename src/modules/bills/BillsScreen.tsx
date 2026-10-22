@@ -5,10 +5,10 @@
 // budget_v2 is left untouched). Design: docs/superpowers/specs/2026-10-21-bills-redesign-design.md
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F, S, TYPE } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { subscribeItems, createItem, updateItem, removeItem, mutateItem, changedFields } from "../../core/householdItems";
-import { PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows } from "../../shared/components";
+import { PageTitle, Card, SectionHeader, ListRow, StatusChip, Button, TextButton, EmptyState, Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, MiniBars } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
 import { PlusIcon, CameraIcon, EditIcon, BudgetIcon } from "../../shared/components/Icons";
 import { formatMoney } from "../../shared/utils/money";
@@ -23,6 +23,8 @@ import { BillEditor } from "./BillEditor";
 import { BillSetup } from "./BillSetup";
 import { BillImport } from "./BillImport";
 import { inputStyle } from "./billsStyle";
+import { BillIcon } from "./BillIcon";
+import { haptic } from "../../shared/haptics";
 
 const SETUP_DONE_KEY = "hn_bills_setup_seen";
 
@@ -122,6 +124,7 @@ export function BillsScreen() {
     try {
       const r = await payBill(uid, b, amt && amt > 0 ? amt : undefined);
       if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
+      haptic("success");
       showUndoToast(`${b.name} marked as paid`, () => {
         undoBillPayment(uid, r.bill, r.due).catch(() => toast.error("Couldn't undo. Try again."));
       });
@@ -170,7 +173,7 @@ export function BillsScreen() {
   if (!loaded && uid) return (
     <div>
       <PageTitle title="Bills" />
-      <Skeleton height={128} radius={22} style={{ marginBottom: S.md }} />
+      <Skeleton height={230} radius={24} style={{ marginBottom: S.md }} />
       <Skeleton height={50} radius={12} />
       <Card style={{ marginTop: S.xxl, padding: `${S.xs}px ${S.lg}px` }}><SkeletonRows rows={3} /></Card>
     </div>
@@ -236,7 +239,7 @@ export function BillsScreen() {
 
   return (
     <div style={{ animation: "fadeUp .35s ease both" }}>
-      <PageTitle title="Bills" subtitle={bills.length ? "What's due, what's paid, what needs you" : undefined} />
+      <PageTitle collapse title="Bills" subtitle={bills.length ? "What's due, what's paid, what needs you" : undefined} />
 
       {bills.length === 0 ? (
         <Card>
@@ -248,7 +251,8 @@ export function BillsScreen() {
             onAction={() => setView({ kind: "setup" })} />
         </Card>
       ) : (
-        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length} />
+        <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length}
+          next={grouped.overdue[0] ?? grouped.week[0] ?? null} now={now} days={weekByDay(weekBills, now)} />
       )}
 
       {/* Ways to add */}
@@ -293,6 +297,7 @@ export function BillsScreen() {
                 const when = new Date(`${payment.paidOn}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
                 return (
                   <ListRow key={`${bill.id}_${payment.due}`} divider={i > 0}
+                    leading={<BillIcon name={bill.name} />}
                     title={bill.name}
                     detail={payment.auto ? (payment.confirmedBy ? `Autopay, confirmed for ${when}` : `Autopay ran ${when} (not confirmed)`) : `Paid ${when}`}
                     trailing={
@@ -328,28 +333,53 @@ export function BillsScreen() {
 const addBtn: React.CSSProperties = { flex: 1, minWidth: 0, width: "auto", padding: "0 10px" };
 const amountStyle: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.card, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
 
-// Sage when things are on track; a soft red tint with the word "Overdue"
-// when a bill is late. Calm, never an alarm.
-function SummaryCard({ overdue, count, total, autopay, toCheck }: { overdue: number; count: number; total: number; autopay: number; toCheck: number }) {
+// What's due on each of the next 7 days (overdue bills count as today).
+function weekByDay(list: Bill[], now: Date): number[] {
+  const out = Array(7).fill(0);
+  for (const b of list) {
+    const d = Math.max(0, Math.min(6, daysUntilDue(b, now) ?? 0));
+    out[d] += displayAmount(b).amount || 0.01; // a bill with no amount still shows
+  }
+  return out;
+}
+const dayLetters = (now: Date) => Array.from({ length: 7 }, (_, i) => {
+  if (i === 0) return "Today";
+  const d = new Date(now); d.setDate(d.getDate() + i);
+  return d.toLocaleDateString("en-US", { weekday: "narrow" });
+});
+
+// Sage when things are on track; a soft rose with the word "Overdue" when
+// a bill is late. Calm, never an alarm. The big number is what's due this
+// week; the bars show which days.
+function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days }: {
+  overdue: number; count: number; total: number; autopay: number; toCheck: number;
+  next: Bill | null; now: Date; days: number[];
+}) {
   const late = overdue > 0;
-  const bg = late ? T.dangerBg : T.householdBg;
-  const ink = late ? T.danger : T.householdInk;
+  const tint = late ? "alert" : "household";
+  const a = ATMOS[tint];
   const check = toCheck ? ` · ${toCheck} autopay to confirm` : "";
   const detail = count === 0
-    ? (toCheck ? `${toCheck} autopay to confirm` : "You're all caught up.")
+    ? (toCheck ? `${toCheck} autopay to confirm` : "Nothing due in the next 7 days.")
     : `${count} bill${count === 1 ? "" : "s"} coming up${autopay ? ` · ${autopay} on autopay` : ""}${check}`;
+  const headline = late
+    ? (overdue === 1 ? "1 bill is overdue. Mark it paid once it's sorted." : `${overdue} bills are overdue. Mark each one paid once it's sorted.`)
+    : next ? `${next.name} is next, ${dueLabel(next, now).replace(/^Due /, "due ")}.`
+    : "You're all caught up.";
   return (
-    <section aria-label="This week" style={{ background: bg, borderRadius: 22, padding: S.xl, marginBottom: S.md }}>
-      <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: ink, margin: 0 }}>
-        {late ? `${overdue} bill${overdue === 1 ? " is" : "s are"} overdue` : "Due in the next 7 days"}
-      </p>
-      <p style={{ fontFamily: F.sans, fontSize: 36, fontWeight: 800, letterSpacing: "-0.03em", color: T.text, margin: "4px 0 2px", fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>
-        {count === 0 ? "Nothing due" : total > 0 ? formatMoney(total) : `${count} bill${count === 1 ? "" : "s"}`}
-      </p>
-      <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text, opacity: 0.8, margin: 0 }}>
-        {late ? "Tap Mark as paid once it's sorted." : detail}
-      </p>
-    </section>
+    <GlowCard tint={tint} ariaLabel="This week" eyebrow={late ? "Needs you" : "Due in the next 7 days"} reveal={false}>
+      <HeroNumber
+        value={count === 0 ? "$0" : total > 0 ? formatMoney(total) : `${count}`}
+        unit={count > 0 && !(total > 0) ? (count === 1 ? "bill" : "bills") : undefined}
+        size={48} />
+      <Headline size={21} style={{ marginTop: 12 }}>{headline}</Headline>
+      <Detail>{detail}</Detail>
+      {count > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <MiniBars values={days} labels={dayLetters(now)} color={a.chart} soft={a.chartSoft} highlight={days.findIndex(v => v > 0)} textColor={ATMOS_TEXT2} height={52} />
+        </div>
+      )}
+    </GlowCard>
   );
 }
 
@@ -382,6 +412,7 @@ function BillRow({ bill, now, first, paying, highlight, payAmount, setPayAmount,
       <ListRow divider={!first}
         onClick={paying ? undefined : onOpen}
         ariaLabel={`Edit ${bill.name}`}
+        leading={<BillIcon name={bill.name} />}
         title={bill.name}
         detail={group === "check"
           ? (checkDates.length > 1 ? `Autopay was due ${shortDate(checkDates[0])} and ${checkDates.length - 1} more time${checkDates.length > 2 ? "s" : ""}` : `Autopay was due ${shortDate(checkDates[0])}`)

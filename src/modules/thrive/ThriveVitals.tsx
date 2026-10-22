@@ -4,7 +4,8 @@
 // score, so it leads with last night's sleep and compares heart data with her
 // own usual. Tiles and trends with no data are left out, never filled in.
 import React from "react";
-import { T, F } from "../../config/theme";
+import { T, F, ATMOS, ATMOS_TEXT2, SHADOWS } from "../../config/theme";
+import { GlowCard, HeroNumber, Headline, Detail, SparkArea, ProgressRing } from "../../shared/components";
 import { vsUsual, type WearableDay, type WearableDayPoint } from "../../core/wellnessAutoTrack";
 
 // Apple Health: last night's sleep in plain words.
@@ -25,32 +26,12 @@ function band(score: number | null): { color: string; word: string } {
   return { color: T.blush, word: "Take it easy" };
 }
 
-// Tiny inline SVG trend. Nulls are skipped; a flat line renders for 1 point.
-function Sparkline({ points, color }: { points: (number | null)[]; color: string }) {
-  const vals = points.map((v, i) => [i, v] as const).filter(([, v]) => v != null) as [number, number][];
-  if (vals.length < 2) return <div style={{ height: 22 }} />;
-  const xs = vals.map(([i]) => i), ys = vals.map(([, v]) => v);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const w = 100, h = 22, pad = 2;
-  const nx = (x: number) => pad + ((x - minX) / (maxX - minX || 1)) * (w - pad * 2);
-  const ny = (y: number) => h - pad - ((y - minY) / (maxY - minY || 1)) * (h - pad * 2);
-  const d = vals.map(([x, y], i) => `${i ? "L" : "M"}${nx(x).toFixed(1)},${ny(y).toFixed(1)}`).join(" ");
-  const lastX = nx(xs[xs.length - 1]), lastY = ny(ys[ys.length - 1]);
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={22} preserveAspectRatio="none" aria-hidden="true">
-      <path d={d} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={lastX} cy={lastY} r={2} fill={color} />
-    </svg>
-  );
-}
-
 function Tile({ label, value, sub, color = T.esp }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div style={{ flex: 1, background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 14, padding: "12px 10px", textAlign: "center" }}>
-      <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontFamily: F.sans, fontSize: 14, color: T.taupe, margin: "5px 0 0" }}>{label}</p>
-      {sub && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" }}>{sub}</p>}
+    <div style={{ flex: 1, minWidth: 0, background: "linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.72))", border: "1px solid rgba(255,255,255,.95)", borderRadius: 18, padding: "12px 12px 11px", boxShadow: SHADOWS.sm }}>
+      <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.text2, margin: 0 }}>{label}</p>
+      <p style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 24, fontWeight: 800, color, margin: "4px 0 0", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</p>
+      {sub && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.text2, margin: "4px 0 0", lineHeight: 1.3 }}>{sub}</p>}
     </div>
   );
 }
@@ -67,6 +48,12 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
   const hrvUsual = vsUsual(w.avgHrv, w.history, "hrv", w.date);
   const rhrUsual = vsUsual(w.restingHr, w.history, "restingHr", w.date);
   const sourceName = w.source === "oura" ? "Oura ring" : "Apple Health";
+  const a = ATMOS.personal;
+  const heroTrend = trend(hasReadiness ? "readiness" : "sleepHours");
+  const sleepUsual = vsUsual(w.sleepHours, w.history, "sleepHours", w.date);
+  const sleepVs = sleepUsual
+    ? `${sleepUsual.word === "about" ? "About" : sleepUsual.word === "above" ? "More than" : "Less than"} your usual of ${sleepUsual.usual} hours`
+    : null;
 
   // Oura: the full set (as before). Apple Health: only what it measured.
   const tiles: { label: string; value: string; sub?: string; color?: string; has: boolean }[] = [
@@ -86,22 +73,43 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
   return (
     <>
       {/* Hero: readiness (Oura) or last night's sleep (Apple Health) */}
-      <button onClick={onToggle} aria-label={hasReadiness ? "Readiness detail" : "Body detail"} style={{ width: "100%", textAlign: "left", background: `linear-gradient(135deg,${r.color}14,${T.ivory})`, border: `1.5px solid ${r.color}40`, borderRadius: 20, padding: "18px 20px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 16, touchAction: "manipulation" }}>
-        <div style={{ width: 68, height: 68, borderRadius: "50%", border: `5px solid ${r.color}`, borderBottomColor: `${r.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: hasReadiness ? 26 : 22, fontWeight: 700, color: T.esp }}>
-            {hasReadiness ? w.readiness : w.sleepHours != null ? `${w.sleepHours}h` : "—"}
-          </span>
+      <GlowCard tint="personal" onClick={onToggle} ariaExpanded={expanded}
+        ariaLabel={hasReadiness ? "Readiness detail" : "Body detail"}
+        eyebrow={hasReadiness ? "Readiness today" : "Sleep last night"} reveal={false} style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {hasReadiness ? (
+            <ProgressRing value={(w.readiness ?? 0) / 100} size={92} stroke={8} color={a.chart} track={a.chartSoft}>
+              <span style={{ fontFamily: F.sans, fontSize: 30, fontWeight: 800, letterSpacing: "-0.04em", color: T.text }}>{w.readiness}</span>
+            </ProgressRing>
+          ) : (
+            <HeroNumber value={w.sleepHours ?? "—"} unit={w.sleepHours != null ? "hours" : undefined} size={56} />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
+              <Headline size={22}>{r.word}</Headline>
+            </div>
+            {hasReadiness && w.sleepHours != null && <Detail style={{ marginTop: 4 }}>{w.sleepHours} hours of sleep</Detail>}
+            {!hasReadiness && sleepVs && <Detail style={{ marginTop: 4 }}>{sleepVs}</Detail>}
+          </div>
         </div>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 3px" }}>{hasReadiness ? "Readiness today" : "Sleep last night"}</p>
-          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 21, color: r.color, margin: "0 0 2px" }}>{r.word}</p>
-          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0 }}>{hasReadiness ? "Tap for what's driving it" : "Tap for your heart data"} {expanded ? "▲" : "▾"}</p>
-        </div>
-      </button>
+        {heroTrend.filter(v => v != null).length >= 2 && (
+          <div style={{ marginTop: 16 }}>
+            <SparkArea id="vitals-hero" points={heroTrend} color={a.chart} guide={hasReadiness ? undefined : 7} height={70} />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: ATMOS_TEXT2 }}>
+              <span>{hasReadiness ? "Readiness, last 7 days" : "Last 7 nights"}</span>
+              {!hasReadiness && <span>Dashed line: 7 hours</span>}
+            </div>
+          </div>
+        )}
+        <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: a.ink, margin: "12px 0 0" }}>
+          {hasReadiness ? "Tap for what's driving it" : "Tap for your heart data"} {expanded ? "▲" : "▾"}
+        </p>
+      </GlowCard>
 
       {/* Detail (expanded) */}
       {expanded && (
-        <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 10 }}>
+        <div style={{ background: T.surface, borderRadius: 20, padding: "14px 16px", marginBottom: 10, boxShadow: SHADOWS.sm }}>
           {w.avgHrv != null && <Row label="Heart rate variability" value={`${w.avgHrv} ms`} />}
           {hrvUsual && <Row label="Your usual (last week)" value={`${hrvUsual.usual} ms`} />}
           {w.restingHr != null && <Row label="Resting heart rate" value={`${w.restingHr} bpm`} />}
@@ -119,15 +127,15 @@ export function ThriveVitals({ w, expanded, onToggle }: { w: WearableDay; expand
 
       {/* Vitals grid */}
       {rows.map((row, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, marginBottom: i === rows.length - 1 ? 12 : 6 }}>
+        <div key={i} style={{ display: "flex", gap: 8, marginBottom: i === rows.length - 1 ? 12 : 8 }}>
           {row.map(t => <Tile key={t.label} label={t.label} value={t.value} sub={t.sub} color={t.color} />)}
         </div>
       ))}
 
       {/* 7-day trends */}
       {hist.length >= 2 && (
-        <div style={{ background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "14px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>Last 7 days</p>
+        <div style={{ background: T.surface, borderRadius: 20, padding: "16px 16px 6px", marginBottom: 12, boxShadow: SHADOWS.sm }}>
+          <p style={{ fontFamily: F.sans, fontSize: 16, fontWeight: 700, color: T.text, margin: "0 0 12px" }}>Last 7 days</p>
           {enough("sleepHours") && <TrendRow label="Sleep" points={trend("sleepHours")} color={T.navy} last={w.sleepHours != null ? `${w.sleepHours}h` : "—"} />}
           {enough("readiness") && <TrendRow label="Readiness" points={trend("readiness")} color={T.sage} last={w.readiness != null ? String(w.readiness) : "—"} />}
           {enough("hrv") && <TrendRow label="HRV" points={trend("hrv")} color={T.goldText} last={w.avgHrv != null ? `${w.avgHrv}ms` : "—"} />}
@@ -150,10 +158,10 @@ function Row({ label, value, valueColor = T.esp }: { label: string; value: strin
 
 function TrendRow({ label, points, color, last }: { label: string; points: (number | null)[]; color: string; last: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-      <span style={{ fontFamily: F.sans, fontSize: 12, color: T.esp, width: 66, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1 }}><Sparkline points={points} color={color} /></div>
-      <span style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 14, fontWeight: 700, color: T.esp, width: 44, textAlign: "right", flexShrink: 0 }}>{last}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+      <span style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.text, width: 72, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}><SparkArea id={`trend-${label}`} points={points} color={color} height={30} /></div>
+      <span style={{ fontFamily: F.sans, letterSpacing: "-0.02em", fontSize: 15, fontWeight: 800, color: T.text, width: 50, textAlign: "right", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{last}</span>
     </div>
   );
 }

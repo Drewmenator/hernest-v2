@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F, S, TYPE } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, TintCard, Pill, Button, Input, ProgressBar, AIBadge, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
+import { Card, PageTitle, Pill, Button, Input, AIBadge, GlowCard, Headline, ProgressRing, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
 import { PlusIcon, SparkleIcon } from "../../shared/components/Icons";
 import { todayLocal } from "../../core/dateAwareness";
 import { saveData, loadData } from "../../core/firebase";
@@ -437,16 +437,20 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
 
   return (
     <div style={{ animation:"fadeUp .45s ease both" }}>
-      <PageTitle eyebrow={new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} title="Plan"/>
+      <PageTitle collapse eyebrow={new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} title="Plan"/>
 
-      {/* Plan's color is pale blue */}
-      <TintCard tint="plan" style={{ padding:"12px 16px" }}>
-        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:S.sm }}>
-          <p style={{ fontFamily:F.sans, fontSize:17, fontWeight:700, color:T.text, margin:0 }}>{total?`${done} of ${total} done today`:"Nothing planned yet"}</p>
-          {total>0 && <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:0 }}>{pending.length} to do</p>}
+      {/* Plan's color is pale blue: today's progress as a ring */}
+      <GlowCard tint="plan" reveal={false} style={{ padding:"16px 20px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:S.lg }}>
+          <ProgressRing value={total ? done/total : 0} size={76} stroke={7} color={ATMOS.plan.chart} track={ATMOS.plan.chartSoft}>
+            <span style={{ fontFamily:F.sans, fontSize:18, fontWeight:800, color:T.text, fontVariantNumeric:"tabular-nums" }}>{total ? `${Math.round(done/total*100)}%` : "0"}</span>
+          </ProgressRing>
+          <div style={{ minWidth:0 }}>
+            <Headline size={21}>{total ? (pending.length ? `${pending.length} left to do` : "All done. Nice work.") : "Nothing planned yet"}</Headline>
+            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:ATMOS_TEXT2, margin:"4px 0 0" }}>{total ? `${done} of ${total} done today` : "Add a task below to get started."}</p>
+          </div>
         </div>
-        {total>0 && <div style={{ marginTop:8 }}><ProgressBar value={done} max={total} color={T.planInk}/></div>}
-      </TintCard>
+      </GlowCard>
 
       {/* School alert */}
       {urgentSchool > 0 && (

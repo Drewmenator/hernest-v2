@@ -8,9 +8,9 @@
 // Export name stays ThriveScreen so the Me tab can render it.
 import React, { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, ATMOS } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle } from "../../shared/components";
+import { Card, PageTitle, GlowCard, Headline, Skeleton, ProgressRing, PullToRefresh } from "../../shared/components";
 import { ThriveVitals } from "./ThriveVitals";
 import { loadData, saveData } from "../../core/firebase";
 import { bus } from "../../core/events";
@@ -219,27 +219,29 @@ export function ThriveScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="Just for you" title="Wellness" />
+      <PageTitle collapse eyebrow="Just for you" title="Wellness" />
+      {uid && <PullToRefresh onRefresh={async () => applyWearable(await fetchWearable(uid))} />}
 
-      {/* 1. Today's note: Me's color is warm blush */}
-      <section aria-label="Today's note" style={{ background: T.personalBg, borderRadius: 22, padding: "18px 16px", marginBottom: 12 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.personalInk, margin: "0 0 6px" }}>Today's note</p>
-        <p style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 17, color: T.text, margin: "0 0 12px", lineHeight: 1.45 }}>
-          {checkinText || "Your note for today is on its way."}
-        </p>
+      {/* 1. Today's note: Cleo's one line, read from the measured numbers */}
+      <GlowCard tint="cleo" grain eyebrow="Today's note from Cleo" ariaLabel="Today's note" reveal={false}>
+        {checkinText
+          ? <Headline size={22}>{checkinText}</Headline>
+          : <div role="status" aria-label="Your note for today is on its way">
+              <Skeleton onTint height={20} width="94%" />
+              <Skeleton onTint height={20} width="66%" style={{ marginTop: 8 }} />
+            </div>}
 
         {!wearable && loaded && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: ATMOS.cleo.ink, margin: "8px 0 -6px", textAlign: "left" }}>
             {connecting ? "Connecting…" : onIphone ? "Connect Apple Health so this fills in by itself ›" : "Connect Apple Health or Oura ›"}
           </button>
         )}
         {wearable && healthUpgrade && (
-          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: T.personalInk, margin: "-4px 0 8px" }}>
+          <button onClick={connectHealth} disabled={connecting} style={{ ...linkBtn, color: ATMOS.cleo.ink, margin: "8px 0 -6px", textAlign: "left" }}>
             {connecting ? "Asking…" : "Let HerNest count your workouts too ›"}
           </button>
         )}
-
-      </section>
+      </GlowCard>
 
       {wearable && <ThriveVitals w={wearable} expanded={showBody} onToggle={() => setShowBody(s => !s)} />}
 
@@ -263,7 +265,14 @@ export function ThriveScreen() {
           </>
         ) : (
           <>
-            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: "0 0 12px" }}>{goalLabel(goal)}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "0 0 14px" }}>
+              {progress && (
+                <ProgressRing value={progress.done / progress.target} size={58} stroke={6} color={T.sage} track={T.sageP}>
+                  <span style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 800, color: T.text, fontVariantNumeric: "tabular-nums" }}>{progress.done}/{progress.target}</span>
+                </ProgressRing>
+              )}
+              <p style={{ fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.esp, margin: 0 }}>{goalLabel(goal)}</p>
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }} aria-label={`This week: ${progress?.text}`}>
               {dots!.map(d => (
                 <div key={d.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>

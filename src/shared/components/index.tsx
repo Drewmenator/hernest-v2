@@ -6,6 +6,11 @@
 import React from "react";
 import { T, F, R, S, TYPE, SHADOWS } from "../../config/theme";
 import { SparkleIcon, CheckIcon } from "./Icons";
+import { useReveal } from "../motion";
+import { haptic } from "../haptics";
+import { LargeTitle } from "./atmosphere";
+export { GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh, type AtmosTint } from "./atmosphere";
+export { DayTimeline, MiniBars, SparkArea, ProgressRing } from "./charts";
 
 // ── Card ──────────────────────────────────────────────────────────
 // Standard white information card.
@@ -18,8 +23,10 @@ export function Card({
   style?: React.CSSProperties;
   onClick?: () => void;
 }) {
+  const ref = useReveal<HTMLDivElement>();
   return (
     <div
+      ref={ref}
       onClick={onClick}
       style={{
         background: T.surface,
@@ -103,7 +110,10 @@ export function HeroCard({
 
 // ── PageTitle ─────────────────────────────────────────────────────
 // Main screen heading: 28 bold, optional small line above and below.
-export function PageTitle({ eyebrow, title, subtitle, right }: { eyebrow?: string; title: string; subtitle?: string; right?: React.ReactNode }) {
+// `collapse` (top-level tab screens only): the title lifts away as you
+// scroll and a compact frosted bar takes its place.
+export function PageTitle({ eyebrow, title, subtitle, right, collapse }: { eyebrow?: string; title: string; subtitle?: string; right?: React.ReactNode; collapse?: boolean }) {
+  if (collapse) return <LargeTitle eyebrow={eyebrow} title={title} subtitle={subtitle} right={right} />;
   return (
     <header style={{ display: "flex", alignItems: "flex-start", gap: S.md, marginBottom: S.xl, paddingTop: S.xs }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -213,7 +223,7 @@ export function QuickAction({ label, icon, tint, onClick }: { label: string; ico
 // A 44pt tap target around a 26pt rounded checkbox.
 export function CheckBox({ checked, onToggle, label }: { checked: boolean; onToggle: () => void; label: string }) {
   return (
-    <button onClick={onToggle} aria-pressed={checked} aria-label={label}
+    <button onClick={() => { haptic(checked ? "select" : "success"); onToggle(); }} aria-pressed={checked} aria-label={label}
       style={{ width: 44, height: 44, margin: "-9px -9px -9px -9px", flex: "none", display: "grid", placeItems: "center", background: "none", border: "none", cursor: "pointer", touchAction: "manipulation" }}>
       <span style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${checked ? T.householdInk : "#CFC8BE"}`, background: checked ? T.householdInk : T.surface, display: "grid", placeItems: "center" }}>
         {checked && <CheckIcon size={15} color="#fff" strokeWidth={3} />}
@@ -272,8 +282,9 @@ export function Spinner({ size = 24, color = T.action }: { size?: number; color?
 
 // ── Skeleton ──────────────────────────────────────────────────────
 // Placeholder blocks while data loads, so the layout doesn't jump.
-export function Skeleton({ width = "100%", height = 14, radius = 8, style }: { width?: number | string; height?: number; radius?: number; style?: React.CSSProperties }) {
-  return <div aria-hidden="true" className="hn-skeleton" style={{ width, height, borderRadius: radius, ...style }} />;
+// onTint: lighter, for use inside a colored card.
+export function Skeleton({ width = "100%", height = 14, radius = 8, style, onTint }: { width?: number | string; height?: number; radius?: number; style?: React.CSSProperties; onTint?: boolean }) {
+  return <div aria-hidden="true" className={onTint ? "hn-skeleton on-tint" : "hn-skeleton"} style={{ width, height, borderRadius: radius, ...style }} />;
 }
 export function SkeletonRows({ rows = 2 }: { rows?: number }) {
   return (
@@ -448,7 +459,7 @@ export function Button({
   const sm = size === "sm";
   return (
     <button
-      onClick={onClick}
+      onClick={onClick && (() => { if (variant === "primary" || variant === "gold" || variant === "completed") haptic("tap"); onClick(); })}
       disabled={disabled}
       aria-label={ariaLabel}
       style={{

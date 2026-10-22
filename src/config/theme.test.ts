@@ -61,3 +61,24 @@ describe("theme contrast (WCAG AA)", () => {
     expect(ratio("#FFFFFF", T.esp)).toBeGreaterThanOrEqual(AA);
   });
 });
+
+// Atmosphere cards: text must pass on the darkest point of each card, which
+// is the colored glow laid over the darker gradient stop.
+import { ATMOS, ATMOS_DARKEST, ATMOS_TEXT2 } from "./theme";
+function blend(rgba: string, hex: string): string {
+  const m = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(rgba)!;
+  const a = Number(m[4]);
+  const h = hex.replace("#", "");
+  return "#" + [1, 2, 3].map((k, i) => {
+    const bg = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+    return Math.round(Number(m[k]) * a + bg * (1 - a)).toString(16).padStart(2, "0");
+  }).join("");
+}
+describe("atmosphere cards (WCAG AA)", () => {
+  it.each(Object.keys(ATMOS) as (keyof typeof ATMOS)[])("%s: indigo, supporting text and the area's ink all pass", k => {
+    const darkest = blend(ATMOS[k].glow, ATMOS_DARKEST[k]);
+    expect(ratio(T.text, darkest)).toBeGreaterThanOrEqual(7);
+    expect(ratio(ATMOS_TEXT2, darkest)).toBeGreaterThanOrEqual(AA);
+    expect(ratio(ATMOS[k].ink, darkest)).toBeGreaterThanOrEqual(AA);
+  });
+});

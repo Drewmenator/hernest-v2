@@ -5,7 +5,7 @@
 // Get Started shows until setup is done. The picture opens the You menu.
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F, S, TYPE } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { loadData } from "../../core/firebase";
 import { todayLocal } from "../../core/dateAwareness";
@@ -16,17 +16,19 @@ import { answerTask } from "../../core/taskActions";
 import type { OwnedTask } from "../../core/taskOwnership";
 import { formatMoney } from "../../shared/utils/money";
 import {
-  Card, TintCard, SectionHeader, ListRow, StatusChip, QuickAction, Button, TextButton,
-  Spinner, Skeleton, SkeletonRows
+  Card, SectionHeader, ListRow, StatusChip, QuickAction, Button, TextButton,
+  Skeleton, SkeletonRows, GlowCard, HeroNumber, Headline, Detail, LargeTitle, PullToRefresh,
+  DayTimeline, SparkArea,
 } from "../../shared/components";
 import { showUndoToast } from "../../shared/components/undoToast";
+import { haptic } from "../../shared/haptics";
 import { PlusIcon, SparkleIcon, CheckIcon, BudgetIcon, PlanIcon, CalendarIcon, StarIcon, TripsIcon } from "../../shared/components/Icons";
 import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, invalidateHomeDocs } from "./homeData";
 import { GetStartedCard } from "./GetStartedCard";
 import { MailInboxCard } from "./MailInboxCard";
 import {
-  buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled,
+  buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled, dayHeadline,
   type NeedsItem, type NeedsKind, type Person, type DayEvent, type HandledItem,
 } from "./todayData";
 import { cachedBriefing, generateBriefing, type Briefing } from "../briefing/generateBriefing";
@@ -65,39 +67,90 @@ function Briefing({ weather }: { weather: WeatherData | null }) {
 
   const weatherLine = weather ? `${weather.temp}°${weather.unit}, ${weather.condition.toLowerCase()}` : null;
   const body: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.body, color: T.text, lineHeight: 1.5, margin: 0 };
+  const ink = ATMOS.cleo.ink;
+
+  // One line in large type, two priorities under it, the rest one tap away.
+  const why = briefing?.focusWord?.why?.trim();
+  const pri = (briefing?.priorities || []).slice(0, 3);
+  const headline = why ? (/[.!?]$/.test(why) ? why : `${why}.`) : pri[0]?.text;
+  const rest = why ? pri : pri.slice(1);
 
   return (
-    <TintCard tint="cleo" eyebrow="Your briefing from Cleo" style={{ marginBottom: S.md }}>
+    <GlowCard tint="cleo" grain eyebrow="Your briefing from Cleo">
       {state === "failed" ? (
         <>
           <p style={body}>Cleo couldn't write your briefing just now.</p>
-          <TextButton onClick={write}>Try again</TextButton>
+          <TextButton onClick={write} color={ink}>Try again</TextButton>
         </>
       ) : state !== "ready" || !briefing ? (
-        <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44 }}>
-          <Spinner size={16} />
-          <p style={{ ...body, color: T.text2 }}>{state === "writing" ? "Cleo is writing your briefing…" : "Loading…"}</p>
+        <div role="status" aria-label={state === "writing" ? "Cleo is writing your briefing" : "Loading your briefing"}>
+          <Skeleton onTint height={22} width="92%" radius={8} />
+          <Skeleton onTint height={22} width="70%" radius={8} style={{ marginTop: 8 }} />
+          <Skeleton onTint height={14} width="80%" style={{ marginTop: 18 }} />
+          <Skeleton onTint height={14} width="60%" style={{ marginTop: 10 }} />
+          <p style={{ fontFamily: F.sans, fontSize: TYPE.support, color: ATMOS_TEXT2, margin: "14px 0 0" }}>{state === "writing" ? "Cleo is writing your briefing…" : "Loading…"}</p>
         </div>
       ) : (
         <>
           {briefing.focusWord?.word && (
-            <p style={{ ...body, fontWeight: 600, marginBottom: 8 }}>
-              Today's focus: {briefing.focusWord.word}{briefing.focusWord.why ? `. ${briefing.focusWord.why}` : ""}
-            </p>
+            <span style={{ display: "inline-block", fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: ink, background: "rgba(255,255,255,.6)", borderRadius: 99, padding: "4px 10px", marginBottom: 10 }}>
+              Focus: {briefing.focusWord.word}
+            </span>
           )}
-          {(briefing.priorities || []).slice(0, 3).map((p, i) => (
-            <p key={i} style={{ ...body, display: "flex", gap: 8, padding: "3px 0" }}>
-              <span aria-hidden="true" style={{ color: T.action, fontWeight: 700, width: 14, flexShrink: 0 }}>{i + 1}.</span>
-              <span>{p.text}</span>
-            </p>
-          ))}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: S.sm, marginTop: 4 }}>
-            <TextButton onClick={() => setActiveTab("briefing")}>View full briefing ›</TextButton>
-            {weatherLine && <span style={{ fontFamily: F.sans, fontSize: TYPE.support, color: T.text2 }}>{weatherLine}</span>}
+          {headline && <Headline size={24}>{headline}</Headline>}
+          {rest.length > 0 && (
+            <div style={{ marginTop: 14, borderTop: "1px solid rgba(76,59,116,.14)" }}>
+              {rest.slice(0, 2).map((p, i) => (
+                <p key={i} style={{ ...body, fontSize: 15, display: "flex", gap: 10, padding: "10px 0 0" }}>
+                  <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: "rgba(255,255,255,.7)", color: ink, fontSize: 12, fontWeight: 800 }}>{i + 1}</span>
+                  <span>{p.text}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: S.sm, marginTop: 6 }}>
+            <TextButton color={ink} onClick={() => setActiveTab("briefing")}>{rest.length > 2 ? "See all of it ›" : "Full briefing ›"}</TextButton>
+            {weatherLine && <span style={{ fontFamily: F.sans, fontSize: TYPE.support, color: ATMOS_TEXT2 }}>{weatherLine}</span>}
           </div>
         </>
       )}
-    </TintCard>
+    </GlowCard>
+  );
+}
+
+// ── Today at a glance ───────────────────────────────────────────────
+// The hero: how many things today, the next one, and the day as a line.
+function TodayHero({ data, failed }: { data: TodayData | null; failed: boolean }) {
+  const a = ATMOS.plan;
+  if (failed) return null;
+  if (!data) return (
+    <GlowCard tint="plan" eyebrow="Today at a glance" reveal={false}>
+      <div role="status" aria-label="Loading today">
+        <Skeleton onTint width={90} height={48} radius={12} />
+        <Skeleton onTint width="75%" height={20} style={{ marginTop: 14 }} />
+        <Skeleton onTint height={26} style={{ marginTop: 18 }} />
+      </div>
+    </GlowCard>
+  );
+  const events = data.events.today;
+  const needs = data.needs.length;
+  const count = events.length + needs;
+  const parts = [
+    events.length ? `${events.length} on the calendar` : null,
+    needs ? `${needs} need${needs === 1 ? "s" : ""} you` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <GlowCard tint="plan" eyebrow="Today at a glance" reveal={false}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: S.md }}>
+        <HeroNumber value={count} unit={count === 1 ? "thing today" : "things today"} label={parts || "Nothing planned"} />
+      </div>
+      <Headline size={21} style={{ marginTop: 14 }}>{dayHeadline(events, needs)}</Headline>
+      {events.some(e => e.time) && (
+        <div style={{ marginTop: 16 }}>
+          <DayTimeline times={events.map(e => e.time || "")} color={a.chart} soft={a.chartSoft} textColor={ATMOS_TEXT2} />
+        </div>
+      )}
+    </GlowCard>
   );
 }
 
@@ -196,6 +249,7 @@ function NeedsYou({ data, failed, reload }: { data: TodayData | null; failed: bo
       resync();
       reload();
       if (r.status === "already") { toast(`${b.name} is already marked paid`); return; }
+      haptic("success");
       showUndoToast(`${b.name} marked as paid`, () => {
         undoBillPayment(uid, r.bill, r.due).then(() => { resync(); reload(); }).catch(() => {});
       });
@@ -347,32 +401,43 @@ function QuickActions() {
 function MomentForYou({ weather }: { weather: WeatherData | null }) {
   const uid = useStore(s => s.user?.uid);
   const setActiveTab = useStore(s => s.setActiveTab);
-  const [body, setBody] = useState<{ sleep: number | null; steps: number | null } | null>(null);
+  const [body, setBody] = useState<{ sleep: number | null; steps: number | null; week: (number | null)[] } | null>(null);
   const [look, setLook] = useState<string | null>(null);
   useEffect(() => {
     if (!uid) return;
     import("../../core/wellnessAutoTrack").then(m => m.readWearable(uid))
-      .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps } : null)).catch(() => {});
+      .then(w => setBody(w ? { sleep: w.sleepHours, steps: w.steps, week: (w.history || []).slice(-7).map(p => p.sleepHours) } : null)).catch(() => {});
     // Today's look from Style, if Cleo already put one together today
     loadData(uid, "style").then((d: Record<string, unknown> | null) => {
       const t = d?.todayOutfit as { date?: string; outfit?: { headline?: string } } | undefined;
       setLook(t && t.date === todayLocal() && t.outfit?.headline ? t.outfit.headline : null);
     }).catch(() => {});
   }, [uid]);
+  const sleep = body?.sleep ? Math.round(body.sleep * 10) / 10 : null;
   const parts = [
-    body?.sleep ? `You slept ${Math.round(body.sleep * 10) / 10} hours` : null,
     body?.steps ? `${body.steps.toLocaleString("en-US")} steps so far` : null,
     weather ? `${weather.condition}, ${weather.temp}°${weather.unit}` : null,
     look ? `Today's look: ${look}` : null,
   ].filter(Boolean);
-  if (!parts.length) return null;
+  if (!parts.length && sleep == null) return null;
+  const a = ATMOS.personal;
   return (
-    <TintCard tint="personal" eyebrow="A moment for yourself" style={{ marginTop: S.xxl }}>
-      <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text, margin: 0, lineHeight: 1.5 }}>{parts.join(". ")}.</p>
-      <TextButton color={T.personalInk} onClick={() => setActiveTab(weather || look ? "style" : "me")}>
+    <GlowCard tint="personal" eyebrow="A moment for yourself" style={{ marginTop: S.xxl }}>
+      {sleep != null && (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: S.lg, marginBottom: 6 }}>
+          <HeroNumber value={sleep} unit="hours" label="Sleep last night" size={44} />
+          {(body?.week.filter(v => v != null).length ?? 0) >= 3 && (
+            <div style={{ flex: 1, minWidth: 0, paddingBottom: 6 }}>
+              <SparkArea id="today-sleep" points={body!.week} color={a.chart} guide={7} height={48} />
+            </div>
+          )}
+        </div>
+      )}
+      {parts.length > 0 && <Detail style={{ fontSize: TYPE.body, color: T.text }}>{parts.join(". ")}.</Detail>}
+      <TextButton color={a.ink} onClick={() => setActiveTab(weather || look ? "style" : "me")}>
         {look ? "Wear it or swap it ›" : weather ? "See today's outfit ›" : "Open Me ›"}
       </TextButton>
-    </TintCard>
+    </GlowCard>
   );
 }
 
@@ -394,21 +459,17 @@ export function TodayScreen() {
 
   return (
     <div style={{ animation: "fadeUp .35s ease both" }}>
-      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: S.md, margin: `${S.sm}px 0 ${S.xl}px` }}>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontFamily: F.sans, fontSize: TYPE.support, fontWeight: 600, color: T.text2, margin: "0 0 4px" }}>{date}</p>
-          <h1 style={{ fontFamily: F.sans, fontSize: TYPE.screen, fontWeight: 700, letterSpacing: "-0.025em", color: T.text, margin: 0, lineHeight: 1.15, overflowWrap: "anywhere" }}>
-            {greeting}, {name.split(" ")[0]}
-          </h1>
-          <p style={{ fontFamily: F.sans, fontSize: TYPE.body, color: T.text2, margin: "4px 0 0" }}>{sub}</p>
-        </div>
-        <button onClick={() => setMenuOpen(true)} aria-label="Open your menu: profile, family, settings"
-          style={{ background: "none", border: "none", padding: 2, cursor: "pointer", borderRadius: "50%", minWidth: 44, minHeight: 44, flexShrink: 0 }}>
-          <Avatar size={44} />
-        </button>
-      </header>
+      <PullToRefresh onRefresh={async () => { reload(); await new Promise(r => setTimeout(r, 900)); }} />
+      <LargeTitle eyebrow={date} title={`${greeting}, ${name.split(" ")[0]}`} subtitle={sub} compactTitle="Today"
+        right={
+          <button onClick={() => setMenuOpen(true)} aria-label="Open your menu: profile, family, settings"
+            style={{ background: "none", border: "none", padding: 2, cursor: "pointer", borderRadius: "50%", minWidth: 44, minHeight: 44, flexShrink: 0 }}>
+            <Avatar size={44} />
+          </button>
+        } />
 
       <GetStartedCard />
+      <TodayHero data={data} failed={failed} />
       <Briefing weather={weather} />
       <QuickActions />
       <NeedsYou data={data} failed={failed} reload={reload} />
@@ -416,7 +477,7 @@ export function TodayScreen() {
       <Handled items={data?.handled ?? []} />
       {/* If loading failed, don't claim the week is empty. */}
       {!failed && <ThisWeek data={data} />}
-      {data ? <MomentForYou weather={weather} /> : <Skeleton height={90} radius={18} style={{ marginTop: S.xxl }} />}
+      {data ? <MomentForYou weather={weather} /> : <Skeleton height={120} radius={24} style={{ marginTop: S.xxl }} />}
 
       {menuOpen && <YouMenu onClose={() => setMenuOpen(false)} />}
     </div>
