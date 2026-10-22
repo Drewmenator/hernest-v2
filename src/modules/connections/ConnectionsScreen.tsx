@@ -108,10 +108,16 @@ export function ConnectionsScreen() {
       setActiveTab(c.tab);
     } else if (c.kind === "health") {
       if (appleHealthSupported() && user?.uid) {
-        const r = await connectAppleHealth(user.uid);
+        setBusy(c.id);
+        const r = await connectAppleHealth(user.uid).finally(() => setBusy(null));
         await loadHealth(user.uid);
-        if (r !== "connected") toast.error("Couldn't connect Apple Health. Try again in a moment.");
-        else if (await appleHealthState(user.uid) === "no_data") toast("Connected, but your iPhone isn't sharing Health data yet. See the steps below.", { icon: "♡", duration: 6000 });
+        if (r !== "connected") {
+          const { lastAppleHealthError } = await import("../../core/appleHealth");
+          toast.error(r === "timeout"
+            ? "Apple Health didn't answer. Close HerNest fully, open it again and try once more."
+            : `Couldn't connect Apple Health. ${lastAppleHealthError || "Try again in a moment."}`, { duration: 7000 });
+        }
+        else if (await appleHealthState(user.uid) === "no_data") toast("Connected, but no Health data has come through yet. See the steps below.", { icon: "♡", duration: 6000 });
         else toast.success("Apple Health connected ✓");
       } else {
         await setupHealth();
@@ -237,7 +243,7 @@ export function ConnectionsScreen() {
                         {hasError
                           ? <span style={{ color: T.blush }}>Needs reconnecting. Tap Reconnect.</span>
                           : isConnected && h?.noData
-                          ? <span style={{ color: T.blush }}>Connected, but your iPhone isn't sharing Health data</span>
+                          ? <span style={{ color: T.blush }}>Connected, but no Health data has come through yet</span>
                           : isConnected && h?.lastSyncedAt
                           ? <>✓ {h.itemCount ?? 0} item{(h.itemCount ?? 0) === 1 ? "" : "s"} · synced {timeAgo(h.lastSyncedAt)}</>
                           : c.blurb}
@@ -256,7 +262,7 @@ export function ConnectionsScreen() {
                       <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
                     ) : (
                       <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
-                        {hasError ? "Reconnect" : "Connect"}
+                        {busy === c.id ? "Connecting..." : hasError ? "Reconnect" : "Connect"}
                       </button>
                     )}
                   </div>
@@ -283,7 +289,7 @@ export function ConnectionsScreen() {
                   )}
                   {c.id === "apple_health" && isConnected && h?.noData && (
                     <div style={{ marginTop: 10, padding: "12px 14px", background: T.sand, borderRadius: 12, border: `1px solid ${T.linen}` }}>
-                      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px", fontWeight: 700 }}>Turn on Health sharing for HerNest</p>
+                      <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px", fontWeight: 700 }}>No data yet? Check Health sharing</p>
                       <p style={{ fontFamily: F.sans, fontSize: 12.5, color: T.esp, margin: "0 0 6px", lineHeight: 1.5 }}>iPhone only asks once, so if the question was skipped, switch it on here:</p>
                       <ol style={{ fontFamily: F.sans, fontSize: 12.5, color: T.esp, margin: "0 0 10px", paddingLeft: 18, lineHeight: 1.6 }}>
                         <li>Open the <strong>Settings</strong> app and tap <strong>Health</strong></li>

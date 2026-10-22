@@ -61,8 +61,12 @@ export function checkinFacts(w: WearableDay): string[] {
 }
 
 // ── Static note (fallback + no-AI path). Real numbers only. ────────
-export function buildCheckinFallback(w: WearableDay | null, name: string): string {
-  const hi = `Good morning${name ? `, ${name}` : ""} ✦`;
+export function greetingFor(hour: number): string {
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
+
+export function buildCheckinFallback(w: WearableDay | null, name: string, hour = new Date().getHours()): string {
+  const hi = `${greetingFor(hour)}${name ? `, ${name}` : ""} ✦`;
   if (!w || (w.sleepHours == null && w.readiness == null && w.avgHrv == null)) {
     return `${hi} I don't have last night's numbers yet. Once Apple Health or Oura syncs, your note for today will be here.`;
   }
