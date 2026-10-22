@@ -8,6 +8,7 @@ import { BrowserRouter } from "react-router-dom";
 import { useStore } from "../../core/store";
 import { globalStyles } from "../../shared/globalStyles";
 import { AppShell } from "../../AppShell";
+import { LoginScreen } from "../../modules/auth/LoginScreen";
 import { PREVIEW_UID } from "./sampleData";
 import { startAppearance, setAppearance } from "../../shared/appearance";
 
@@ -27,6 +28,7 @@ s.setActiveTab(tab);
 createRoot(document.getElementById("root")!).render(
   <>
     <style>{globalStyles}</style>
-    <BrowserRouter><AppShell /></BrowserRouter>
+    {/* ?screen=login shows the sign-in screen instead of the app. */}
+    {params.get("screen") === "login" ? <LoginScreen /> : <BrowserRouter><AppShell /></BrowserRouter>}
   </>,
 );

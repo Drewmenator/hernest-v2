@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { T, F } from "../../config/theme";
+import { F, PALETTES } from "../../config/theme";
+const M = PALETTES.dark;
 import { signInWithGoogle, signInWithApple } from "../../core/nativeAuth";
 
 export function LoginScreen() {
@@ -36,10 +37,13 @@ export function LoginScreen() {
   };
 
   return (
-    <div style={{ minHeight:"100svh", background:`linear-gradient(160deg,${T.esp} 0%,#16314A 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px" }}>
+    // Always Midnight Wisteria (it's shown before any theme choice), and it
+    // fills the whole screen, under the status bar too.
+    <div style={{ position:"fixed", inset:0, overflowY:"auto", paddingTop:"env(safe-area-inset-top, 0px)", paddingBottom:"env(safe-area-inset-bottom, 0px)",
+      background:`radial-gradient(80% 45% at 85% 0%, rgba(140,90,200,0.45) 0%, transparent 70%), radial-gradient(70% 40% at 0% 100%, rgba(100,60,140,0.35) 0%, transparent 70%), linear-gradient(180deg, #1C1532 0%, ${M.bg} 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px" }}>
       <div style={{ textAlign:"center", marginBottom:48 }}>
-        <h1 style={{ fontFamily:F.serif, fontSize:52, fontWeight: 700, color:T.gold, margin:"0 0 8px", letterSpacing:"-0.01em" }}>HerNest</h1>
-        <p style={{ fontFamily:F.sans, fontSize: 14, color:"rgba(255,255,255,0.45)", margin:0 }}>Your AI Chief of Staff</p>
+        <h1 style={{ fontFamily:F.display, fontSize:56, fontWeight: 500, color:M.text, margin:"0 0 8px", letterSpacing:"-0.02em" }}>HerNest</h1>
+        <p style={{ fontFamily:F.sans, fontSize: 14, color:M.text2, margin:0 }}>Your AI Chief of Staff</p>
       </div>
 
       <div style={{ width:"100%", maxWidth:340 }}>
@@ -78,9 +82,9 @@ export function LoginScreen() {
         {loading && <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", textAlign:"center", marginTop:16 }}>Signing in…</p>}
         {loading && status && <p style={{ fontFamily:F.sans, fontSize:12, color:"rgba(255,255,255,0.6)", textAlign:"center", marginTop:16 }}>{status}</p>}
 
-        {error && <p style={{ fontFamily:F.sans, fontSize:13, color:T.blush, textAlign:"center", marginTop:16, wordBreak:"break-word" }}>{error}</p>}
+        {error && <p style={{ fontFamily:F.sans, fontSize:13, color:M.blush, textAlign:"center", marginTop:16, wordBreak:"break-word", lineHeight:1.5 }}>{error}</p>}
 
-        <p style={{ fontFamily:F.sans, fontSize: 12, color:"rgba(255,255,255,0.25)", textAlign:"center", marginTop:32, lineHeight:1.6 }}>
+        <p style={{ fontFamily:F.sans, fontSize: 12, color:"rgba(255,255,255,0.6)", textAlign:"center", marginTop:32, lineHeight:1.6 }}>
           By continuing you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
