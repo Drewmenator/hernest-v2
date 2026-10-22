@@ -1,3 +1,4 @@
+import { occurrenceOnOrAfter, type BillLike } from "../../core/bills";
 // Pure helpers for Plan: week dates, chores as tasks, the Week list, and
 // bringing Family's old dinner plan into Plan → Meals.
 import { todayLocal } from "../../core/dateAwareness";
@@ -67,7 +68,7 @@ export const choreIdOf = (taskId: string) => taskId.startsWith("chore:") ? taskI
 // ── Week view: calendar + school + chores in one list ────────────
 export interface WeekItem {
   id: string; date?: string; time?: string; title: string;
-  kind: "event" | "school" | "birthday" | "trip" | "chore" | "task";
+  kind: "event" | "school" | "birthday" | "trip" | "chore" | "task" | "bill";
   who?: string; color?: string; done?: boolean;
 }
 
@@ -78,6 +79,7 @@ export function buildWeekItems(input: {
   schoolEvents?: EventLike[];
   chores?: Chore[];
   tasks?: Array<{ id: string; title: string; dueDate?: string; status?: string; who?: string }>;
+  bills?: Array<{ id: string; title: string; date: string; who?: string }>;
   week: string[];
 }): { byDay: Record<string, WeekItem[]>; undated: WeekItem[] } {
   const inWeek = new Set(input.week);
@@ -111,12 +113,15 @@ export function buildWeekItems(input: {
     if (!t.dueDate || t.status === "completed") continue;
     put({ id: `tk:${t.id}`, date: t.dueDate, title: t.title, kind: "task", who: t.who });
   }
+  for (const b of input.bills || []) {
+    put({ id: `bl:${b.id}:${b.date}`, date: b.date, title: b.title, kind: "bill", who: b.who });
+  }
   for (const c of input.chores || []) {
     if (!c?.title || c.done) continue;
     put({ id: `ch:${c.id}`, date: c.dueDate, title: c.title, kind: "chore", who: c.assignedTo || "Everyone" });
   }
 
-  const order: Record<WeekItem["kind"], number> = { birthday: 0, trip: 1, event: 2, school: 3, task: 4, chore: 5 };
+  const order: Record<WeekItem["kind"], number> = { birthday: 0, trip: 1, event: 2, school: 3, bill: 4, task: 5, chore: 6 };
   for (const d of input.week) {
     byDay[d].sort((a, b) => (a.time || "").localeCompare(b.time || "") || order[a.kind] - order[b.kind]);
   }
@@ -153,4 +158,25 @@ export function familyDinnersToPlan(dinners: FamilyDinner[] | null | undefined, 
     .map(d => ({ date: week[DAYS_OF_WEEK.indexOf(d.name)], dayName: d.name, dinner: d.dinner }));
   if (!days.length) return null;
   return { days, shoppingList: [] as never[], generatedAt: 0, fromFamily: true };
+}
+
+// Every due date of each bill between two days (inclusive), for the
+// calendar. Paid repeats still show: the calendar is about when, not status.
+export function billDatesInRange(
+  bills: Array<BillLike & { id: string; name: string }>,
+  from: string, to: string,
+): Array<{ id: string; title: string; date: string }> {
+  const out: Array<{ id: string; title: string; date: string }> = [];
+  const end = new Date(`${to}T00:00:00`).getTime();
+  for (const b of bills) {
+    if (!b?.name) continue;
+    let cursor = new Date(`${from}T00:00:00`);
+    for (let guard = 0; guard < 62; guard++) {
+      const d = occurrenceOnOrAfter(b, cursor);
+      if (!d || d.getTime() > end) break;
+      out.push({ id: b.id, title: b.name, date: ymd(d) });
+      cursor = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    }
+  }
+  return out;
 }

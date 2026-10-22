@@ -81,6 +81,8 @@ export async function ai(
 
 // An image the model should read (base64, no data: prefix).
 export interface AIImage { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string; }
+// A PDF the model should read (base64, no data: prefix).
+export interface AIDocument { mediaType: "application/pdf"; data: string; }
 
 // One user turn made of images plus an instruction. Only features the server
 // allows attachments for will accept this (e.g. bill_scan).
@@ -88,7 +90,8 @@ export async function aiWithImages(
   system: string,
   images: AIImage[],
   instruction: string,
-  feature: Feature
+  feature: Feature,
+  schema?: JsonSchema
 ): Promise<AIResult> {
   const idToken = await getIdToken();
   if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
@@ -96,7 +99,24 @@ export async function aiWithImages(
     ...images.map(img => ({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } })),
     { type: "text", text: instruction },
   ];
-  return send(idToken, { system, feature, messages: [{ role: "user", content }] });
+  return send(idToken, { system, feature, messages: [{ role: "user", content }], ...(schema ? { schema } : {}) });
+}
+
+// Same as aiWithImages, for photos and PDFs together (e.g. a school calendar).
+export async function aiWithFiles(
+  system: string,
+  files: (AIImage | AIDocument)[],
+  instruction: string,
+  feature: Feature,
+  schema?: JsonSchema
+): Promise<AIResult> {
+  const idToken = await getIdToken();
+  if (!idToken) return { text: "", error: "Not authenticated", code: "unauthenticated" };
+  const content = [
+    ...files.map(f => ({ type: f.mediaType === "application/pdf" ? "document" : "image", source: { type: "base64", media_type: f.mediaType, data: f.data } })),
+    { type: "text", text: instruction },
+  ];
+  return send(idToken, { system, feature, messages: [{ role: "user", content }], ...(schema ? { schema } : {}) });
 }
 
 // showCrisis: the request carries the person's own words, so a server-side

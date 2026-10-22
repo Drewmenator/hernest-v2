@@ -17,6 +17,8 @@ const tab = params.get("tab") || "home";
 // ?flat=1 turns the paper texture off, to compare textured and flat.
 if (params.get("flat")) document.documentElement.classList.add("hn-flat");
 // ?theme=dark|light pins the appearance for screenshots.
+// &plan=week|school|meals opens that Plan segment.
+if (params.get("plan")) { try { sessionStorage.setItem("hn_plan_tab", params.get("plan")!); } catch { /* private mode */ } }
 const theme = params.get("theme");
 if (theme === "dark" || theme === "light") setAppearance(theme); else startAppearance();
 const s = useStore.getState();

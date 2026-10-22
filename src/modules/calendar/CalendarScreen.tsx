@@ -78,7 +78,7 @@ export function CalendarScreen() {
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{onDevice ? "iPhone Calendars" : "Apple Calendar"}</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: appleConnected ? T.sage : T.taupe, margin: "2px 0 0" }}>
-              {appleConnected ? "✓ Connected — shows in Plan → Week" : onDevice ? "Every calendar on this iPhone" : "iCloud Calendar sync"}
+              {appleConnected ? "Connected. It shows in Plan, Calendar" : onDevice ? "Every calendar on this iPhone" : "iCloud Calendar sync"}
             </p>
           </div>
           {appleConnected
@@ -91,7 +91,7 @@ export function CalendarScreen() {
         <Emoji e="📅" size={16} /> See your week in Plan
       </button>
       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", lineHeight: 1.6, margin: "4px 0 0" }}>
-        Your calendar, school dates and chores are now together in Plan → Week.{" "}
+        Your calendar, school dates, bills and chores are together in Plan, Calendar.{" "}
         <button onClick={() => openPlan("school")} style={{ background: "none", border: "none", padding: 0, fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", textDecoration: "underline" }}>Add school dates in Plan → School</button>.
       </p>
 

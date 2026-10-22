@@ -28,11 +28,14 @@ export const sampleTasks = [
 
 export const sampleCalendar = {
   events: [
-    { title: "School drop-off", date: day(0), time: "08:00" },
-    { title: "Team standup", date: day(0), time: "09:30" },
-    { title: "Leo's soccer practice", date: day(0), time: "16:30" },
-    { title: "Family dinner at Grandma's", date: day(0), time: "18:30" },
-    { title: "Parent-teacher conference", date: day(1), time: "15:00" },
+    { id: "ev1", title: "School drop-off", date: day(0), time: "08:00" },
+    { id: "ev2", title: "Team standup", date: day(0), time: "09:30" },
+    { id: "ev3", title: "Leo's soccer practice", date: day(0), time: "16:30", child: "Leo" },
+    { id: "ev4", title: "Family dinner at Grandma's", date: day(0), time: "18:30" },
+    { id: "ev5", title: "Parent-teacher conference", date: day(1), time: "15:00" },
+    { id: "school_maya_a", title: "Picture day", date: day(4), source: "school", child: "Maya", allDay: true, color: "#7A5A9E" },
+    { id: "school_maya_b", title: "No school, teacher workday", date: day(9), source: "school", child: "Maya", allDay: true, color: "#7A5A9E" },
+    { id: "school_leo_a", title: "Pajama day", date: day(6), source: "school", child: "Leo", allDay: true, color: "#4C7BB8" },
   ],
 };
 
@@ -103,6 +106,11 @@ const sampleTrips = [
 ];
 
 export const sampleDocs: Record<string, Record<string, unknown>> = {
+  family: { members: [
+    { id: "kid-maya", name: "Maya", role: "child", color: "#7A5A9E", birthDate: "2018-11-02", schoolInfo: { grade: "2nd" } },
+    { id: "kid-leo", name: "Leo", role: "child", color: "#4C7BB8", birthDate: "2021-03-14" },
+    { id: "partner-sam", name: "Sam", role: "partner", color: "#4F8A62", birthDate: "1987-06-20" },
+  ] },
   calendar: sampleCalendar,
   thrive: { moveGoal: { type: "minutes", amount: 20, days: 3 }, movedDays: [day(-2)], habitPicks: ["water", "stretch"] },
   trips: { trips: sampleTrips },

@@ -18,6 +18,7 @@ import { buildMemoryContextV2 } from "../../core/memoryServiceV2";
 import toast from "react-hot-toast";
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { WeekView } from "./WeekView";
+import { SchoolCalendarUpload } from "./SchoolCalendarUpload";
 import { DAYS_OF_WEEK, PLAN_TAB_KEY, weekDates, choresToTasks, choreIdOf, familyDinnersToPlan, type Chore, type FamilyDinner } from "./planHelpers";
 import type { Person } from "../../core/familyPeople";
 import { ensurePeopleMerged } from "../../core/familyPeopleSync";
@@ -462,7 +463,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
 
       <Segmented label="Plan views" value={tab as "tasks"|"week"|"school"|"meals"} onChange={v=>setTab(v)} options={[
         { id:"tasks", label:"Tasks" },
-        { id:"week", label:"Week" },
+        { id:"week", label:"Calendar" },
         { id:"school", label:"School", badge: urgentSchool },
         { id:"meals", label:"Meals" },
       ]} />
@@ -594,6 +595,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
 
       {/* ── SCHOOL TAB ─────────────────────────────────────────────── */}
       {tab==="school" && <>
+        <SchoolCalendarUpload people={people} />
         <Card>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Paste newsletter text</p>
           <textarea value={newsletterText} onChange={e=>setNewsletterText(e.target.value)} placeholder="Paste your school newsletter here — Cleo will extract all events, deadlines, permission slips, payments, and action items automatically..." style={{ width:"100%", minHeight:120, background:T.sand, border:`1.5px solid ${T.linen}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:12 }}/>

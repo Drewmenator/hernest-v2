@@ -182,7 +182,7 @@ export function FamilyScreen() {
                   ))}
                 </div>
                 <p style={{ fontFamily: F.sans, fontSize: TYPE.meta, color: T.text2, margin: "8px 0 0", lineHeight: 1.5 }}>
-                  School dates and newsletters go in Plan → School.
+                  Upload school calendars and newsletters in Plan, School.
                 </p>
               </div>
             </>
