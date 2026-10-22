@@ -224,6 +224,8 @@ export async function initLocalNotificationTaps(): Promise<void> {
         import("./store").then((m: any) => {
           const st = m?.useStore?.getState?.();
           st?.setScreen?.("app");
+          // Plan notifications are about tasks: open Tasks, not the Calendar.
+          if (tab === "plan") { try { sessionStorage.setItem("hn_plan_tab", "tasks"); } catch { /* private mode */ } }
           st?.setActiveTab?.(tab);
         }).catch(() => {});
       }

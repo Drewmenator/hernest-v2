@@ -4,6 +4,7 @@ import { useStore } from "../../core/store";
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { loadHomeDocs } from "./homeData";
 import { Check, ArrowRight } from "lucide-react";
+import { openPlan } from "../../shared/utils/openPlan";
 
 // ── Post-onboarding guide ──────────────────────────────────────────
 // Onboarding is delightful, then new users land on ten tiles with no map.
@@ -50,7 +51,7 @@ export function GetStartedCard() {
           style={{ background: "none", border: "none", color: T.taupe, fontSize: 15, cursor: "pointer", padding: 0 }}>×</button>
       </div>
       {items.map((it, i) => (
-        <div key={i} onClick={() => !it.done && setActiveTab(it.tab)}
+        <div key={i} onClick={() => { if (it.done) return; if (it.tab === "plan") openPlan("tasks"); else setActiveTab(it.tab); }}
           role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={it.label}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: i < items.length - 1 ? `1px solid ${T.linen}` : "none", cursor: it.done ? "default" : "pointer", opacity: it.done ? 0.55 : 1, touchAction: "manipulation" }}>
           <span style={{ width: 20, textAlign: "center", color: it.done ? T.sage : T.gold, fontSize: 14, flexShrink: 0, display: "inline-flex", justifyContent: "center" }}>{it.done ? <Check size={16} strokeWidth={2.2} aria-hidden="true" /> : <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />}</span>

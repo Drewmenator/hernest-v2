@@ -91,7 +91,7 @@ export function PlanScreen() {
       const t = sessionStorage.getItem(PLAN_TAB_KEY);
       if (t) { sessionStorage.removeItem(PLAN_TAB_KEY); return t; }
     } catch { /* private mode */ }
-    return "tasks";
+    return "week";   // Plan opens on the Calendar
   });
 
   // Family doc: people (for "who"), chores, and the old Family dinner plan
@@ -462,8 +462,8 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
       )}
 
       <Segmented label="Plan views" value={tab as "tasks"|"week"|"school"|"meals"} onChange={v=>setTab(v)} options={[
-        { id:"tasks", label:"Tasks" },
         { id:"week", label:"Calendar" },
+        { id:"tasks", label:"Tasks" },
         { id:"school", label:"School", badge: urgentSchool },
         { id:"meals", label:"Meals" },
       ]} />

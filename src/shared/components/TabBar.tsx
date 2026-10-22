@@ -2,14 +2,14 @@
 // Five tabs, nothing hidden in "More" (simplification plan, section 3).
 // Old tab ids still work: each screen lights up the tab it lives under.
 import { T, F, MOTION, alpha, SHADOWS } from "../../config/theme";
-import { HomeIcon, CleoIcon, PlanIcon, BudgetIcon, MeIcon } from "./Icons";
+import { HomeIcon, CleoIcon, CalendarTabIcon, BudgetIcon, MeIcon } from "./Icons";
 import { useStore } from "../../core/store";
 import { tabFor } from "./tabParents";
 import { haptic } from "../haptics";
 
 const TABS = [
   { id: "home",   label: "Today", IC: HomeIcon },
-  { id: "plan",   label: "Plan",  IC: PlanIcon },
+  { id: "plan",   label: "Plan",  IC: CalendarTabIcon },   // opens on the Calendar
   { id: "cleo",   label: "Cleo",  IC: CleoIcon },
   { id: "budget", label: "Bills", IC: BudgetIcon },   // "budget" id shows Bills
   { id: "me",     label: "Me",    IC: MeIcon },

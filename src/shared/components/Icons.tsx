@@ -74,6 +74,14 @@ export const CircleIcon = (p: IconProps) => <I {...p}>
   <path d="M21 20c0-2.8-1.8-5-4-5.5"/>
 </I>;
 
+// The Plan tab: a calendar page with a small check (calendar first, tasks inside).
+export const CalendarTabIcon = (p: IconProps) => <I {...p}>
+  <rect x="3.5" y="5" width="17" height="15.5" rx="4.5"/>
+  <path d="M8 3v4M16 3v4" fill="none"/>
+  <path d="M3.5 10h17" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
+  <path d="M9 15l2 2 4-4" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
+</I>;
+
 export const CalendarIcon = (p: IconProps) => <I {...p}>
   <rect x="3" y="4" width="18" height="18" rx="2"/>
   <path d="M16 2v4M8 2v4M3 10h18"/>

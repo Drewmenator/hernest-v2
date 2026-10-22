@@ -58,7 +58,11 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
   const { user, setActiveTab } = useStore();
   const { events, reload, anyConnected, connectionChecked } = useCalendarEvents(user?.uid, people);
   const today = todayLocal();
-  const [mode, setMode] = useState<"week" | "month">("week");
+  // Week or Month, remembered on this phone.
+  const [mode, setModeState] = useState<"week" | "month">(() => {
+    try { return localStorage.getItem("hn_calendar_view") === "month" ? "month" : "week"; } catch { return "week"; }
+  });
+  const setMode = (m: "week" | "month") => { setModeState(m); try { localStorage.setItem("hn_calendar_view", m); } catch { /* private mode */ } };
   const [offset, setOffset] = useState(0);            // weeks or months from now
   const [selected, setSelected] = useState(today);    // the day shown under the month grid
   const [person, setPerson] = useState("");           // "" = everyone

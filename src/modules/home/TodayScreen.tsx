@@ -10,6 +10,7 @@ import { useStore } from "../../core/store";
 import { loadData } from "../../core/firebase";
 import { todayLocal } from "../../core/dateAwareness";
 import { openCleo } from "../../shared/utils/openCleo";
+import { openPlan } from "../../shared/utils/openPlan";
 import { type Bill } from "../../core/bills";
 import { payBill, undoBillPayment } from "../bills/billActions";
 import { answerTask } from "../../core/taskActions";
@@ -155,6 +156,7 @@ function TodayHero({ data, failed }: { data: TodayData | null; failed: boolean }
             ariaLabel={`Today's timed events from 6 AM to 10 PM: ${events.filter(e => e.time).map(e => `${e.title} at ${clockTime(e.time)}`).join(", ")}.`} />
         </div>
       )}
+      <TextButton color={a.ink} onClick={() => openPlan("week")} style={{ marginTop: 4 }}>Full calendar ›</TextButton>
     </GlowCard>
   );
 }
@@ -277,7 +279,7 @@ function NeedsYou({ data, failed, reload }: { data: TodayData | null; failed: bo
 
   return (
     <>
-      <SectionHeader title="Needs your attention" action="See all" onAction={() => setActiveTab("plan")} />
+      <SectionHeader title="Needs your attention" action="See all" onAction={() => openPlan("tasks")} />
       <Card style={{ padding: `${S.xs}px ${S.lg}px` }}>
         {!data ? (
           <SkeletonRows rows={2} />
@@ -294,7 +296,7 @@ function NeedsYou({ data, failed, reload }: { data: TodayData | null; failed: bo
         ) : data.needs.map((it, i) => (
           <ListRow key={it.id} divider={i > 0}
             leading={<KindIcon kind={it.kind} />}
-            title={<button onClick={() => setActiveTab(it.tab)} style={{ all: "unset", cursor: "pointer", display: "block" }}>{it.label}</button>}
+            title={<button onClick={() => it.tab === "plan" ? openPlan(it.kind === "school" ? "school" : "tasks") : setActiveTab(it.tab)} style={{ all: "unset", cursor: "pointer", display: "block" }}>{it.label}</button>}
             detail={<span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {urgencyChip(it)}
               {it.detail}
@@ -358,7 +360,7 @@ function ThisWeek({ data }: { data: TodayData | null }) {
   const w = data.week;
   return (
     <>
-      <SectionHeader title="This week" action="Plan" onAction={() => setActiveTab("plan")} />
+      <SectionHeader title="This week" action="Full calendar" onAction={() => openPlan("week")} />
       <Card style={{ padding: `${S.xs}px ${S.lg}px` }}>
         {rows.length === 0 && (
           <ListRow divider={false} title="Nothing on the calendar" detail="Today and tomorrow are clear." />
@@ -393,7 +395,7 @@ function QuickActions() {
   const setActiveTab = useStore(s => s.setActiveTab);
   return (
     <div style={{ display: "flex", gap: S.sm, marginBottom: S.xs }}>
-      <QuickAction tint="plan" label="Add task" icon={<PlusIcon size={18} strokeWidth={2.2} />} onClick={() => setActiveTab("plan")} />
+      <QuickAction tint="plan" label="Add task" icon={<PlusIcon size={18} strokeWidth={2.2} />} onClick={() => openPlan("tasks")} />
       <QuickAction tint="household" label="Add bill" icon={<PlusIcon size={18} strokeWidth={2.2} />} onClick={() => setActiveTab("budget")} />
       <QuickAction tint="cleo" label="Ask Cleo" icon={<SparkleIcon size={17} filled />} onClick={() => openCleo()} />
     </div>
