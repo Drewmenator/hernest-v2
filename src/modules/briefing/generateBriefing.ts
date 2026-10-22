@@ -73,6 +73,17 @@ export async function cachedBriefing(): Promise<Briefing | null> {
   } catch { return null; }
 }
 
+// Pull to refresh: drop the saved briefing if it's older than `ms`, so the
+// next look writes a fresh one. True if it was dropped.
+export async function clearBriefingIfOlderThan(ms: number): Promise<boolean> {
+  try {
+    const cached = await localDb.getTodayBriefing();
+    if (!cached?.generatedAt || Date.now() - cached.generatedAt < ms) return false;
+    await localDb.clearBriefing();
+    return true;
+  } catch { return false; }
+}
+
 // Today and the Briefing screen can both ask at once; share one AI call.
 let inflight: Promise<{ briefing: Briefing; ctx: AppContext }> | null = null;
 

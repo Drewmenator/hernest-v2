@@ -46,3 +46,19 @@ describe("mergeSyncedEvents", () => {
     expect(out).toEqual([]);
   });
 });
+
+import { weekChanged } from "./connectorSync";
+describe("weekChanged", () => {
+  const now = new Date(2026, 9, 22, 10);
+  it("is true when an event in the next 7 days was removed or moved", () => {
+    const a = [{ id: "x", date: "2026-10-23", title: "Asher vaccines" }];
+    expect(weekChanged(a, [], now)).toBe(true);
+    expect(weekChanged(a, [{ ...a[0], date: "2026-10-24" }], now)).toBe(true);
+  });
+  it("ignores changes further out and identical lists", () => {
+    const far = [{ id: "y", date: "2026-11-20", title: "Later" }];
+    expect(weekChanged(far, [], now)).toBe(false);
+    const same = [{ id: "x", date: "2026-10-23", title: "A" }];
+    expect(weekChanged(same, [{ ...same[0], syncedBy: "me" }], now)).toBe(false);
+  });
+});

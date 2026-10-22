@@ -3,7 +3,7 @@
 // answers four questions in order: what matters today (Cleo's briefing),
 // what needs me, what is already handled, and is there anything for me.
 // Get Started shows until setup is done. The picture opens the You menu.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
 import { useStore } from "../../core/store";
@@ -28,6 +28,7 @@ import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, refreshHomeDocs } from "./homeData";
 import { onAppResumed } from "../../core/healthRefresh";
 import { onMailUpdated } from "../../core/mailInbox";
+import { BRIEFING_CLEARED } from "../../core/connectivity";
 import { GetStartedCard } from "./GetStartedCard";
 import { MailInboxCard } from "./MailInboxCard";
 import {
@@ -71,6 +72,24 @@ function Briefing({ weather, refreshKey }: { weather: WeatherData | null; refres
     // shouldn't write a second note.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, !!profile, refreshKey]);
+
+  // The calendar or last night's sleep changed after the briefing was
+  // written (both arrive from the sync that runs as the app opens): write
+  // it again so it doesn't mention cancelled events or miss the sleep.
+  // Other changes (a task ticked) wait for the next open.
+  const writeRef = useRef(write);
+  useEffect(() => { writeRef.current = write; });
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onCleared = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
+      if (reason !== "calendar_changed" && reason !== "sleep_logged") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => writeRef.current(), 3000); // one rewrite for a burst of changes
+    };
+    window.addEventListener(BRIEFING_CLEARED, onCleared);
+    return () => { clearTimeout(timer); window.removeEventListener(BRIEFING_CLEARED, onCleared); };
+  }, []);
 
   const weatherLine = weather ? `${weather.temp}°${weather.unit}, ${weather.condition.toLowerCase()}` : null;
   const body: React.CSSProperties = { fontFamily: F.sans, fontSize: TYPE.body, color: T.text, lineHeight: 1.5, margin: 0 };
@@ -503,6 +522,9 @@ export function TodayScreen() {
     <div style={{ animation: "fadeUp .35s ease both" }}>
       <PullToRefresh onRefresh={async () => {
         reload();
+        // A briefing older than 15 minutes is written again.
+        import("../briefing/generateBriefing").then(m => m.clearBriefingIfOlderThan(15 * 60 * 1000))
+          .then(cleared => { if (cleared) setStamp(Date.now()); }).catch(() => {});
         // Also pull last night's sleep from Oura / Apple Health.
         const uid = useStore.getState().user?.uid;
         await Promise.all([new Promise(r => setTimeout(r, 900)), uid ? import("../../core/healthRefresh").then(m => m.refreshHealth(uid, true)) : null]);

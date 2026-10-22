@@ -62,6 +62,19 @@ export function mergeSyncedEvents(existing: SyncedEvent[], events: SyncedEvent[]
   return [...byId.values()].filter(e => !e.date || e.date >= cutoff);
 }
 
+const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Did anything dated in the next 7 days change between two saved lists?
+export function weekChanged(before: SyncedEvent[], after: SyncedEvent[], now = new Date()): boolean {
+  const from = localDay(now);
+  const to = localDay(new Date(now.getTime() + 7 * 86400000));
+  const sig = (list: SyncedEvent[]) => new Set(list
+    .filter(e => e?.id && e.date && e.date >= from && e.date < to)
+    .map(e => { const x = e as SyncedEvent & { time?: string; title?: string }; return `${x.id}|${x.date}|${x.time || ""}|${x.title || ""}`; }));
+  const a = sig(before), b = sig(after);
+  return a.size !== b.size || [...a].some(k => !b.has(k));
+}
+
 // Saves the merge and returns the ids of events it removed (so an open
 // calendar can take them off the screen too).
 export async function saveSyncedEvents(uid: string, provider: string, events: SyncedEvent[], meta: SyncMeta = {}): Promise<Set<string>> {
@@ -70,6 +83,11 @@ export async function saveSyncedEvents(uid: string, provider: string, events: Sy
   const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
   const merged = mergeSyncedEvents(existing, events, uid, provider, meta, cutoff);
   await saveData(uid, "calendar_synced", { events: merged });
+  // The coming week changed (an event added, moved, renamed or removed):
+  // the day's briefing may mention it, so have it written again.
+  if (weekChanged(existing, merged)) {
+    bus.publish("briefing.invalidate", { reason: "calendar_changed" }, { userId: uid, source: "connectorSync" }).catch(() => {});
+  }
   const kept = new Set(merged.map(e => e.id));
   return new Set(existing.map(e => e?.id).filter((id): id is string => !!id && !kept.has(id)));
 }

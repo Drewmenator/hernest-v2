@@ -4,6 +4,10 @@
 
 // Dev-only logging: these logs carry household PII (moods, contacts,
 // budget categories) and must not print in production/tester builds.
+// Fired after the saved briefing is cleared; detail.reason says why
+// ("calendar_changed", "sleep_logged", ...).
+export const BRIEFING_CLEARED = "hn-briefing-cleared";
+
 const dlog = import.meta.env.DEV ? console.log.bind(console) : () => {};
 
 import { bus } from "./events";
@@ -135,6 +139,8 @@ export function initConnectivity(userId: string) {
     try {
       await db.clearBriefing();
     } catch (e) { console.warn("[Connectivity] briefing cache clear failed:", e); }
+    // Open screens decide whether to write a new one now (see BRIEFING_CLEARED).
+    window.dispatchEvent(new CustomEvent(BRIEFING_CLEARED, { detail: { reason: e?.payload?.reason || "" } }));
   });
 
   // ── 7. TASK COMPLETED → Update Intelligence card ──────────────
