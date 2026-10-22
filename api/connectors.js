@@ -507,6 +507,51 @@ async function syncGmail(req, res, uid) {
   }
 }
 
+// ═══ DISCONNECT ═════════════════════════════════════════════════════
+// Removes a connected service: asks the provider to cancel HerNest's access
+// (best effort), then deletes the stored sign-in and synced data, so the next
+// Connect starts fresh. Apple Health on the iPhone is handled in the app.
+export const DISCONNECT_DOCS = { google: "google_calendar", gmail: "gmail", outlook: "outlook_calendar", oura: "oura" };
+
+export async function revokeAtProvider(provider, stored, fetchImpl = fetch) {
+  const token = openToken(stored?.refreshToken) || openToken(stored?.accessToken);
+  if (!token) return false;
+  try {
+    if (provider === "google" || provider === "gmail") {
+      const r = await fetchImpl(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      return r.ok;
+    }
+    if (provider === "oura") {
+      const access = openToken(stored?.accessToken);
+      if (!access) return false;
+      const r = await fetchImpl(`https://api.ouraring.com/oauth/revoke?access_token=${encodeURIComponent(access)}`, { method: "POST" });
+      return r.ok;
+    }
+  } catch (e) {
+    console.error("[Connectors] revoke failed:", provider, e?.message);
+  }
+  return false; // Outlook: no simple revoke; deleting our copy is enough
+}
+
+async function handleDisconnect(req, res, provider) {
+  const uid = await verifyAuth(req);
+  if (!uid) return res.status(401).json({ error: "Unauthorized" });
+  const docName = DISCONNECT_DOCS[provider];
+  if (!docName) return res.status(400).json({ error: "unknown_provider" });
+  try {
+    const ref = adminDb.doc(`users/${uid}/integrations/${docName}`);
+    const snap = await ref.get();
+    const revoked = snap.exists ? await revokeAtProvider(provider, snap.data()) : false;
+    await ref.delete();
+    return res.json({ ok: true, revoked });
+  } catch (e) {
+    console.error("[Connectors] disconnect failed:", provider, e?.message);
+    return res.status(500).json({ error: "disconnect_failed" });
+  }
+}
+
 // ═══ ROUTER ═════════════════════════════════════════════════════════
 
 export default async function handler(req, res) {
@@ -518,6 +563,11 @@ export default async function handler(req, res) {
   if (applyCors(req, res, "GET, POST, OPTIONS")) return;
 
   if (action === "auth") return handleAuth(req, res, provider);
+
+  if (action === "disconnect") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    return handleDisconnect(req, res, provider);
+  }
 
   if (action === "health_token") {
     const uid = await verifyAuth(req);
