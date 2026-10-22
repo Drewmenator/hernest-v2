@@ -252,12 +252,13 @@ export function BillsScreen() {
         </Card>
       ) : (
         <SummaryCard overdue={grouped.overdue.length} count={weekBills.length} total={weekTotal} autopay={weekAutopay} toCheck={grouped.check.length}
+          estimate={weekBills.some(b => displayAmount(b).estimate)}
           next={grouped.overdue[0] ?? grouped.week[0] ?? null} now={now} days={weekByDay(weekBills, now)} />
       )}
 
       {/* Ways to add */}
       <div style={{ display: "flex", gap: S.sm, marginBottom: S.xs }}>
-        <Button onClick={() => setView({ kind: "edit", bill: null })} style={addBtn}><PlusIcon size={18} color="#fff" strokeWidth={2.2} />Add bill</Button>
+        <Button onClick={() => setView({ kind: "edit", bill: null })} style={addBtn}><PlusIcon size={18} color={T.onAction} strokeWidth={2.2} />Add bill</Button>
         <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "screenshot" })} style={addBtn} ariaLabel="Add a bill from a photo or screenshot"><CameraIcon size={18} />Photo</Button>
         <Button variant="secondary" onClick={() => setView({ kind: "import", mode: "text" })} style={addBtn} ariaLabel="Add a bill by typing it"><EditIcon size={17} />Type it</Button>
       </div>
@@ -351,8 +352,8 @@ const dayLetters = (now: Date) => Array.from({ length: 7 }, (_, i) => {
 // Sage when things are on track; a soft rose with the word "Overdue" when
 // a bill is late. Calm, never an alarm. The big number is what's due this
 // week; the bars show which days.
-function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days }: {
-  overdue: number; count: number; total: number; autopay: number; toCheck: number;
+function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days, estimate }: {
+  overdue: number; count: number; total: number; autopay: number; toCheck: number; estimate?: boolean;
   next: Bill | null; now: Date; days: number[];
 }) {
   const late = overdue > 0;
@@ -371,6 +372,7 @@ function SummaryCard({ overdue, count, total, autopay, toCheck, next, now, days 
       <HeroNumber
         value={count === 0 ? "$0" : total > 0 ? formatMoney(total) : `${count}`}
         unit={count > 0 && !(total > 0) ? (count === 1 ? "bill" : "bills") : undefined}
+        label={estimate && total > 0 ? "About. Some amounts change each month." : undefined}
         size={48} />
       <Headline size={21} style={{ marginTop: 12 }}>{headline}</Headline>
       <Detail>{detail}</Detail>

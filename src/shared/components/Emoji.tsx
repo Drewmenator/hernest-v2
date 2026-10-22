@@ -28,7 +28,7 @@ export function Emoji({ e, size = 18, tile, color, strokeWidth = 1.9 }: {
   if (!tile) return <span aria-hidden="true" style={{ display: "inline-flex", verticalAlign: "-0.15em" }}>{icon}</span>;
   const box = Math.round(size * 1.9);
   return (
-    <span aria-hidden="true" style={{ width: box, height: box, borderRadius: Math.round(box * 0.32), background: c.bg, display: "inline-grid", placeItems: "center", flexShrink: 0, boxShadow: "inset 0 1px 0 rgba(255,255,255,.7)" }}>
+    <span aria-hidden="true" style={{ width: box, height: box, borderRadius: Math.round(box * 0.32), background: c.bg, display: "inline-grid", placeItems: "center", flexShrink: 0, boxShadow: `inset 0 1px 0 ${T.glassStrong}` }}>
       {icon}
     </span>
   );

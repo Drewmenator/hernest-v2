@@ -1,8 +1,9 @@
 // ─── Global styles ─────────────────────────────────────────────────
 // Injected once by App (and the design preview).
-import { T, MOTION, GRAIN } from "../config/theme";
+import { T, MOTION, GRAIN, themeCss } from "../config/theme";
 
 export const globalStyles = `
+  ${themeCss()}
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   
   /* Mobile-first base */
@@ -15,7 +16,8 @@ export const globalStyles = `
   }
   
   body {
-    background: ${T.cream};
+    background: ${T.bg};
+    color: ${T.text};
     font-family: 'DM Sans', sans-serif;
     overflow-x: hidden;
     overflow-y: auto;
@@ -25,27 +27,31 @@ export const globalStyles = `
     -webkit-overflow-scrolling: touch;
   }
   
-  /* Warm paper: soft light on the ivory page plus a very fine grain.
-     Two fixed layers behind everything, painted once (they never move
-     while scrolling). html.hn-flat turns them off for comparison. */
+  /* The page: each tab's own light (Today lavender-ivory, Plan powder
+     blue, Cleo violet silk, Bills pearl sage, Me blush dawn) in both
+     themes, the tab's artwork when it has one, and a fine grain on top.
+     Fixed layers behind everything, painted once (they never move while
+     scrolling). html.hn-flat turns them off for comparison. */
   body::before, body::after {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   }
   body::before {
     background:
-      radial-gradient(80% 50% at 100% 0%, rgba(207,190,230,.7) 0%, rgba(214,201,232,0) 72%),
-      radial-gradient(50% 30% at 15% 8%, rgba(255,255,255,.7) 0%, rgba(255,255,255,0) 70%),
-      radial-gradient(60% 40% at 0% 100%, rgba(245,222,213,.45) 0%, rgba(245,222,213,0) 70%),
-      linear-gradient(180deg, #F6F1E6 0%, ${T.cream} 45%, #F1EADB 100%);
+      var(--hn-page-scrim),
+      var(--hn-page-art) center top / cover no-repeat,
+      radial-gradient(80% 50% at 100% 0%, var(--hn-page-a) 0%, transparent 72%),
+      radial-gradient(60% 40% at 0% 100%, var(--hn-page-b) 0%, transparent 70%),
+      linear-gradient(180deg, var(--hn-page-top) 0%, ${T.bg} 45%, var(--hn-page-bottom) 100%);
   }
-  body::after { background-image: ${GRAIN}; background-size: 160px 160px; opacity: .07; }
-  html.hn-flat body::before, html.hn-flat body::after { display: none; }
+  body::after { background-image: ${GRAIN}; background-size: 160px 160px; opacity: var(--hn-grain-opacity); }
+  html.hn-flat body::before { background: ${T.bg}; }
+  html.hn-flat body::after { display: none; }
 
   /* Fine grain inside a card (Cleo's hero only), kept under the text. */
   .hn-grain { isolation: isolate; }
   .hn-grain::after {
     content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
-    background-image: ${GRAIN}; background-size: 160px 160px; opacity: .08;
+    background-image: ${GRAIN}; background-size: 160px 160px; opacity: var(--hn-grain-opacity);
   }
   html.hn-flat .hn-grain::after { display: none; }
 
@@ -93,14 +99,14 @@ export const globalStyles = `
 
   /* Loading placeholders (Skeleton): a soft light sweeps across. The
      sweep is a transform, so it stays smooth while the page scrolls. */
-  .hn-skeleton { position: relative; overflow: hidden; background: #ECE5D6; }
+  .hn-skeleton { position: relative; overflow: hidden; background: ${T.sand}; }
   .hn-skeleton::after {
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%);
+    background: linear-gradient(90deg, transparent 0%, ${T.glassStrong} 50%, transparent 100%);
     transform: translateX(-100%);
     animation: hnShimmer 1.5s ease-in-out infinite;
   }
-  .hn-skeleton.on-tint { background: rgba(255,255,255,.45); }
+  .hn-skeleton.on-tint { background: ${T.glass}; }
   @keyframes hnShimmer { to { transform: translateX(100%) } }
 
   /* Cards below the fold ease in as they scroll into view (Reveal). */

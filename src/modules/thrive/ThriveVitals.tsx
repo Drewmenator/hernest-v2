@@ -4,7 +4,7 @@
 // score, so it leads with last night's sleep and compares heart data with her
 // own usual. Tiles and trends with no data are left out, never filled in.
 import React from "react";
-import { T, F, ATMOS, ATMOS_TEXT2, SHADOWS } from "../../config/theme";
+import { T, F, ATMOS, ATMOS_TEXT2, SHADOWS, alpha } from "../../config/theme";
 import { GlowCard, HeroNumber, Headline, Detail, SparkArea, ProgressRing } from "../../shared/components";
 import { vsUsual, type WearableDay, type WearableDayPoint } from "../../core/wellnessAutoTrack";
 
@@ -28,7 +28,7 @@ function band(score: number | null): { color: string; word: string } {
 
 function Tile({ label, value, sub, color = T.esp }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div style={{ flex: 1, minWidth: 0, background: "linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.72))", border: "1px solid rgba(255,255,255,.95)", borderRadius: 18, padding: "12px 12px 11px", boxShadow: SHADOWS.sm }}>
+    <div style={{ flex: 1, minWidth: 0, background: `linear-gradient(180deg, ${T.surface}, ${alpha(T.surface, 0.78)})`, border: `1px solid ${T.hairline}`, borderRadius: 18, padding: "12px 12px 11px", boxShadow: SHADOWS.sm }}>
       <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.text2, margin: 0 }}>{label}</p>
       <p style={{ fontFamily: F.sans, letterSpacing: "-0.03em", fontSize: 24, fontWeight: 800, color, margin: "4px 0 0", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</p>
       {sub && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.text2, margin: "4px 0 0", lineHeight: 1.3 }}>{sub}</p>}

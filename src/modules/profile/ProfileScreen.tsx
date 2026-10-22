@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { currencySymbol, getCurrency } from "../../shared/utils/money";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Button, Input, Emoji } from "../../shared/components";
@@ -136,7 +136,7 @@ export function ProfileScreen() {
 
       {/* Avatar + name */}
       <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:20 }}>
-        <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><Emoji e="👩" size={30} color="#fff" /></div>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},${T.actionPress})`, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction }}><Emoji e="👩" size={30} color={T.onAction} /></div>
         <div>
           <h2 style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:22, color:T.esp, margin:0 }}>{name||"Your name"}</h2>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>{user?.email}</p>
@@ -146,7 +146,7 @@ export function ProfileScreen() {
       {/* Tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
         {SECTIONS.map(s=>(
-          <button key={s} onClick={()=>setSection(s)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${section===s?T.esp:T.linen}`, background:section===s?T.esp:"#fff", color:section===s?"#fff":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
+          <button key={s} onClick={()=>setSection(s)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${section===s?T.esp:T.linen}`, background:section===s?T.esp:T.surface, color:section===s?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
             {s.charAt(0).toUpperCase()+s.slice(1)}
           </button>
         ))}
@@ -174,7 +174,7 @@ export function ProfileScreen() {
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Cleo uses this to personalize your morning focus word</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {FOCUS_THEMES.map(t=>(
-              <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:"#fff", color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
+              <button key={t.value} onClick={()=>setFocusTheme(t.value)} style={{ padding:"8px 14px", borderRadius:20, border:`1.5px solid ${focusTheme===t.value?T.gold:T.linen}`, background:focusTheme===t.value?T.goldP:T.surface, color:focusTheme===t.value?T.gold:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
                 <Emoji e={t.emoji} size={15} /> {t.label}
               </button>
             ))}
@@ -190,8 +190,8 @@ export function ProfileScreen() {
               const isSelected = priorities.some(p=>p.area===area);
               const rank = priorities.find(p=>p.area===area)?.rank;
               return (
-                <button key={area} onClick={()=>togglePriority(area)} style={{ padding:"7px 14px", borderRadius:20, border:`1.5px solid ${isSelected?T.esp:T.linen}`, background:isSelected?T.esp:"#fff", color:isSelected?"#fff":T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", position:"relative" }}>
-                  {rank && <span style={{ position:"absolute", top:-6, right:-6, width:16, height:16, borderRadius:"50%", background:T.gold, color:"#fff", fontFamily:F.sans, fontSize: 12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>{rank}</span>}
+                <button key={area} onClick={()=>togglePriority(area)} style={{ padding:"7px 14px", borderRadius:20, border:`1.5px solid ${isSelected?T.esp:T.linen}`, background:isSelected?T.esp:T.surface, color:isSelected?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", position:"relative" }}>
+                  {rank && <span style={{ position:"absolute", top:-6, right:-6, width:16, height:16, borderRadius:"50%", background:T.gold, color:T.onAction, fontFamily:F.sans, fontSize: 12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>{rank}</span>}
                   {area}
                 </button>
               );
@@ -207,7 +207,7 @@ export function ProfileScreen() {
               <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.esp, margin:0 }}>Your family</p>
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"2px 0 0" }}>Partner, kids, grandparents and friends, with birthdays and school details</p>
             </div>
-            <button onClick={()=>setActiveTab("family")} style={{ background:T.goldP, border:`1px solid ${T.gold}40`, borderRadius:10, padding:"8px 12px", fontFamily:F.sans, fontSize:12, color:T.gold, cursor:"pointer", minHeight:36, flexShrink:0 }}>Open ›</button>
+            <button onClick={()=>setActiveTab("family")} style={{ background:T.goldP, border:`1px solid ${alpha(T.gold, 0.25)}`, borderRadius:10, padding:"8px 12px", fontFamily:F.sans, fontSize:12, color:T.gold, cursor:"pointer", minHeight:36, flexShrink:0 }}>Open ›</button>
           </div>
         </Card>
 
@@ -220,7 +220,7 @@ export function ProfileScreen() {
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Energy pattern</p>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
             {ENERGY_PATTERNS.map(e=>(
-              <button key={e.value} onClick={()=>setEnergyPattern(e.value)} style={{ padding:"10px", borderRadius:14, border:`2px solid ${energyPattern===e.value?T.sky:T.linen}`, background:energyPattern===e.value?T.skyP:"#fff", color:energyPattern===e.value?T.sky:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", minHeight:48 }}>
+              <button key={e.value} onClick={()=>setEnergyPattern(e.value)} style={{ padding:"10px", borderRadius:14, border:`2px solid ${energyPattern===e.value?T.sky:T.linen}`, background:energyPattern===e.value?T.skyP:T.surface, color:energyPattern===e.value?T.sky:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation", minHeight:48 }}>
                 <Emoji e={e.emoji} size={15} /> {e.label}
               </button>
             ))}
@@ -231,7 +231,7 @@ export function ProfileScreen() {
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Fitness level</p>
           <div style={{ display:"flex", gap:6 }}>
             {FITNESS_LEVELS.map(f=>(
-              <button key={f} onClick={()=>setFitnessLevel(f)} style={{ flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${fitnessLevel===f?T.sage:T.linen}`, background:fitnessLevel===f?`${T.sage}15`:"#fff", color:fitnessLevel===f?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{f}</button>
+              <button key={f} onClick={()=>setFitnessLevel(f)} style={{ flex:1, padding:"10px", borderRadius:12, border:`1.5px solid ${fitnessLevel===f?T.sage:T.linen}`, background:fitnessLevel===f?`${alpha(T.sage, 0.08)}`:T.surface, color:fitnessLevel===f?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{f}</button>
             ))}
           </div>
         </Card>
@@ -243,7 +243,7 @@ export function ProfileScreen() {
               <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 6px" }}>Sleep goal (hours)</p>
               <div style={{ display:"flex", gap:4 }}>
                 {[6,7,8,9].map(h=>(
-                  <button key={h} onClick={()=>setSleepGoal(h)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${sleepGoal===h?T.sky:T.linen}`, background:sleepGoal===h?T.skyP:"#fff", color:sleepGoal===h?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{h}</button>
+                  <button key={h} onClick={()=>setSleepGoal(h)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${sleepGoal===h?T.sky:T.linen}`, background:sleepGoal===h?T.skyP:T.surface, color:sleepGoal===h?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{h}</button>
                 ))}
               </div>
             </div>
@@ -251,7 +251,7 @@ export function ProfileScreen() {
               <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"0 0 6px" }}>Water goal (glasses)</p>
               <div style={{ display:"flex", gap:4 }}>
                 {[6,8,10,12].map(w=>(
-                  <button key={w} onClick={()=>setWaterGoal(w)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${waterGoal===w?T.sky:T.linen}`, background:waterGoal===w?T.skyP:"#fff", color:waterGoal===w?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{w}</button>
+                  <button key={w} onClick={()=>setWaterGoal(w)} style={{ flex:1, padding:"8px", borderRadius:10, border:`1.5px solid ${waterGoal===w?T.sky:T.linen}`, background:waterGoal===w?T.skyP:T.surface, color:waterGoal===w?T.sky:T.bark, fontFamily:F.sans, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>{w}</button>
                 ))}
               </div>
             </div>
@@ -264,7 +264,7 @@ export function ProfileScreen() {
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Dietary preferences</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {["Vegetarian","Vegan","Gluten-free","Dairy-free","Halal","Kosher","Pescatarian","No restrictions"].map(d=>(
-              <button key={d} onClick={()=>setDiet(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${diet.includes(d)?T.sage:T.linen}`, background:diet.includes(d)?`${T.sage}15`:"#fff", color:diet.includes(d)?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{d}</button>
+              <button key={d} onClick={()=>setDiet(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${diet.includes(d)?T.sage:T.linen}`, background:diet.includes(d)?`${alpha(T.sage, 0.08)}`:T.surface, color:diet.includes(d)?T.sage:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{d}</button>
             ))}
           </div>
         </Card>
@@ -286,7 +286,7 @@ export function ProfileScreen() {
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Active goals</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
             {["Get promoted","Run 5k",`Save ${currencySymbol(getCurrency())}5k`,"Travel more","Read 12 books","Learn to cook","Better sleep","More self-care","Make new friends","Work-life balance"].map(g=>(
-              <button key={g} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${activeGoals.includes(g)?T.esp:T.linen}`, background:activeGoals.includes(g)?T.esp:"#fff", color:activeGoals.includes(g)?"#fff":T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{g}</button>
+              <button key={g} onClick={()=>setActiveGoals(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} style={{ padding:"7px 12px", borderRadius:20, border:`1.5px solid ${activeGoals.includes(g)?T.esp:T.linen}`, background:activeGoals.includes(g)?T.esp:T.surface, color:activeGoals.includes(g)?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>{g}</button>
             ))}
           </div>
         </Card>

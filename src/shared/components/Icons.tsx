@@ -1,4 +1,5 @@
 import React from "react";
+import { T } from "../../config/theme";
 
 interface IconProps {
   size?: number;
@@ -31,13 +32,13 @@ export const CleoIcon = (p: IconProps) => <I {...p}>
 
 export const PlanIcon = (p: IconProps) => <I {...p}>
   <rect x="3.5" y="3.5" width="17" height="17" rx="5"/>
-  <path d="M8.5 12l2.5 2.5 4.5-5" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")} fill="none"/>
+  <path d="M8.5 12l2.5 2.5 4.5-5" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")} fill="none"/>
 </I>;
 
 export const BudgetIcon = (p: IconProps) => <I {...p}>
   <rect x="3" y="5.5" width="18" height="13" rx="3.5"/>
-  <path d="M3 10h18" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
-  <path d="M7 14.5h3" stroke={p.filled ? "#fff" : (p.color ?? "currentColor")}/>
+  <path d="M3 10h18" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")}/>
+  <path d="M7 14.5h3" stroke={p.filled ? T.onAction : (p.color ?? "currentColor")}/>
 </I>;
 
 export const BriefIcon = (p: IconProps) => <I {...p}>

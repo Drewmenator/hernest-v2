@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { PageTitle, Emoji } from "../../shared/components";
 import { LifeBuoy } from "lucide-react";
@@ -72,9 +72,9 @@ export function UpgradeScreen() {
     <div style={{ animation:"fadeUp .45s ease both" }}>
       <PageTitle title="HerNest Pro" />
       <div style={{ background:T.action, borderRadius:24, padding:"36px 24px", textAlign:"center" }}>
-        <div style={{ width:56, height:56, borderRadius:"50%", background:`${T.gold}25`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", color:T.gold }}><Emoji e="✦" size={24} /></div>
-        <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:26, color:"#fff", margin:"0 0 8px" }}>You're Pro</p>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
+        <div style={{ width:56, height:56, borderRadius:"50%", background:`${alpha(T.gold, 0.15)}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", color:T.gold }}><Emoji e="✦" size={24} /></div>
+        <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:26, color:T.onAction, margin:"0 0 8px" }}>You're Pro</p>
+        <p style={{ fontFamily:F.sans, fontSize:13, color: alpha(T.onAction, 0.7), margin:0, lineHeight:1.7 }}>
           Unlimited Cleo, full memory, every connector — all yours. Thank you for backing HerNest.
         </p>
       </div>
@@ -87,9 +87,9 @@ export function UpgradeScreen() {
 
       {/* Hero */}
       <div style={{ background:T.action, borderRadius:24, padding:"32px 24px", marginBottom:20, textAlign:"center" }}>
-        <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:"rgba(255,255,255,0.5)", margin:"0 0 8px" }}>Hernest pro</p>
-        <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontSize:30, color:"#fff", margin:"0 0 12px", fontWeight: 700 }}>Your household deserves a real chief of staff</p>
-        <p style={{ fontFamily:F.sans, fontSize:13, color:"rgba(255,255,255,0.7)", margin:0, lineHeight:1.7 }}>
+        <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color: alpha(T.onAction, 0.5), margin:"0 0 8px" }}>Hernest pro</p>
+        <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontSize:30, color:T.onAction, margin:"0 0 12px", fontWeight: 700 }}>Your household deserves a real chief of staff</p>
+        <p style={{ fontFamily:F.sans, fontSize:13, color: alpha(T.onAction, 0.7), margin:0, lineHeight:1.7 }}>
           Unlimited Cleo, her full memory, every connector, and shared briefings for your whole household.
         </p>
       </div>
@@ -122,11 +122,11 @@ export function UpgradeScreen() {
       {/* CTA */}
       {!joined ? (
         <button onClick={upgrade} disabled={loading}
-          style={{ width:"100%", padding:"16px", background:T.esp, color:"#fff", border:"none", borderRadius:16, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:12 }}>
+          style={{ width:"100%", padding:"16px", background:T.esp, color:T.onAction, border:"none", borderRadius:16, fontFamily:F.sans, fontSize:15, fontWeight:700, cursor:"pointer", marginBottom:12 }}>
           {loading ? "One moment..." : "Upgrade to Pro"}
         </button>
       ) : (
-        <div style={{ background:`${T.sage}15`, border:`1px solid ${T.sage}30`, borderRadius:16, padding:"20px", textAlign:"center" }}>
+        <div style={{ background:`${alpha(T.sage, 0.08)}`, border:`1px solid ${alpha(T.sage, 0.19)}`, borderRadius:16, padding:"20px", textAlign:"center" }}>
           <p style={{ margin:"0 0 8px", color:T.sage }}><Emoji e="✦" size={32} /></p>
           <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:20, color:T.esp, margin:"0 0 4px" }}>You're on the list</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:0 }}>We'll be in touch with your founding member offer.</p>

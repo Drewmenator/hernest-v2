@@ -93,16 +93,16 @@ function Briefing({ weather }: { weather: WeatherData | null }) {
       ) : (
         <>
           {briefing.focusWord?.word && (
-            <span style={{ display: "inline-block", fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: ink, background: "rgba(255,255,255,.6)", borderRadius: 99, padding: "4px 10px", marginBottom: 10 }}>
+            <span style={{ display: "inline-block", fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: ink, background: T.glassStrong, borderRadius: 99, padding: "4px 10px", marginBottom: 10 }}>
               Focus: {briefing.focusWord.word}
             </span>
           )}
           {headline && <Headline size={24}>{headline}</Headline>}
           {rest.length > 0 && (
-            <div style={{ marginTop: 14, borderTop: "1px solid rgba(76,59,116,.14)" }}>
+            <div style={{ marginTop: 14, borderTop: `1px solid ${T.hairline}` }}>
               {rest.slice(0, 2).map((p, i) => (
                 <p key={i} style={{ ...body, fontSize: 15, display: "flex", gap: 10, padding: "10px 0 0" }}>
-                  <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: "rgba(255,255,255,.7)", color: ink, fontSize: 12, fontWeight: 800 }}>{i + 1}</span>
+                  <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: T.glassStrong, color: ink, fontSize: 12, fontWeight: 800 }}>{i + 1}</span>
                   <span>{p.text}</span>
                 </p>
               ))}

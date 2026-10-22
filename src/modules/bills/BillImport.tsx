@@ -104,7 +104,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
             </p>
             {suggestions.map(s => (
               <label key={s.key}
-                style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1px solid ${keep[s.key] ? T.esp : T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
+                style={{ display: "flex", alignItems: "center", gap: 12, background: T.surface, border: `1px solid ${keep[s.key] ? T.esp : T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
                 <input type="checkbox" checked={!!keep[s.key]} onChange={e => setKeep(k => ({ ...k, [s.key]: e.target.checked }))} style={{ width: 22, height: 22, flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.esp }}>
@@ -137,7 +137,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {(["screenshot", "text"] as const).map(m => (
           <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
-            style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${mode === m ? T.esp : T.linen}`, background: mode === m ? T.esp : "#fff", color: mode === m ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>
+            style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${mode === m ? T.esp : T.linen}`, background: mode === m ? T.esp : T.surface, color: mode === m ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, cursor: "pointer", minHeight: 44 }}>
             <Emoji e={m === "screenshot" ? "📸" : "✍"} size={16} /> {m === "screenshot" ? "Screenshot" : "Type it"}
           </button>
         ))}
@@ -160,7 +160,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
                 <div key={i} style={{ position: "relative" }}>
                   <img src={s.preview} alt={`Screenshot ${i + 1}`} style={{ width: 84, height: 140, objectFit: "cover", borderRadius: 12, border: `1px solid ${T.linen}` }} />
                   <button onClick={() => setShots(x => x.filter((_, j) => j !== i))} aria-label={`Remove screenshot ${i + 1}`}
-                    style={{ position: "absolute", top: -8, right: -8, width: 28, height: 28, borderRadius: 14, border: "none", background: T.esp, color: "#fff", cursor: "pointer", fontSize: 13 }}><Emoji e="✕" size={14} /></button>
+                    style={{ position: "absolute", top: -8, right: -8, width: 28, height: 28, borderRadius: 14, border: "none", background: T.esp, color: T.onAction, cursor: "pointer", fontSize: 13 }}><Emoji e="✕" size={14} /></button>
                 </div>
               ))}
             </div>
@@ -187,7 +187,7 @@ export function BillImport({ mode: initialMode, existing, onAdd, onClose }: {
       )}
 
       <PrimaryButton onClick={read} disabled={busy || (mode === "screenshot" ? !shots.length : note.trim().length < 3)}>
-        {busy ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Spinner size={16} color="#fff" /> Cleo is reading...</span> : "Find my bills"}
+        {busy ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Spinner size={16} color={T.onAction} /> Cleo is reading...</span> : "Find my bills"}
       </PrimaryButton>
       <div style={{ textAlign: "center", marginTop: 6 }}>
         <TextLink onClick={onClose}>Cancel</TextLink>

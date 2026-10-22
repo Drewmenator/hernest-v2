@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { openCleo } from "../../shared/utils/openCleo";
 import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState, Emoji } from "../../shared/components";
@@ -15,7 +15,7 @@ const ENERGY_COLORS: Record<string,string> = {
 };
 
 const URGENCY_COLORS: Record<string,string> = {
-  "critical": "#dc2626", "high": T.gold, "medium": T.esp, "low": T.taupe
+  "critical": T.danger, "high": T.gold, "medium": T.esp, "low": T.taupe
 };
 
 const SOURCE_EMOJIS: Record<string,string> = {
@@ -85,7 +85,7 @@ export function BriefingScreen() {
 
     } catch(e) {
       console.error("[Briefing] catch error:", e);
-      toast.error("Briefing failed — tap ↻ to retry");
+      toast.error("Cleo couldn't write your briefing. Tap Prepare my briefing to try again.");
     }
     setLoading(false);
   };
@@ -108,7 +108,7 @@ export function BriefingScreen() {
           <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 28, color: T.esp, margin: 0 }}>Briefing</p>
         </div>
         <div role="status" style={{ background: T.cleoBg, borderRadius: 24, padding: "40px 24px", textAlign: "center" }}>
-          <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22, color: T.action }}><Emoji e="✦" size={22} /></div>
+          <div style={{ width: 48, height: 48, borderRadius: 16, background: T.glassStrong, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22, color: T.action }}><Emoji e="✦" size={22} /></div>
           <p style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 20, color: T.text, margin: "0 0 6px" }}>Cleo is preparing your briefing</p>
           <p style={{ fontFamily: F.sans, fontSize: 15, color: T.text2, margin: "0 0 20px" }}>Reading your week…</p>
           <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
@@ -156,7 +156,7 @@ export function BriefingScreen() {
         {/* Focus Word Hero — per blueprint */}
         <div style={{ background:T.cleoBg, borderRadius:24, padding:"28px 24px", marginBottom:16, position:"relative", overflow:"hidden" }}>
           {weather && (
-            <div style={{ position:"absolute", top:12, right:16, display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.7)", borderRadius:20, padding:"4px 10px", backdropFilter:"blur(4px)" }}>
+            <div style={{ position:"absolute", top:12, right:16, display:"flex", alignItems:"center", gap:5, background:T.glassStrong, borderRadius:20, padding:"4px 10px", backdropFilter:"blur(4px)" }}>
               <Emoji e={weather.icon} size={18} />
               <span style={{ fontFamily:F.sans, fontSize:12, fontWeight:600, color:T.text }}>{weather.temp}°{weather.unit}</span>
             </div>
@@ -179,7 +179,7 @@ export function BriefingScreen() {
           </div>
           {(briefing.priorities||[]).map((p,i)=>(
             <div key={i} style={{ display:"flex", gap:12, padding:"12px 0", borderBottom:i<(briefing.priorities.length-1)?`1px solid ${T.linen}`:"none" }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:`${URGENCY_COLORS[p.urgency]||T.gold}15`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:`${alpha(URGENCY_COLORS[p.urgency]||T.gold, 0.08)}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <span style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontSize:15, fontWeight:700, color:URGENCY_COLORS[p.urgency]||T.gold }}>{p.rank}</span>
               </div>
               <div style={{ flex:1 }}>
@@ -190,7 +190,7 @@ export function BriefingScreen() {
                 </p>
               </div>
               {p.urgency==="critical" && (
-                <span style={{ background:"#dc262615", color:"#dc2626", fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 7px", borderRadius:10, alignSelf:"flex-start", flexShrink:0 }}>urgent</span>
+                <span style={{ background:alpha(T.danger, 0.08), color:T.danger, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 7px", borderRadius:10, alignSelf:"flex-start", flexShrink:0 }}>urgent</span>
               )}
             </div>
           ))}
@@ -213,7 +213,7 @@ export function BriefingScreen() {
               </div>
             ))}
             {briefing.calendar.conflicts?.map((c,i)=>(
-              <div key={i} style={{ background:`${T.blush}10`, borderRadius:10, padding:"8px 12px", marginTop:8 }}>
+              <div key={i} style={{ background:`${alpha(T.blush, 0.06)}`, borderRadius:10, padding:"8px 12px", marginTop:8 }}>
                 <p style={{ fontFamily:F.sans, fontSize:12, color:T.blush, margin:0 }}><Emoji e="⚡" size={13} /> Conflict: {c}</p>
               </div>
             ))}
@@ -289,7 +289,7 @@ export function BriefingScreen() {
           <Card>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
               <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:0 }}>Energy forecast</p>
-              <span style={{ background:`${ENERGY_COLORS[briefing.energy.predictedLevel]||T.gold}20`, color:ENERGY_COLORS[briefing.energy.predictedLevel]||T.gold, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10 }}>
+              <span style={{ background:`${alpha(ENERGY_COLORS[briefing.energy.predictedLevel]||T.gold, 0.13)}`, color:ENERGY_COLORS[briefing.energy.predictedLevel]||T.gold, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10 }}>
                 {briefing.energy.predictedLevel}
               </span>
             </div>
@@ -301,7 +301,7 @@ export function BriefingScreen() {
 
         {/* Affirmation — per blueprint, themed by tone */}
         {briefing.affirmation && (
-          <div style={{ background:`linear-gradient(135deg,${toneColor}20,${T.esp}08)`, border:`1px solid ${toneColor}30`, borderRadius:20, padding:"20px 20px", marginBottom:12 }}>
+          <div style={{ background:`linear-gradient(135deg,${alpha(toneColor, 0.13)},${alpha(T.esp, 0.03)})`, border:`1px solid ${alpha(toneColor, 0.19)}`, borderRadius:20, padding:"20px 20px", marginBottom:12 }}>
             <p style={{ fontFamily:F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize:18, color:T.esp, margin:"0 0 8px", lineHeight:1.7 }}>{briefing.affirmation.text}</p>
             <p style={{ fontFamily:F.sans, fontSize: 14, color:toneColor, margin:0, fontWeight: 600 }}>— Cleo · {briefing.affirmation.theme}</p>
           </div>
@@ -312,9 +312,9 @@ export function BriefingScreen() {
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Ask cleo</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {["What should I tackle first?","Which bills are due soon?","What's urgent?"].map(q=>(
-              <button key={q} onClick={()=>openCleo(q)} style={{ padding:"8px 12px", borderRadius:20, border:`1px solid ${T.linen}`, background:"#fff", fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
+              <button key={q} onClick={()=>openCleo(q)} style={{ padding:"8px 12px", borderRadius:20, border:`1px solid ${T.linen}`, background:T.surface, fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
             ))}
-            <button onClick={()=>openCleo()} style={{ padding:"8px 12px", borderRadius:20, border:"none", background:toneColor, fontFamily:F.sans, fontSize:12, fontWeight:700, color:"#fff", cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>Open Cleo →</button>
+            <button onClick={()=>openCleo()} style={{ padding:"8px 12px", borderRadius:20, border:"none", background:toneColor, fontFamily:F.sans, fontSize:12, fontWeight:700, color:T.onAction, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>Open Cleo →</button>
           </div>
         </Card>
 

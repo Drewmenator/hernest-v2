@@ -84,7 +84,7 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
             const on = picked.includes(p.id);
             return (
               <button key={p.id} onClick={() => toggle(p.id)} aria-pressed={on}
-                style={{ background: on ? T.esp : "#fff", color: on ? "#fff" : T.esp, border: `1.5px solid ${on ? T.esp : T.linen}`, borderRadius: 14,
+                style={{ background: on ? T.esp : T.surface, color: on ? T.onAction : T.esp, border: `1.5px solid ${on ? T.esp : T.linen}`, borderRadius: 14,
                   padding: "12px 6px", minHeight: 84, cursor: "pointer", touchAction: "manipulation", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   boxShadow: on ? "0 6px 16px -6px rgba(28,61,90,.4)" : "0 1px 2px rgba(28,61,90,.05)", transition: "background .18s, box-shadow .18s" }}>
                 <div style={{ marginBottom: 6 }}><BillIcon name={p.name} presetId={p.id} size={38} selected={on} /></div>
@@ -112,7 +112,7 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
           const d = days[p.id];
           const isOpen = open === p.id;
           return (
-            <div key={p.id} style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 8 }}>
+            <div key={p.id} style={{ background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "12px 14px", marginBottom: 8 }}>
               <button onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer", minHeight: 36 }}>
                 <BillIcon name={p.name} presetId={p.id} size={32} />
@@ -143,9 +143,9 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
 
   return (
     <div style={{ animation: "fadeUp .3s ease both" }}>
-      {heading("BILLS · 3 OF 3", "Anything else?", "Daycare, the babysitter, a school fee, a subscription we didn't list. Add it whichever way is easiest.")}
+      {heading("BILLS · 3 OF 3", "Anything else?", "Daycare, the babysitter, a school fee, a subscription we didn't list. Add it whichever way is easiest. HerNest only reminds you; it never makes payments.")}
       <button onClick={() => onOpenImport("screenshot")}
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 10, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 10, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
         <Emoji e="📸" tile size={20} />
         <span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 15, fontWeight: 700, color: T.esp }}>From a screenshot</span>
@@ -153,7 +153,7 @@ export function BillSetup({ existing, onAdd, onOpenImport, onDone }: {
         </span>
       </button>
       <button onClick={() => onOpenImport("text")}
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 18, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 16, padding: "16px", marginBottom: 18, cursor: "pointer", textAlign: "left", minHeight: 72 }}>
         <Emoji e="✍" tile size={20} />
         <span>
           <span style={{ display: "block", fontFamily: F.sans, fontSize: 15, fontWeight: 700, color: T.esp }}>Type or say it</span>

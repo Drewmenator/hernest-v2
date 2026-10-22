@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
+import { T, F, S, TYPE, ATMOS, ATMOS_TEXT2, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Pill, Button, Input, AIBadge, Emoji, GlowCard, Headline, ProgressRing, EmptyState, Segmented, CheckBox, StatusChip, SectionHeader, ListRow, TextButton } from "../../shared/components";
 import { PlusIcon, SparkleIcon } from "../../shared/components/Icons";
@@ -473,7 +473,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
         <Card>
           <div style={{ display:"flex", gap:8, marginBottom:(input.trim() || who !== "") ? 12 : 0 }}>
             <Input value={input} onChange={setInput} placeholder="Add a task" style={{ flex:1 }}/>
-            <button onClick={addTask} disabled={!input.trim()} aria-label="Add task" style={{ width:48, height:48, borderRadius:12, background:input.trim()?T.action:T.divider, border:"none", color:"#fff", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, display:"grid", placeItems:"center" }}><PlusIcon size={22} color="#fff" strokeWidth={2.4}/></button>
+            <button onClick={addTask} disabled={!input.trim()} aria-label="Add task" style={{ width:48, height:48, borderRadius:12, background:input.trim()?T.action:T.divider, border:"none", color:T.onAction, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, display:"grid", placeItems:"center" }}><PlusIcon size={22} color={T.onAction} strokeWidth={2.4}/></button>
           </div>
           {/* The details appear once she starts typing, so the form stays one line until needed. */}
           {(input.trim() || who !== "") && <>
@@ -609,7 +609,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
               <AIBadge label="Extracted by Cleo"/>
             </div>
             {schoolEvents.map(e=>{
-              const typeColors: Record<string,string> = { "parent-evening":T.blush, trip:T.gold, deadline:"#dc2626", sport:T.sage };
+              const typeColors: Record<string,string> = { "parent-evening":T.blush, trip:T.gold, deadline:T.danger, sport:T.sage };
               return (
                 <div key={e.id} style={{ padding:"12px 0", borderBottom:`1px solid ${T.linen}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
@@ -625,7 +625,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
                       )}
                     </div>
                     {e.requiresAction && (
-                      <span style={{ background:`${T.blush}20`, color:T.blush, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10, flexShrink:0 }}>
+                      <span style={{ background:`${alpha(T.blush, 0.13)}`, color:T.blush, fontFamily:F.sans, fontSize: 14, fontWeight: 600, padding:"3px 8px", borderRadius:10, flexShrink:0 }}>
                         {e.actionType||"action"}
                       </span>
                     )}
@@ -674,7 +674,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
           })}
 
           {/* Shopping list per blueprint with categories */}
-          {mealPlan && mealPlan.shoppingList.length > 0 && <button onClick={()=>setShowShopping(!showShopping)} style={{ width:"100%", padding:"12px", background:T.esp, color:"#fff", border:"none", borderRadius:14, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:showShopping?12:0, minHeight:48, touchAction:"manipulation" }}>
+          {mealPlan && mealPlan.shoppingList.length > 0 && <button onClick={()=>setShowShopping(!showShopping)} style={{ width:"100%", padding:"12px", background:T.esp, color:T.onAction, border:"none", borderRadius:14, fontFamily:F.sans, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:showShopping?12:0, minHeight:48, touchAction:"manipulation" }}>
             <Emoji e="🛒" size={16} /> Shopping List ({mealPlan.shoppingList.length} items)
           </button>}
 
@@ -691,7 +691,7 @@ Never include an ingredient named as an allergy or dislike anywhere in the notes
                       const globalIdx = mealPlan.shoppingList.indexOf(item);
                       return (
                         <div key={idx} onClick={()=>toggleShoppingItem(globalIdx)} role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle bought: ${item.item}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", cursor:"pointer", touchAction:"manipulation" }}>
-                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12 }}>{item.checked?<Emoji e="✓" size={13} strokeWidth={2.4} />:""}</div>
+                          <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?T.sage:T.linen}`, background:item.checked?T.sage:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction, fontSize:12 }}>{item.checked?<Emoji e="✓" size={13} strokeWidth={2.4} />:""}</div>
                           <span style={{ fontFamily:F.sans, fontSize:13, color:item.checked?T.taupe:T.esp, textDecoration:item.checked?"line-through":"none" }}>
                             {item.quantity} {item.item}
                           </span>

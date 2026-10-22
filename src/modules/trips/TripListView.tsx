@@ -1,5 +1,5 @@
 import React from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { Card, PageTitle, EmptyState, Emoji } from "../../shared/components";
 import { safeDate, daysUntil, computeTripState, computeReadiness, normTrip, STATE_CONFIG } from "./tripsShared";
 import type { Trip, Traveller } from "./tripsShared";
@@ -31,7 +31,7 @@ export function TripListView({
     <div style={{ animation: "fadeUp .45s ease both" }}>
     {/* Household state banner */}
     {householdSnapshot?.householdStressLevel === "high" && (
-      <div style={{ background:`${T.blush}15`, border:`1px solid ${T.blush}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+      <div style={{ background:`${alpha(T.blush, 0.08)}`, border:`1px solid ${alpha(T.blush, 0.19)}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
         <Emoji e="💛" size={18} />
         <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
           Things look heavy right now. Focus on what matters most — Cleo's got the rest.
@@ -39,7 +39,7 @@ export function TripListView({
       </div>
     )}
     {householdSnapshot?.calendarLoad === "critical" && householdSnapshot?.householdStressLevel !== "high" && (
-      <div style={{ background:`${T.gold}12`, border:`1px solid ${T.gold}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+      <div style={{ background:`${alpha(T.gold, 0.07)}`, border:`1px solid ${alpha(T.gold, 0.19)}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
         <Emoji e="📅" size={18} />
         <p style={{ fontFamily:F.sans, fontSize:12, color:T.bark, margin:0, lineHeight:1.5 }}>
           Busy week ahead — consider what can wait until next week.
@@ -50,7 +50,7 @@ export function TripListView({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <PageTitle title="Trips" />
         <button onClick={() => setShowAdd(!showAdd)}
-          style={{ background: showAdd ? T.linen : T.esp, color: showAdd ? T.bark : "#fff", border: "none", borderRadius: 12, padding: "8px 16px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          style={{ background: showAdd ? T.linen : T.esp, color: showAdd ? T.bark : T.onAction, border: "none", borderRadius: 12, padding: "8px 16px", fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           {showAdd ? "Cancel" : "+ Plan Trip"}
         </button>
       </div>
@@ -100,12 +100,12 @@ export function TripListView({
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.linen}` }}>
                 {t.fromProfile ? (
                   <button onClick={() => setTravellers(prev => prev.map((tt, ti) => ti === i ? { ...tt, selected: !(tt as any).selected } : tt))}
-                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${(t as any).selected === false ? T.linen : T.sage}`, background: (t as any).selected === false ? "transparent" : T.sage, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, cursor: "pointer" }}>
+                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${(t as any).selected === false ? T.linen : T.sage}`, background: (t as any).selected === false ? "transparent" : T.sage, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13, cursor: "pointer" }}>
                     {(t as any).selected !== false ? "✓" : ""}
                   </button>
                 ) : (
                   <button onClick={() => setTravellers(prev => prev.filter((_, ti) => ti !== i))}
-                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${T.blush}40`, background: "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.blush, fontSize: 14, cursor: "pointer" }}>
+                    style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${alpha(T.blush, 0.25)}`, background: "none", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.blush, fontSize: 14, cursor: "pointer" }}>
                     ×
                   </button>
                 )}
@@ -141,7 +141,7 @@ export function TripListView({
           </div>
 
           <button onClick={addTrip} disabled={!dest || !depDate}
-            style={{ width: "100%", padding: "14px", background: dest && depDate ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: dest && depDate ? "pointer" : "not-allowed" }}>
+            style={{ width: "100%", padding: "14px", background: dest && depDate ? T.esp : T.linen, color: T.onAction, border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: dest && depDate ? "pointer" : "not-allowed" }}>
             Add Trip
           </button>
         </Card>
@@ -163,7 +163,7 @@ export function TripListView({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}15`, padding: "2px 10px", borderRadius: 20 }}>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${alpha(cfg.color, 0.08)}`, padding: "2px 10px", borderRadius: 20 }}>
                         <Emoji e={cfg.emoji} size={14} /> {cfg.label}
                       </span>
                     </div>

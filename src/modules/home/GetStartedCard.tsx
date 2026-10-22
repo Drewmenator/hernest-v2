@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { onEnterSpace } from "../../shared/utils/a11y";
 import { loadHomeDocs } from "./homeData";
@@ -43,7 +43,7 @@ export function GetStartedCard() {
   if (doneCount === items.length) { localStorage.setItem("hn_getstarted_done", "1"); return null; }
 
   return (
-    <div style={{ background: T.ivory, border: `1.5px solid ${T.gold}40`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
+    <div style={{ background: T.ivory, border: `1.5px solid ${alpha(T.gold, 0.25)}`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.goldText, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
         <button onClick={() => { localStorage.setItem("hn_getstarted_done", "1"); setDismissed(true); }}

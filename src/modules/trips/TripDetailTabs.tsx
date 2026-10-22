@@ -1,5 +1,5 @@
 import React from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { Card, AIBadge, Spinner, ProgressBar, Button, Emoji } from "../../shared/components";
 import { estimateBudgetBreakdown, normTrip } from "./tripsShared";
 import type { Trip, ReadinessScore } from "./tripsShared";
@@ -71,7 +71,7 @@ export function TripDetailTabs({
           <Card>
             <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>Documents</p>
             {trip.documents.map((doc, i) => {
-              const statusColor = { needed: T.blush, ready: T.sage, expired: "#dc2626" }[doc.status];
+              const statusColor = { needed: T.blush, ready: T.sage, expired: T.danger }[doc.status];
               return (
                 <div key={i} onClick={() => toggleDoc(i)}
                   role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle ${doc.type} status`}
@@ -82,7 +82,7 @@ export function TripDetailTabs({
                       {doc.type}{doc.traveller ? ` — ${doc.traveller}` : ""}
                     </p>
                   </div>
-                  <span style={{ background: `${statusColor}20`, color: statusColor, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, textTransform: "capitalize" }}>
+                  <span style={{ background: `${alpha(statusColor, 0.13)}`, color: statusColor, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, textTransform: "capitalize" }}>
                     {doc.status}
                   </span>
                 </div>
@@ -133,7 +133,7 @@ export function TripDetailTabs({
                 </div>
               ))}
               {day.mumMoment && (
-                <div style={{ marginTop: 10, padding: "10px 12px", background: `${T.gold}10`, borderRadius: 10, borderLeft: `3px solid ${T.gold}` }}>
+                <div style={{ marginTop: 10, padding: "10px 12px", background: `${alpha(T.gold, 0.06)}`, borderRadius: 10, borderLeft: `3px solid ${T.gold}` }}>
                   <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, margin: "0 0 3px" }}><Emoji e="✦" size={13} /> MUM MOMENT</p>
                   <p style={{ fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0, lineHeight: 1.5 }}>{day.mumMoment}</p>
                 </div>
@@ -189,13 +189,13 @@ export function TripDetailTabs({
                         <div key={ii} onClick={() => togglePacking(si, ii)}
                           role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle packed: ${item.name}`}
                           style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.linen}`, cursor: "pointer", touchAction: "manipulation" }}>
-                          <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${item.checked ? T.sage : item.essential ? "#dc2626" : T.linen}`, background: item.checked ? T.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${item.checked ? T.sage : item.essential ? T.danger : T.linen}`, background: item.checked ? T.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13 }}>
                             {item.checked ? "✓" : ""}
                           </div>
                           <p style={{ fontFamily: F.sans, fontSize: 13, color: item.checked ? T.taupe : T.esp, margin: 0, flex: 1, textDecoration: item.checked ? "line-through" : "none" }}>
                             {item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}
                           </p>
-                          {item.essential && !item.checked && <span style={{ fontFamily: F.sans, fontSize: 14, color: "#dc2626" }}>essential</span>}
+                          {item.essential && !item.checked && <span style={{ fontFamily: F.sans, fontSize: 14, color: T.danger }}>essential</span>}
                           {item.weatherDependent && <Emoji e="🌤" size={13} />}
                         </div>
                       ))}
@@ -228,7 +228,7 @@ export function TripDetailTabs({
               <div key={i} onClick={() => toggleTask(i)}
                 role="button" tabIndex={0} onKeyDown={onEnterSpace} aria-label={`Toggle task: ${task.task}`}
                 style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.linen}`, cursor: "pointer", touchAction: "manipulation" }}>
-                <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${task.completed ? T.sage : T.linen}`, background: task.completed ? T.sage : "transparent", flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${task.completed ? T.sage : T.linen}`, background: task.completed ? T.sage : "transparent", flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13 }}>
                   {task.completed ? "✓" : ""}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -296,7 +296,7 @@ export function TripDetailTabs({
             onBlur={async e => { const total = parseFloat(e.target.value) || 0; const updated = { ...trip, budget: { ...trip.budget, total, breakdown: estimateBudgetBreakdown(total) } }; const all = trips.map(t => t.id === updated.id ? updated : t); await persist(all); setActiveTrip(normTrip(updated)); }}
             style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16, boxSizing: "border-box" as any }} />
           <button onClick={async () => { const all = trips.filter(t => t.id !== trip.id); await persist(all); setActiveTrip(null); }}
-            style={{ width: "100%", padding: "12px", background: `${T.blush}15`, border: `1px solid ${T.blush}40`, borderRadius: 12, fontFamily: F.sans, fontSize: 13, color: T.blush, cursor: "pointer" }}>
+            style={{ width: "100%", padding: "12px", background: `${alpha(T.blush, 0.08)}`, border: `1px solid ${alpha(T.blush, 0.25)}`, borderRadius: 12, fontFamily: F.sans, fontSize: 13, color: T.blush, cursor: "pointer" }}>
             Delete Trip
           </button>
         </Card>

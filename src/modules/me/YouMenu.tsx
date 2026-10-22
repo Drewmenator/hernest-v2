@@ -24,7 +24,7 @@ export function Avatar({ size = 40 }: { size?: number }) {
   return (
     <span aria-hidden style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, overflow: "hidden",
       display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(135deg,${T.gold},${T.goldText})`, color: "#fff",
+      background: `linear-gradient(135deg,${T.gold},${T.goldText})`, color: T.onAction,
       fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: size * 0.45 }}>
       {pic ? <img src={pic} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() || <Sparkle size={size * 0.45} strokeWidth={1.9} aria-hidden="true" />)}
     </span>
@@ -86,7 +86,7 @@ export function YouMenu({ onClose }: { onClose: () => void }) {
           </span>
           <button role="switch" aria-checked={tripsOn} aria-label="Trips" onClick={toggleTrips}
             style={{ width: 48, height: 28, borderRadius: 28, border: "none", padding: 3, cursor: "pointer", background: tripsOn ? T.sage : T.linen, transition: "background .2s", flexShrink: 0 }}>
-            <span style={{ display: "block", width: 22, height: 22, borderRadius: "50%", background: "#fff", transform: tripsOn ? "translateX(20px)" : "none", transition: "transform .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+            <span style={{ display: "block", width: 22, height: 22, borderRadius: "50%", background: T.surface, transform: tripsOn ? "translateX(20px)" : "none", transition: "transform .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
           </button>
         </div>
 

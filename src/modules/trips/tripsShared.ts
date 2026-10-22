@@ -149,7 +149,7 @@ export const STATE_CONFIG: Record<TripState, { label: string; color: string; emo
   booking:    { label: "Booking",     color: T.teal,  emoji: "◈",  description: "Securing reservations" },
   preparing:  { label: "Preparing",   color: T.gold,  emoji: "◆",  description: "Getting ready" },
   countdown:  { label: "Countdown",   color: T.sage,  emoji: "✓",  description: "Almost there" },
-  travel_day: { label: "Travel Day",  color: "#dc2626", emoji: "✈", description: "Today's the day" },
+  travel_day: { label: "Travel Day",  color: T.danger, emoji: "✈", description: "Today's the day" },
   in_trip:    { label: "In Trip",     color: T.teal,  emoji: "☀",  description: "Enjoy every moment" },
   returning:  { label: "Returning",   color: T.gold,  emoji: "→",  description: "Heading home" },
   recovery:   { label: "Recovery",    color: T.sage,  emoji: "◦",  description: "Settling back in" },

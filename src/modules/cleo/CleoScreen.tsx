@@ -360,7 +360,7 @@ export function CleoScreen() {
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 90px)", animation:"fadeUp .3s ease both" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 152px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", animation:"fadeUp .3s ease both" }}>
 
       {/* Header */}
       <header style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
@@ -396,7 +396,7 @@ export function CleoScreen() {
                 {m.content.split("\n").filter(l=>l.trim()).map((line,j,arr)=>{
                   const parts = line.split(/\*\*(.*?)\*\*/g);
                   return (
-                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?"#fff":T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
+                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?T.onAction:T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
                       {parts.map((part,pi) => pi%2===1 ? <strong key={pi}>{part}</strong> : part)}
                     </p>
                   );
@@ -472,7 +472,7 @@ export function CleoScreen() {
           </button>
           <button onClick={()=>send()} disabled={!input.trim()||loading} aria-label="Send"
             style={{ width:44, height:44, borderRadius:22, background:input.trim()?T.action:T.divider, border:"none", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
-            {loading?<Spinner size={16} color="#fff"/>:<ArrowUpIcon size={20} color="#fff" strokeWidth={2.4}/>}
+            {loading?<Spinner size={16} color={T.onAction}/>:<ArrowUpIcon size={20} color={T.onAction} strokeWidth={2.4}/>}
           </button>
         </div>
       </div>

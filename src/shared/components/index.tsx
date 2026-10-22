@@ -4,7 +4,7 @@
 // and props; new screens should prefer the Wisteria pieces below them
 // (SectionHeader, ListRow, StatusChip, TintCard, QuickAction, ...).
 import React from "react";
-import { T, F, R, S, TYPE, SHADOWS } from "../../config/theme";
+import { T, F, R, S, TYPE, SHADOWS, alpha } from "../../config/theme";
 import { SparkleIcon, CheckIcon } from "./Icons";
 import { useReveal } from "../motion";
 import { haptic } from "../haptics";
@@ -226,8 +226,8 @@ export function CheckBox({ checked, onToggle, label }: { checked: boolean; onTog
   return (
     <button onClick={() => { haptic(checked ? "select" : "success"); onToggle(); }} aria-pressed={checked} aria-label={label}
       style={{ width: 44, height: 44, margin: "-9px -9px -9px -9px", flex: "none", display: "grid", placeItems: "center", background: "none", border: "none", cursor: "pointer", touchAction: "manipulation" }}>
-      <span style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${checked ? T.householdInk : "#CFC8BE"}`, background: checked ? T.householdInk : T.surface, display: "grid", placeItems: "center" }}>
-        {checked && <CheckIcon size={15} color="#fff" strokeWidth={3} />}
+      <span style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${checked ? T.householdInk : T.border}`, background: checked ? T.householdInk : T.surface, display: "grid", placeItems: "center" }}>
+        {checked && <CheckIcon size={15} color={T.onAction} strokeWidth={3} />}
       </span>
     </button>
   );
@@ -251,7 +251,7 @@ export function Pill({
       aria-pressed={active}
       style={{
         background: active ? (color || T.action) : T.surface,
-        color: active ? "#fff" : T.text,
+        color: active ? T.onAction : T.text,
         border: `1px solid ${active ? (color || T.action) : T.divider}`,
         borderRadius: R.chip,
         padding: "8px 14px",
@@ -274,7 +274,7 @@ export function Spinner({ size = 24, color = T.action }: { size?: number; color?
   return (
     <div role="status" aria-label="Loading" style={{
       width: size, height: size, borderRadius: "50%",
-      border: `2px solid ${color}30`,
+      border: `2px solid ${alpha(color, 0.19)}`,
       borderTop: `2px solid ${color}`,
       animation: "spin 0.8s linear infinite",
     }} />
@@ -450,8 +450,8 @@ export function Button({
   ariaLabel?: string;
 }) {
   const styles: Record<ButtonVariant, React.CSSProperties> = {
-    primary:   { background: T.action, color: "#fff", border: "none" },
-    gold:      { background: T.action, color: "#fff", border: "none" },
+    primary:   { background: T.action, color: T.onAction, border: "none" },
+    gold:      { background: T.action, color: T.onAction, border: "none" },
     secondary: { background: T.surface, color: T.text, border: `1.5px solid ${T.divider}` },
     ghost:     { background: "transparent", color: T.text, border: `1.5px solid ${T.divider}` },
     gentle:    { background: T.cleoBg, color: T.action, border: "none" },
@@ -502,7 +502,7 @@ export function ProgressBar({
 }) {
   const pct = Math.min((value / max) * 100, 100);
   return (
-    <div style={{ background: `${color}20`, borderRadius: 99, height, overflow: "hidden" }}>
+    <div style={{ background: `${alpha(color, 0.13)}`, borderRadius: 99, height, overflow: "hidden" }}>
       <div style={{
         width: `${pct}%`, height: "100%",
         background: color, borderRadius: 99,
@@ -582,7 +582,7 @@ export function Segmented<V extends string>({ options, value, onChange, label }:
               fontFamily: F.sans, fontSize: 14, fontWeight: on ? 700 : 500, color: on ? T.text : T.text2,
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 6px", whiteSpace: "nowrap" }}>
             {o.label}
-            {!!o.badge && <span aria-label={`${o.badge} need attention`} style={{ minWidth: 18, height: 18, borderRadius: 9, background: T.action, color: "#fff", fontSize: 12, fontWeight: 700, display: "inline-grid", placeItems: "center", padding: "0 5px" }}>{o.badge}</span>}
+            {!!o.badge && <span aria-label={`${o.badge} need attention`} style={{ minWidth: 18, height: 18, borderRadius: 9, background: T.action, color: T.onAction, fontSize: 12, fontWeight: 700, display: "inline-grid", placeItems: "center", padding: "0 5px" }}>{o.badge}</span>}
           </button>
         );
       })}

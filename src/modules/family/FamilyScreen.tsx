@@ -5,7 +5,7 @@
 // Plan → School. On first open, Circle and Profile people are copied in
 // (ensurePeopleMerged) — the old data is never deleted.
 import { useState, useEffect } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore, type FamilyMember } from "../../core/store";
 import { Card, PageTitle, EmptyState, Emoji } from "../../shared/components";
 import { bus } from "../../core/events";
@@ -54,7 +54,7 @@ const EMPTY_DRAFT: Draft = { name: "", relationId: "child", birthDate: "", age: 
 
 const inputStyle = { width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" as const };
 const labelStyle = { display: "block", fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 4px 2px" };
-const chip = (on: boolean, color: string = T.esp) => ({ padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${on ? color : T.linen}`, background: on ? `${color}15` : "#fff", color: on ? color : T.bark, fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 });
+const chip = (on: boolean, color: string = T.esp) => ({ padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${on ? color : T.linen}`, background: on ? `${alpha(color, 0.08)}` : T.surface, color: on ? color : T.bark, fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 });
 
 export function FamilyScreen() {
   const { user, familyMembers, setFamilyMembers } = useStore();
@@ -190,7 +190,7 @@ export function FamilyScreen() {
         </>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={savePerson} disabled={!draft.name.trim()} style={{ flex: 1, padding: "12px", background: draft.name.trim() ? T.esp : T.linen, color: "#fff", border: "none", borderRadius: 12, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: draft.name.trim() ? "pointer" : "not-allowed", minHeight: 48 }}>
+        <button onClick={savePerson} disabled={!draft.name.trim()} style={{ flex: 1, padding: "12px", background: draft.name.trim() ? T.esp : T.linen, color: T.onAction, border: "none", borderRadius: 12, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: draft.name.trim() ? "pointer" : "not-allowed", minHeight: 48 }}>
           {editingId === "new" ? "Add" : "Save"}
         </button>
         <button onClick={closeEdit} style={{ padding: "12px 20px", background: "none", border: `1px solid ${T.linen}`, borderRadius: 12, fontFamily: F.sans, fontSize: 14, color: T.taupe, cursor: "pointer", minHeight: 48 }}>Cancel</button>
@@ -213,7 +213,7 @@ export function FamilyScreen() {
     return (
       <div key={p.id} style={{ padding: "14px 16px", background: T.ivory, borderRadius: 16, border: `1.5px solid ${T.linen}`, marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${p.color}25`, border: `2px solid ${p.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${alpha(p.color, 0.15)}`, border: `2px solid ${alpha(p.color, 0.25)}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
             <Emoji e={p.emoji || ROLE_ICONS[p.role] || "✦"} size={22} color={p.color} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -226,7 +226,7 @@ export function FamilyScreen() {
         {(p.giftIdeas || (bday != null && bday <= 30)) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingLeft: 56 }}>
             {p.giftIdeas && <p style={{ flex: 1, fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0 }}><Emoji e="🎁" /> {p.giftIdeas}</p>}
-            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}><Emoji e="✦" size={14} /> Gift ideas</button>
+            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${alpha(T.gold, 0.25)}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}><Emoji e="✦" size={14} /> Gift ideas</button>
           </div>
         )}
       </div>
@@ -238,7 +238,7 @@ export function FamilyScreen() {
       <PageTitle eyebrow="YOU" title="Your family" />
 
       {upcoming.length > 0 && (
-        <div style={{ background: `linear-gradient(135deg,${T.blush}15,${T.gold}10)`, border: `1px solid ${T.blush}30`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
+        <div style={{ background: `linear-gradient(135deg,${alpha(T.blush, 0.08)},${alpha(T.gold, 0.06)})`, border: `1px solid ${alpha(T.blush, 0.19)}`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
           <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.blush, margin: "0 0 8px" }}><Emoji e="🎂" /> Coming up</p>
           {upcoming.map(p => {
             const d = bdayOf(p);
@@ -256,11 +256,11 @@ export function FamilyScreen() {
         <div style={{ marginBottom: 12 }}>
           <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
           {checkInsDue.map(p => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: T.ivory, borderRadius: 14, border: `1.5px solid ${T.sage}30`, marginBottom: 6 }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: T.ivory, borderRadius: 14, border: `1.5px solid ${alpha(T.sage, 0.19)}`, marginBottom: 6 }}>
               <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>
                 {p.name} <span style={{ color: T.taupe, fontSize: 12 }}>· {p.lastCheckIn ? `last ${p.lastCheckIn.slice(5).replace("-", "/")}` : "no check-in yet"}</span>
               </p>
-              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 }}><Emoji e="✓" size={14} /> Talked</button>
+              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: T.onAction, border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 }}><Emoji e="✓" size={14} /> Talked</button>
             </div>
           ))}
         </div>

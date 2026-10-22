@@ -6,7 +6,7 @@
 // (Removing the iCloud password option is planned; iPhone calendar access
 // is the better route.)
 import { useState, useEffect } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Emoji } from "../../shared/components";
 import { db, auth } from "../../core/firebase";
@@ -66,7 +66,7 @@ export function CalendarScreen() {
     setAppleLoading(false);
   };
 
-  const rowBtn = { background: T.esp, color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: F.sans, fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 36, flexShrink: 0 } as const;
+  const rowBtn = { background: T.esp, color: T.onAction, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: F.sans, fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 36, flexShrink: 0 } as const;
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
@@ -82,12 +82,12 @@ export function CalendarScreen() {
             </p>
           </div>
           {appleConnected
-            ? (!onDevice && <button onClick={() => setShowAppleModal(true)} style={{ ...rowBtn, background: `${T.sage}15`, color: T.sage }}>Reconnect</button>)
+            ? (!onDevice && <button onClick={() => setShowAppleModal(true)} style={{ ...rowBtn, background: `${alpha(T.sage, 0.08)}`, color: T.sage }}>Reconnect</button>)
             : <button onClick={connectApple} style={rowBtn}>Connect</button>}
         </div>
       </Card>
 
-      <button onClick={() => openPlan("week")} style={{ width: "100%", padding: "14px", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, cursor: "pointer", minHeight: 48, marginBottom: 8 }}>
+      <button onClick={() => openPlan("week")} style={{ width: "100%", padding: "14px", background: T.goldP, border: `1px solid ${alpha(T.gold, 0.25)}`, borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.gold, cursor: "pointer", minHeight: 48, marginBottom: 8 }}>
         <Emoji e="📅" size={16} /> See your week in Plan
       </button>
       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, textAlign: "center", lineHeight: 1.6, margin: "4px 0 0" }}>
@@ -97,14 +97,14 @@ export function CalendarScreen() {
 
       {showAppleModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(42,31,24,0.5)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: "24px 24px 0 0", padding: "24px 20px", width: "100%", maxWidth: 430, boxShadow: "0 -8px 40px rgba(42,31,24,0.15)" }}>
+          <div style={{ background: T.surface, borderRadius: "24px 24px 0 0", padding: "24px 20px", width: "100%", maxWidth: 430, boxShadow: "0 -8px 40px rgba(42,31,24,0.15)" }}>
             <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: "0 0 6px" }}>Connect Apple Calendar</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 4px" }}>Use an app-specific password — not your Apple ID password.</p>
-            <a href="https://appleid.apple.com/account/manage" target="_blank" rel="noreferrer" style={{ fontFamily: F.sans, fontSize: 12, color: "#0071e3", display: "block", marginBottom: 16 }}>Generate one at appleid.apple.com ›</a>
+            <a href="https://appleid.apple.com/account/manage" target="_blank" rel="noreferrer" style={{ fontFamily: F.sans, fontSize: 12, color: T.planInk, display: "block", marginBottom: 16 }}>Generate one at appleid.apple.com ›</a>
             <input value={appleEmail} onChange={e => setAppleEmail(e.target.value)} placeholder="you@icloud.com" type="email" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
             <input value={applePassword} onChange={e => setApplePassword(e.target.value)} placeholder="xxxx-xxxx-xxxx-xxxx" type="password" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 20, boxSizing: "border-box" }} />
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={connectICloud} disabled={!appleEmail || !applePassword || appleLoading} style={{ flex: 1, padding: "14px", background: appleEmail && applePassword ? "#000" : "#ccc", color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: appleEmail && applePassword ? "pointer" : "not-allowed", minHeight: 52 }}>
+              <button onClick={connectICloud} disabled={!appleEmail || !applePassword || appleLoading} style={{ flex: 1, padding: "14px", background: appleEmail && applePassword ? "#000" : "#ccc", color: T.onAction, border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 600, cursor: appleEmail && applePassword ? "pointer" : "not-allowed", minHeight: 52 }}>
                 {appleLoading ? "Connecting..." : "Connect"}
               </button>
               <button onClick={() => setShowAppleModal(false)} style={{ flex: 1, padding: "14px", background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 14, fontFamily: F.sans, fontSize: 14, color: T.bark, cursor: "pointer" }}>Cancel</button>

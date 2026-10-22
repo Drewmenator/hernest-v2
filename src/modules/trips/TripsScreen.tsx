@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { saveData, loadData } from "../../core/firebase";
 import { ai } from "../../core/ai";
@@ -320,11 +320,11 @@ Weather: pack for typical ${trip.destination} conditions.`;
       <div style={{ background: T.action, borderRadius: 20, padding: "20px", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${cfg.color}25`, padding: "3px 10px", borderRadius: 20 }}>
+            <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: cfg.color, background: `${alpha(cfg.color, 0.15)}`, padding: "3px 10px", borderRadius: 20 }}>
               <Emoji e={cfg.emoji} size={14} /> {cfg.label}
             </span>
-            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: "#fff", margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
-            <p style={{ fontFamily: F.sans, fontSize: 12, color: "rgba(255,255,255,0.6)", margin: 0 }}>
+            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 28, color: T.onAction, margin: "8px 0 4px", fontWeight: 700 }}>{trip.destination}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: alpha(T.onAction, 0.6), margin: 0 }}>
               {trip.nights} nights · {safeDate(trip.departureDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
             {du > 0 && (
@@ -333,7 +333,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
               </p>
             )}
             {du === 0 && (
-              <p style={{ fontFamily: F.sans, fontSize: 14, color: "#dc2626", margin: "6px 0 0", fontWeight: 700 }}><Emoji e="✈" size={14} /> TRAVEL DAY</p>
+              <p style={{ fontFamily: F.sans, fontSize: 14, color: T.danger, margin: "6px 0 0", fontWeight: 700 }}><Emoji e="✈" size={14} /> TRAVEL DAY</p>
             )}
           </div>
           <ReadinessRing score={readiness.overall} size={80} />
@@ -351,7 +351,7 @@ Weather: pack for typical ${trip.destination} conditions.`;
           { id: "edit",      label: <><Emoji e="✎" size={14} /> Edit</> },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setDetailTab(t.id as any)}
-            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : "#fff", fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? "#fff" : T.taupe, cursor: "pointer", textAlign: "center" }}>
+            style={{ padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${detailTab === t.id ? T.esp : T.linen}`, background: detailTab === t.id ? T.esp : T.surface, fontFamily: F.sans, fontSize: 12, fontWeight: detailTab === t.id ? 700 : 400, color: detailTab === t.id ? T.onAction : T.taupe, cursor: "pointer", textAlign: "center" }}>
             {t.label}
           </button>
         ))}

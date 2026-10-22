@@ -1,9 +1,10 @@
 import { loadMemoriesV2, deleteMemory } from '../../core/memoryServiceV2';
 import React, { useState } from "react";
 import { CleoSetupScreen } from "../onboarding/OnboardingScreen";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Card, PageTitle, Emoji } from "../../shared/components";
+import { Card, PageTitle, Emoji, Segmented } from "../../shared/components";
+import { getAppearance, setAppearance, type Appearance } from "../../shared/appearance";
 import { Bookmark, Repeat, Wallet, Brain } from "lucide-react";
 import { saveData, loadData } from "../../core/firebase";
 import { SUPPORTED_CURRENCIES } from "../../shared/utils/money";
@@ -82,7 +83,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           { id:"legal",   label:"Legal" },
           { id:"account", label:"Account" },
         ].map(s=>(
-          <button key={s.id} onClick={()=>setSection(s.id as Section)} style={{ padding:"8px 16px", borderRadius:20, border:`1.5px solid ${section===s.id?T.esp:T.linen}`, background:section===s.id?T.esp:"#fff", color:section===s.id?"#fff":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s.id?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
+          <button key={s.id} onClick={()=>setSection(s.id as Section)} style={{ padding:"8px 16px", borderRadius:20, border:`1.5px solid ${section===s.id?T.esp:T.linen}`, background:section===s.id?T.esp:T.surface, color:section===s.id?T.onAction:T.bark, fontFamily:F.sans, fontSize:12, fontWeight:section===s.id?700:400, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, touchAction:"manipulation", minHeight:36 }}>
             {s.label}
           </button>
         ))}
@@ -129,7 +130,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
               <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>Facts, preferences and patterns Cleo has learned about your household</p>
             </div>
             <button onClick={loadMemories}
-              style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              style={{ background:T.esp, color:T.onAction, border:"none", borderRadius:10, padding:"6px 14px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer" }}>
               View
             </button>
           </div>
@@ -240,7 +241,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
                   <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:600, color:T.esp, margin:"0 0 2px" }}>{c.name}</p>
                   <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>{c.purpose} · {c.duration}</p>
                 </div>
-                <span style={{ background:`${T.sage}20`, color:T.sage, fontFamily:F.sans, fontSize: 12, fontWeight:700, padding:"3px 8px", borderRadius:10 }}>{c.type}</span>
+                <span style={{ background:`${alpha(T.sage, 0.13)}`, color:T.sage, fontFamily:F.sans, fontSize: 12, fontWeight:700, padding:"3px 8px", borderRadius:10 }}>{c.type}</span>
               </div>
             </div>
           ))}
@@ -257,10 +258,11 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
             <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:0 }}>Update your household info in a conversation with Cleo</p>
           </div>
           <button onClick={() => setShowCleoSetup(true)}
-            style={{ background:T.esp, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+            style={{ background:T.esp, color:T.onAction, border:"none", borderRadius:10, padding:"8px 16px", fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
             Start
           </button>
         </div>
+        <AppearanceCard />
         <Card>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Currency</p>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -271,7 +273,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
                   setProfile({ ...(profile as any), currency: c.code });
                   if (user?.uid) { try { await saveData(user.uid, "profile", { currency: c.code }); } catch { /* non-fatal */ } }
                   toast.success(`Currency set to ${c.code}`);
-                }} style={{ padding:"7px 12px", borderRadius:16, border:`1.5px solid ${active?T.gold:T.linen}`, background:active?`${T.gold}20`:"#fff", color:active?"#5E4A8C":T.bark, fontFamily:F.sans, fontSize:12, fontWeight:active?700:400, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>
+                }} style={{ padding:"7px 12px", borderRadius:16, border:`1.5px solid ${active?T.gold:T.linen}`, background:active?`${alpha(T.gold, 0.13)}`:T.surface, color:active?T.action:T.bark, fontFamily:F.sans, fontSize:12, fontWeight:active?700:400, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>
                   {c.label}
                 </button>
               );
@@ -282,8 +284,8 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
         <Card>
           <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 12px" }}>Account info</p>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
-            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#5E4A8C)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
-              {/^https?:\/\//.test((profile as { avatar?: string } | null)?.avatar || "") ? <img src={(profile as { avatar?: string }).avatar} alt="" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : <Emoji e={(profile as { avatar?: string } | null)?.avatar || "👩"} size={24} color="#fff" />}
+            <div style={{ width:52, height:52, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},${T.actionPress})`, display:"flex", alignItems:"center", justifyContent:"center", color:T.onAction }}>
+              {/^https?:\/\//.test((profile as { avatar?: string } | null)?.avatar || "") ? <img src={(profile as { avatar?: string }).avatar} alt="" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : <Emoji e={(profile as { avatar?: string } | null)?.avatar || "👩"} size={24} color={T.onAction} />}
             </div>
             <div>
               <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>{(profile as any)?.name || "Your name"}</p>
@@ -297,7 +299,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
                 const ok = await enablePush(user!.uid);
                 if (ok) toast.success("Notifications on");
                 else toast("Enable notifications in iOS Settings to get reminders", { icon: <Emoji e="🔔" /> });
-              }} style={{ width:"100%", padding:"12px", background:T.esp, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#fff", cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
+              }} style={{ width:"100%", padding:"12px", background:T.esp, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.onAction, cursor:"pointer", minHeight:44, marginBottom:8, touchAction:"manipulation" }}>
                 <Emoji e="🔔" /> Turn on notifications
               </button>
               <button onClick={async()=>{
@@ -339,7 +341,7 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 12px" }}>We're here to help.</p>
           <a
             href={`mailto:support@hernest.app?subject=${encodeURIComponent("HerNest feedback")}&body=${encodeURIComponent(`What happened:\n\nWhat I expected:\n\n—\nBuild: 2.0.0 · ${typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}\nScreen: ${window.innerWidth}×${window.innerHeight}\nDevice: ${navigator.userAgent}`)}`}
-            style={{ display:"block", textAlign:"center", background:T.esp, color:"#fff", borderRadius:12, padding:"12px", fontFamily:F.sans, fontSize:13, fontWeight:700, textDecoration:"none", marginBottom:12, minHeight:44, boxSizing:"border-box" }}>
+            style={{ display:"block", textAlign:"center", background:T.esp, color:T.onAction, borderRadius:12, padding:"12px", fontFamily:F.sans, fontSize:13, fontWeight:700, textDecoration:"none", marginBottom:12, minHeight:44, boxSizing:"border-box" }}>
             <Emoji e="✦" size={15} /> Send feedback
           </a>
           {[
@@ -359,12 +361,12 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
 
         {/* Delete Account */}
         <Card>
-          <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:"#dc2626", margin:"0 0 8px" }}><Emoji e="⚠" size={15} /> Delete Account</p>
+          <p style={{ fontFamily:F.sans, fontSize:13, fontWeight:700, color:T.danger, margin:"0 0 8px" }}><Emoji e="⚠" size={15} /> Delete Account</p>
           <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 16px", lineHeight:1.6 }}>
             This will permanently delete your account and all data — profile, tasks, budget, memories, everything. This cannot be undone.
           </p>
           {!showDeleteFlow ? (
-            <button onClick={()=>setShowDeleteFlow(true)} style={{ width:"100%", padding:"12px", background:"none", border:"1.5px solid #dc2626", borderRadius:12, fontFamily:F.sans, fontSize:13, color:"#dc2626", cursor:"pointer", minHeight:44, touchAction:"manipulation" }}>
+            <button onClick={()=>setShowDeleteFlow(true)} style={{ width:"100%", padding:"12px", background:"none", border:`1.5px solid ${T.danger}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.danger, cursor:"pointer", minHeight:44, touchAction:"manipulation" }}>
               Delete My Account
             </button>
           ) : (
@@ -373,10 +375,10 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
                 <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Apple will ask you to confirm once more so we can disconnect your Apple ID.</p>
               )}
               <p style={{ fontFamily:F.sans, fontSize:12, color:T.taupe, margin:"0 0 10px" }}>Type <strong>DELETE</strong> to confirm:</p>
-              <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="Type DELETE" style={{ width:"100%", background:T.sand, border:`1.5px solid #dc262640`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", marginBottom:12, boxSizing:"border-box", minHeight:48 }}/>
+              <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="Type DELETE" style={{ width:"100%", background:T.sand, border:`1.5px solid ${alpha(T.danger, 0.25)}`, borderRadius:12, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", marginBottom:12, boxSizing:"border-box", minHeight:48 }}/>
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={()=>{ setShowDeleteFlow(false); setDeleteConfirm(""); }} style={{ flex:1, padding:"12px", background:"none", border:`1px solid ${T.linen}`, borderRadius:12, fontFamily:F.sans, fontSize:13, color:T.taupe, cursor:"pointer", minHeight:44 }}>Cancel</button>
-                <button onClick={handleDeleteAccount} disabled={deleteConfirm!=="DELETE"||deleting} style={{ flex:1, padding:"12px", background:deleteConfirm==="DELETE"?"#dc2626":T.linen, color:"#fff", border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, cursor:deleteConfirm==="DELETE"?"pointer":"not-allowed", minHeight:44, touchAction:"manipulation" }}>
+                <button onClick={handleDeleteAccount} disabled={deleteConfirm!=="DELETE"||deleting} style={{ flex:1, padding:"12px", background:deleteConfirm==="DELETE"?T.danger:T.linen, color:T.onAction, border:"none", borderRadius:12, fontFamily:F.sans, fontSize:13, fontWeight:700, cursor:deleteConfirm==="DELETE"?"pointer":"not-allowed", minHeight:44, touchAction:"manipulation" }}>
                   {deleting?"Deleting...":"Permanently Delete"}
                 </button>
               </div>
@@ -385,5 +387,21 @@ export function SettingsScreen({ initialSection = "account" }: { initialSection?
         </Card>
       </>}
     </div>
+  );
+}
+
+// Light (Wisteria Glow), dark (Midnight Wisteria), or follow the iPhone.
+function AppearanceCard() {
+  const [pref, setPref] = useState<Appearance>(getAppearance);
+  return (
+    <Card>
+      <p style={{ fontFamily:F.sans, fontSize: 14, fontWeight: 600, color:T.taupe, margin:"0 0 10px" }}>Appearance</p>
+      <Segmented label="Appearance" value={pref} onChange={v => { setPref(v); setAppearance(v); }} options={[
+        { id: "auto", label: "Automatic" },
+        { id: "light", label: "Light" },
+        { id: "dark", label: "Dark" },
+      ]} />
+      <p style={{ fontFamily:F.sans, fontSize: 12, color:T.taupe, margin:"-6px 0 0" }}>Automatic follows your iPhone's light and dark setting.</p>
+    </Card>
   );
 }

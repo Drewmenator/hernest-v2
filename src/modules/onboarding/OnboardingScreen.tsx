@@ -197,13 +197,13 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
             {msg.role === "cleo" && (
               <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.esp, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 10, marginTop: 4 }}>
-                <Emoji e="✦" size={15} color="#fff" />
+                <Emoji e="✦" size={15} color={T.onAction} />
               </div>
             )}
             <div style={{
               maxWidth: "78%",
-              background: msg.role === "user" ? T.esp : "#fff",
-              color: msg.role === "user" ? "#fff" : T.esp,
+              background: msg.role === "user" ? T.esp : T.surface,
+              color: msg.role === "user" ? T.onAction : T.esp,
               borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
               padding: "12px 16px",
               fontFamily: F.sans,
@@ -240,11 +240,11 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
                 max={new Date().toISOString().split("T")[0]}
                 value={k.birthDate || ""}
                 onChange={e => setKidsList(list => list.map((x, j) => j === i ? { ...x, birthDate: e.target.value } : x))}
-                style={{ background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }}
+                style={{ background: T.surface, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none" }}
               />
             </div>
           ))}
-          <button onClick={finishKidDates} style={{ width: "100%", marginTop: 8, padding: "13px", background: T.esp, border: "none", color: "#fff", borderRadius: 14, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 48 }}>
+          <button onClick={finishKidDates} style={{ width: "100%", marginTop: 8, padding: "13px", background: T.esp, border: "none", color: T.onAction, borderRadius: 14, fontFamily: F.sans, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 48 }}>
             Continue
           </button>
         </div>
@@ -265,7 +265,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             }
             autoFocus
             style={{
-              flex: 1, background: "#fff", border: `1.5px solid ${T.linen}`,
+              flex: 1, background: T.surface, border: `1.5px solid ${T.linen}`,
               borderRadius: 14, padding: "12px 16px", fontFamily: F.sans,
               fontSize: 16, color: T.esp, outline: "none",
             }}
@@ -274,7 +274,7 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
             style={{
               width: 48, height: 48, borderRadius: 14,
               background: input.trim() ? T.esp : T.linen,
-              border: "none", color: "#fff", fontSize: 18, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              border: "none", color: T.onAction, fontSize: 18, display: "inline-flex", alignItems: "center", justifyContent: "center",
               cursor: input.trim() ? "pointer" : "not-allowed", flexShrink: 0,
             }}>
             <ArrowRight size={20} strokeWidth={2} aria-hidden="true" />

@@ -8,7 +8,7 @@
 // Export name stays ThriveScreen so the Me tab can render it.
 import React, { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F, ATMOS } from "../../config/theme";
+import { T, F, ATMOS, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Emoji, Card, PageTitle, GlowCard, Headline, Skeleton, ProgressRing, PullToRefresh } from "../../shared/components";
 import { ThriveVitals } from "./ThriveVitals";
@@ -41,8 +41,8 @@ async function fetchWearable(uid: string): Promise<{ wearable: WearableDay | nul
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 15, fontWeight: 600, color: T.action, cursor: "pointer", minHeight: 44 };
 const chip = (on: boolean): React.CSSProperties => ({
-  padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
-  color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 40,
+  padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : T.surface,
+  color: on ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 40,
 });
 
 export function ThriveScreen() {
@@ -280,7 +280,7 @@ export function ThriveScreen() {
                     width: 28, height: 28, borderRadius: "50%",
                     background: d.state === "moved" ? T.sage : "transparent",
                     border: d.state === "moved" ? `2px solid ${T.sage}` : d.state === "today" ? `2px solid ${T.esp}` : `2px ${d.state === "future" ? "dashed" : "solid"} ${T.linen}`,
-                    display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13,
+                    display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13,
                   }}>{d.state === "moved" ? <Emoji e="✓" size={15} strokeWidth={2.4} /> : ""}</div>
                   <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: d.date === today ? 700 : 500, color: d.date === today ? T.esp : T.taupe }}>{d.letter}</span>
                 </div>
@@ -289,7 +289,7 @@ export function ThriveScreen() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <p style={{ fontFamily: F.sans, fontSize: 13, color: progress?.met ? T.sage : T.esp, fontWeight: 600, margin: 0 }}>{progress?.text}</p>
               {(!movedToday || tappedToday) && (
-                <button onClick={toggleMovedToday} style={{ padding: "9px 14px", borderRadius: 12, border: `1.5px solid ${tappedToday ? T.linen : T.sage}`, background: tappedToday ? "#fff" : T.sageP, color: tappedToday ? T.taupe : T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40, touchAction: "manipulation" }}>
+                <button onClick={toggleMovedToday} style={{ padding: "9px 14px", borderRadius: 12, border: `1.5px solid ${tappedToday ? T.linen : T.sage}`, background: tappedToday ? T.surface : T.sageP, color: tappedToday ? T.taupe : T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40, touchAction: "manipulation" }}>
                   {tappedToday ? "Undo today" : "I moved today"}
                 </button>
               )}
@@ -303,7 +303,7 @@ export function ThriveScreen() {
 
       {/* 3. One suggestion, at most */}
       {suggestion && (
-        <div style={{ background: `${T.gold}12`, border: `1px solid ${T.gold}30`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ background: `${alpha(T.gold, 0.07)}`, border: `1px solid ${alpha(T.gold, 0.19)}`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
           <span style={{ flexShrink: 0, color: T.goldText, display: "inline-flex" }}><Emoji e="✦" size={16} /></span>
           <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.5, flex: 1 }}>{suggestion.text}</p>
           <button onClick={() => setSuggestionHidden(true)} aria-label="Dismiss suggestion" style={{ background: "none", border: "none", color: T.taupe, fontSize: 16, cursor: "pointer", padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
@@ -337,7 +337,7 @@ export function ThriveScreen() {
             return (
               <button key={h.id} onClick={() => tickHabit(h.id)} aria-pressed={done}
                 style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 0", background: "none", border: "none", borderTop: `1px solid ${T.linen}`, cursor: "pointer", minHeight: 48, textAlign: "left" }}>
-                <span style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${done ? T.sage : T.linen}`, background: done ? T.sage : "#fff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{done ? <Emoji e="✓" size={15} strokeWidth={2.4} /> : ""}</span>
+                <span style={{ width: 24, height: 24, borderRadius: 8, border: `2px solid ${done ? T.sage : T.linen}`, background: done ? T.sage : T.surface, color: T.onAction, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{done ? <Emoji e="✓" size={15} strokeWidth={2.4} /> : ""}</span>
                 <span style={{ fontSize: 16, display: "inline-flex" }}><Emoji e={h.icon} size={18} /></span>
                 <span style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, flex: 1, textDecoration: done ? "line-through" : "none" }}>{h.name}</span>
                 {h.streak >= 2 && <span style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe }}>{h.streak} days</span>}
@@ -355,7 +355,7 @@ export function ThriveScreen() {
         <p style={{ fontFamily: F.sans, fontSize: 14, color: T.esp, margin: "0 0 12px", lineHeight: 1.55 }}>
           {summary || "Check in for a few days and your week will show here."}
         </p>
-        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: T.action, color: "#fff", border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+        <button onClick={askCleo} style={{ width: "100%", padding: "12px", background: T.action, color: T.onAction, border: "none", borderRadius: 14, fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
           Ask Cleo about this
         </button>
       </Card>

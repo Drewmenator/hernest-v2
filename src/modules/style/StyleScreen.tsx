@@ -11,7 +11,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, PageTitle, Input, Spinner, Emoji } from "../../shared/components";
 import { loadData, saveData } from "../../core/firebase";
@@ -48,12 +48,12 @@ const OUTFIT_SCHEMA = s.object({
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
 const chip = (on: boolean): React.CSSProperties => ({
-  padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
-  color: on ? "#fff" : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 38,
+  padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : T.surface,
+  color: on ? T.onAction : T.bark, fontFamily: F.sans, fontSize: 13, cursor: "pointer", touchAction: "manipulation", minHeight: 38,
 });
 const actionBtn = (primary: boolean): React.CSSProperties => ({
   flex: 1, padding: "11px 8px", borderRadius: 12, border: primary ? "none" : `1.5px solid ${T.linen}`,
-  background: primary ? T.action : "#fff", color: primary ? "#fff" : T.esp,
+  background: primary ? T.action : T.surface, color: primary ? T.onAction : T.esp,
   fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
 });
 const smallBtn: React.CSSProperties = { ...actionBtn(false), fontSize: 12, fontWeight: 600, padding: "9px 6px", minHeight: 40 };
@@ -282,7 +282,7 @@ export function StyleScreen() {
           <>
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               {shown.wearing
-                ? <span style={{ ...actionBtn(false), display: "flex", alignItems: "center", justifyContent: "center", color: T.sage, borderColor: `${T.sage}60` }}>✓ Wearing this today</span>
+                ? <span style={{ ...actionBtn(false), display: "flex", alignItems: "center", justifyContent: "center", color: T.sage, borderColor: `${alpha(T.sage, 0.38)}` }}>✓ Wearing this today</span>
                 : <button onClick={wearThis} style={actionBtn(true)}>Wear this</button>}
               <button onClick={somethingElse} style={actionBtn(false)}>Something else</button>
             </div>

@@ -6,7 +6,7 @@
 // a frosted bar as you scroll, and the pull-to-refresh sparkle.
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { T, F, R, S, TYPE, ATMOS, ATMOS_TEXT2 } from "../../config/theme";
+import { T, F, R, S, TYPE, ATMOS, ATMOS_TEXT2, alpha, SHADOWS } from "../../config/theme";
 import { SparkleIcon } from "./Icons";
 import { onScrollFrame, prefersReducedMotion, useReveal, usePullToRefresh } from "../motion";
 
@@ -31,15 +31,15 @@ export function GlowCard({ tint, eyebrow, children, onClick, ariaLabel, ariaExpa
   const box: React.CSSProperties = {
     position: "relative", display: "block", width: "100%", textAlign: "left",
     background: a.base, borderRadius: R.card + 6, padding: S.xl, marginBottom: S.md,
-    boxShadow: a.shadow, border: "1px solid rgba(255,255,255,.55)", overflow: "hidden",
+    boxShadow: a.shadow, border: `1px solid ${T.glass}`, overflow: "hidden",
     color: T.text, fontFamily: F.sans, ...style,
   };
   // Cleo's hero cards carry a soft sparkle in a halo, top right, behind the text.
   const orb = tint === "cleo" && grain && (
     <span aria-hidden="true" style={{ position: "absolute", top: -26, right: -26, width: 132, height: 132, borderRadius: "50%", zIndex: -1, pointerEvents: "none",
-      background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.35) 38%, rgba(214,201,232,0) 70%)",
-      boxShadow: "inset 0 0 0 1px rgba(255,255,255,.55)", display: "grid", placeItems: "center" }}>
-      <SparkleIcon size={34} color="rgba(122,99,174,.55)" filled />
+      background: `radial-gradient(circle at 50% 50%, ${T.glassStrong} 0%, ${T.glass} 38%, transparent 70%)`,
+      boxShadow: `inset 0 0 0 1px ${T.glass}`, display: "grid", placeItems: "center" }}>
+      <SparkleIcon size={34} color={alpha(ATMOS.cleo.chart, 0.6)} filled />
     </span>
   );
   const head = eyebrow && (
@@ -129,8 +129,8 @@ export function LargeTitle({ eyebrow, title, subtitle, right, compactTitle }: {
       {createPortal(<div ref={bar} aria-hidden="true" style={{
         position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 90,
         paddingTop: "env(safe-area-inset-top, 0px)", opacity: 0, pointerEvents: "none",
-        background: "rgba(244,238,224,.78)", backdropFilter: "blur(20px) saturate(170%)", WebkitBackdropFilter: "blur(20px) saturate(170%)",
-        borderBottom: "1px solid rgba(28,61,90,.08)",
+        background: T.frostBar, backdropFilter: "blur(20px) saturate(170%)", WebkitBackdropFilter: "blur(20px) saturate(170%)",
+        borderBottom: `1px solid ${T.hairline}`,
       }}>
         <p style={{ height: 44, display: "grid", placeItems: "center", margin: 0, fontFamily: F.sans, fontSize: 16, fontWeight: 700, color: T.text }}>
           {compactTitle ?? (typeof title === "string" ? title : "")}
@@ -157,7 +157,7 @@ export function PullToRefresh({ onRefresh }: { onRefresh: () => Promise<unknown>
       position: "fixed", top: "env(safe-area-inset-top, 0px)", left: "50%", zIndex: 95, opacity: 0,
       transform: "translate3d(-50%, -24px, 0) scale(.6)", pointerEvents: "none",
       width: 40, height: 40, borderRadius: 20, display: "grid", placeItems: "center",
-      background: "rgba(255,255,255,.85)", boxShadow: "0 6px 18px rgba(94,74,140,.22)",
+      background: T.surface, boxShadow: SHADOWS.gold,
     }}>
       <span style={{ display: "grid", placeItems: "center" }}><SparkleIcon size={20} color={T.action} filled /></span>
     </div>,

@@ -9,11 +9,15 @@ import { useStore } from "../../core/store";
 import { globalStyles } from "../../shared/globalStyles";
 import { AppShell } from "../../AppShell";
 import { PREVIEW_UID } from "./sampleData";
+import { startAppearance, setAppearance } from "../../shared/appearance";
 
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab") || "home";
 // ?flat=1 turns the paper texture off, to compare textured and flat.
 if (params.get("flat")) document.documentElement.classList.add("hn-flat");
+// ?theme=dark|light pins the appearance for screenshots.
+const theme = params.get("theme");
+if (theme === "dark" || theme === "light") setAppearance(theme); else startAppearance();
 const s = useStore.getState();
 s.setUser({ uid: PREVIEW_UID, email: "preview@example.com", displayName: "Jess Rivera" });
 s.setProfile({ name: "Jess Rivera", kids: [{ name: "Maya" }, { name: "Leo" }] } as never);

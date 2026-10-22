@@ -3,7 +3,7 @@
 // 7-day line and a progress ring. Plain SVG and CSS, no chart library.
 // They are decoration for numbers already written out in words, so they
 // are hidden from screen readers.
-import { F, T } from "../../config/theme";
+import { F, T, alpha } from "../../config/theme";
 
 const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" };
 
@@ -33,7 +33,7 @@ export function DayTimeline({ times, now = new Date(), color, soft, textColor = 
           return (
             <span key={i} className="hn-fade" style={{
               position: "absolute", left: `${pos(h)}%`, top: 7, width: 13, height: 13, marginLeft: -6.5, borderRadius: "50%",
-              background: past ? soft : color, border: `2px solid ${past ? color : "#fff"}`,
+              background: past ? soft : color, border: `2px solid ${past ? color : T.onAction}`,
               boxShadow: past ? "none" : `0 2px 6px ${soft}`, animationDelay: `${i * 70}ms`,
             }} />
           );
@@ -131,7 +131,7 @@ export function SparkArea({ points, color, guide, height = 64, id }: {
         <path d={d} fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
       {/* The dot sits outside the stretched SVG so it stays round. */}
-      <span style={{ position: "absolute", left: `${last[0]}%`, top: `${last[1]}%`, width: 10, height: 10, margin: "-5px 0 0 -5px", borderRadius: "50%", background: color, border: "2px solid #fff", boxShadow: `0 0 0 4px ${color}33` }} />
+      <span style={{ position: "absolute", left: `${last[0]}%`, top: `${last[1]}%`, width: 10, height: 10, margin: "-5px 0 0 -5px", borderRadius: "50%", background: color, border: `2px solid ${T.surface}`, boxShadow: `0 0 0 4px ${alpha(color, 0.2)}` }} />
     </div>
   );
 }

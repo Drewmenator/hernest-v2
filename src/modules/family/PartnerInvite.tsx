@@ -2,7 +2,7 @@
 // Sends a household invite by email, or makes a link to share when email
 // isn't available. The partner signs in and sees the parts chosen below.
 import React, { useState } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { Card, Button, Emoji } from "../../shared/components";
 import { Check, CalendarDays, Wallet, CircleUser } from "lucide-react";
@@ -72,7 +72,7 @@ export function PartnerInvite() {
 
   if (!open) return (
     <button onClick={() => setOpen(true)}
-      style={{ width: "100%", marginTop: 12, padding: "14px", background: T.goldP, border: `1.5px solid ${T.gold}40`, borderRadius: 16, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
+      style={{ width: "100%", marginTop: 12, padding: "14px", background: T.goldP, border: `1.5px solid ${alpha(T.gold, 0.25)}`, borderRadius: 16, fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 48, touchAction: "manipulation" }}>
       <Emoji e="💛" /> Invite your partner to HerNest
     </button>
   );
@@ -96,7 +96,7 @@ export function PartnerInvite() {
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: on ? T.goldP : T.sand, border: `1.5px solid ${on ? T.gold : T.linen}`, borderRadius: 12, cursor: "pointer", touchAction: "manipulation" }}>
                   <span style={{ display: "inline-flex", color: T.goldText }}>{opt.icon}</span>
                   <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, flex: 1 }}>{opt.label}</p>
-                  <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${on ? T.gold : T.linen}`, background: on ? T.gold : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${on ? T.gold : T.linen}`, background: on ? T.gold : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: T.onAction, fontSize: 13 }}>
                     {on ? <Check size={14} strokeWidth={2.6} aria-hidden="true" /> : null}
                   </div>
                 </div>
@@ -114,7 +114,7 @@ export function PartnerInvite() {
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px" }}>Share this link with {partnerEmail}. When they open it and sign in, they'll join your household.</p>
             {inviteLink && <>
               <div style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, wordBreak: "break-all", fontFamily: F.sans, fontSize: 12, color: T.bark, textAlign: "left" }}>{inviteLink}</div>
-              <button onClick={shareLink} style={{ width: "100%", background: T.esp, color: "#fff", border: "none", borderRadius: 12, padding: "13px", fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, marginBottom: 8, touchAction: "manipulation" }}>Copy / share link</button>
+              <button onClick={shareLink} style={{ width: "100%", background: T.esp, color: T.onAction, border: "none", borderRadius: 12, padding: "13px", fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, marginBottom: 8, touchAction: "manipulation" }}>Copy / share link</button>
             </>}
             <button onClick={() => { setInviteSent(false); setInviteLink(""); }} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 12, padding: "8px 20px", fontFamily: F.sans, fontSize: 13, color: T.taupe, cursor: "pointer", minHeight: 40 }}>Send another</button>
           </div>

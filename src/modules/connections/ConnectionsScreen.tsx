@@ -4,7 +4,7 @@
 // (last synced, item counts, errors) from users/{uid}/integrations/{doc},
 // written server-side on every sync.
 import React, { useState, useEffect } from "react";
-import { T, F } from "../../config/theme";
+import { T, F, alpha } from "../../config/theme";
 import { useStore } from "../../core/store";
 import { auth } from "../../core/firebase";
 import { PageTitle, Emoji } from "../../shared/components";
@@ -233,11 +233,11 @@ export function ConnectionsScreen() {
               const h = health[c.id];
               const isConnected = !loading && !!h?.connected;
               const hasError = isConnected && !!h?.lastError;
-              const border = hasError ? `${T.blush}50` : isConnected ? `${T.sage}40` : T.linen;
+              const border = hasError ? `${alpha(T.blush, 0.31)}` : isConnected ? `${alpha(T.sage, 0.25)}` : T.linen;
               return (
-                <div key={c.id} style={{ background: "#fff", border: `1.5px solid ${border}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
+                <div key={c.id} style={{ background: T.surface, border: `1.5px solid ${border}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: isConnected ? `${T.sage}14` : `${T.taupe}10`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: isConnected ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: isConnected ? `${alpha(T.sage, 0.08)}` : `${alpha(T.taupe, 0.06)}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: isConnected ? T.sage : T.stone, flexShrink: 0 }}>{c.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{c.name}</p>
                       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>
@@ -251,18 +251,18 @@ export function ConnectionsScreen() {
                       </p>
                     </div>
                     {c.kind === "health" && !appleHealthSupported() ? (
-                      <button onClick={() => onConnect(c)} disabled={healthLoading} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: isConnected ? T.esp : "#fff", background: isConnected ? "none" : T.esp, border: isConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                      <button onClick={() => onConnect(c)} disabled={healthLoading} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: isConnected ? T.esp : T.onAction, background: isConnected ? "none" : T.esp, border: isConnected ? `1.5px solid ${T.linen}` : "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {healthLoading ? "..." : isConnected ? "Setup" : "Set up"}
                       </button>
                     ) : isConnected && !hasError ? (
                       <button onClick={() => { setManaging(m => (m === c.id ? null : c.id)); setConfirmOff(null); }} aria-expanded={managing === c.id} aria-label={`${c.name} options`}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: h?.noData ? T.blush : T.sage, background: "none", border: `1.5px solid ${h?.noData ? `${T.blush}50` : `${T.sage}40`}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: h?.noData ? T.blush : T.sage, background: "none", border: `1.5px solid ${h?.noData ? `${alpha(T.blush, 0.31)}` : `${alpha(T.sage, 0.25)}`}`, borderRadius: 10, padding: "7px 12px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {h?.noData ? "Fix" : <><Check size={14} strokeWidth={2.4} aria-hidden="true" /> On</>} <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
                       </button>
                     ) : c.kind === "soon" ? (
-                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${T.taupe}12`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
+                      <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.stone, background: `${alpha(T.taupe, 0.07)}`, padding: "5px 10px", borderRadius: 10, flexShrink: 0 }}>Soon</span>
                     ) : (
-                      <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: "#fff", background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
+                      <button onClick={() => onConnect(c)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.onAction, background: hasError ? T.blush : T.esp, border: "none", borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>
                         {busy === c.id ? "Connecting..." : hasError ? "Reconnect" : "Connect"}
                       </button>
                     )}
@@ -272,18 +272,18 @@ export function ConnectionsScreen() {
                       {confirmOff === c.id ? (
                         <>
                           <button onClick={() => disconnect(c)} disabled={busy === c.id}
-                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.blush, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.blush, color: T.onAction, fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
                             {busy === c.id ? "..." : `Yes, disconnect ${c.name}`}
                           </button>
                           <button onClick={() => setConfirmOff(null)}
-                            style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Cancel</button>
+                            style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: T.surface, color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Cancel</button>
                         </>
                       ) : (
                         <>
                           <button onClick={() => reconnect(c)}
-                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>Reconnect</button>
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: T.onAction, fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>Reconnect</button>
                           <button onClick={() => setConfirmOff(c.id)}
-                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: "#fff", color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Disconnect</button>
+                            style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${T.linen}`, background: T.surface, color: T.esp, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>Disconnect</button>
                         </>
                       )}
                     </div>
@@ -299,14 +299,14 @@ export function ConnectionsScreen() {
                       </ol>
                       <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px", lineHeight: 1.5 }}>Or in the Health app: tap your picture, then Apps, then HerNest. No Apple Watch? Steps and sleep from your iPhone still count.</p>
                       <button onClick={checkHealthAgain} disabled={busy === "apple_health"}
-                        style={{ width: "100%", padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: "#fff", fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
+                        style={{ width: "100%", padding: "10px", borderRadius: 12, border: "none", background: T.esp, color: T.onAction, fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>
                         {busy === "apple_health" ? "Checking..." : "Check again"}
                       </button>
                     </div>
                   )}
                   {c.id === "gmail" && isConnected && !hasError && (
                     <button onClick={onScanGmail} disabled={scanningGmail}
-                      style={{ width: "100%", marginTop: 10, padding: "10px", background: `${T.gold}12`, border: `1.5px solid ${T.gold}30`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>
+                      style={{ width: "100%", marginTop: 10, padding: "10px", background: `${alpha(T.gold, 0.07)}`, border: `1.5px solid ${alpha(T.gold, 0.19)}`, borderRadius: 12, fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, cursor: "pointer", minHeight: 40 }}>
                       <Emoji e="✦" size={14} /> {scanningGmail ? "Cleo is reading your inbox..." : "Scan inbox for receipts & events"}
                     </button>
                   )}
@@ -318,10 +318,10 @@ export function ConnectionsScreen() {
                         <li>Add <strong>Find Health Samples</strong> → Sleep → today; repeat for Steps</li>
                         <li>Add <strong>Get Contents of URL</strong> — method POST, JSON body below</li>
                       </ol>
-                      <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                      <div style={{ background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
                         <p style={{ fontFamily: "monospace", fontSize: 12, color: T.taupe, margin: "0 0 2px", wordBreak: "break-all" }}>{healthSetup.endpoint}</p>
                       </div>
-                      <div style={{ background: "#fff", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ background: T.surface, border: `1px solid ${T.linen}`, borderRadius: 8, padding: "8px 10px" }}>
                         <p style={{ fontFamily: "monospace", fontSize: 12, color: T.esp, margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>{`{ "token": "${healthSetup.token}", "sleepHours": [Sleep], "steps": [Steps] }`}</p>
                       </div>
                       <button onClick={() => { navigator.clipboard?.writeText(healthSetup.token); toast.success("Token copied"); }}
@@ -339,8 +339,8 @@ export function ConnectionsScreen() {
       <div style={{ marginBottom: 20 }}>
         <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>Manual Sources</p>
         {MANUAL_SOURCES.map(s => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.surface, border: `1.5px solid ${T.linen}`, borderRadius: 16, padding: "13px 14px", marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: `${alpha(T.gold, 0.07)}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.gold, flexShrink: 0 }}>{s.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{s.name}</p>
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>

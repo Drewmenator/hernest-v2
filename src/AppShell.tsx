@@ -6,10 +6,32 @@ import { Toaster } from "react-hot-toast";
 import { useStore } from "./core/store";
 import { ErrorBoundary } from "./shared/components/ErrorBoundary";
 import { Skeleton } from "./shared/components";
-import { F, T } from "./config/theme";
+import { F, T, SHADOWS } from "./config/theme";
 import { TabBar } from "./shared/components/TabBar";
 import { CrisisSheet } from "./shared/components/CrisisSheet";
 import { isSubScreen, tabFor, TAB_LABEL } from "./shared/components/tabParents";
+import { setPageTab } from "./shared/appearance";
+import { CloudOff } from "lucide-react";
+// Offline: a calm strip pinned under the status bar. Changes are kept on
+// this phone and sent when the connection returns (Firestore's offline
+// cache and the retry queue), so the copy says exactly that.
+function OfflineBanner() {
+  const online = useStore(s => s.isOnline);
+  if (online) return null;
+  return (
+    <div role="status" style={{
+      position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 6px)", left: "50%", transform: "translateX(-50%)",
+      width: "calc(100% - 24px)", maxWidth: 406, zIndex: 110, display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 14px", borderRadius: 16, background: T.frost, border: `1px solid ${T.glass}`, boxShadow: SHADOWS.md,
+      backdropFilter: "blur(20px) saturate(170%)", WebkitBackdropFilter: "blur(20px) saturate(170%)",
+      fontFamily: F.sans, fontSize: 14, color: T.text,
+    }}>
+      <CloudOff size={18} color={T.text2} strokeWidth={1.9} aria-hidden="true" />
+      <span>You're offline. Changes stay on this phone and sync when you're back online.</span>
+    </div>
+  );
+}
+
 // While a tab's code loads: the shape of a page, shimmering.
 function ScreenSkeleton() {
   return (
@@ -48,6 +70,10 @@ const UpgradeScreen = React.lazy(() => import("./modules/upgrade/UpgradeScreen")
 export function AppShell() {
   const activeTab = useStore(s => s.activeTab);
   const setActiveTab = useStore(s => s.setActiveTab);
+
+  // Each tab has its own light behind the page (see TAB_ATMOS in theme.ts).
+  const pageTab = ({ home: "today", budget: "bills" } as Record<string, string>)[tabFor(activeTab)] ?? tabFor(activeTab);
+  React.useEffect(() => { setPageTab(pageTab); }, [pageTab]);
 
   // Tab ids are kept from the old layout so notifications and links still
   // land: "home" is Today, "budget" is Bills, "thrive"/"style" open Me.
@@ -93,9 +119,10 @@ export function AppShell() {
           {renderScreen()}
         </React.Suspense>
       </div>
+      <OfflineBanner />
       <TabBar />
       <CrisisSheet />
-      <Toaster position="bottom-center" containerStyle={{ bottom: "calc(max(env(safe-area-inset-bottom, 0px), 10px) + 84px)" }} toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: "#fff", borderRadius: 16, padding: "12px 16px" } }} />
+      <Toaster position="bottom-center" containerStyle={{ bottom: "calc(max(env(safe-area-inset-bottom, 0px), 10px) + 84px)" }} toastOptions={{ style: { fontFamily: F.sans, fontSize: 15, fontWeight: 600, background: T.text, color: T.onAction, borderRadius: 16, padding: "12px 16px" } }} />
     </div>
   );
 }
