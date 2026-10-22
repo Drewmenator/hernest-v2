@@ -9,7 +9,7 @@ import { T, S } from "../../config/theme";
 import { Card, SectionHeader, ListRow, Button, TextButton } from "../../shared/components";
 import { useStore } from "../../core/store";
 import { todayLocal } from "../../core/dateAwareness";
-import { loadMailInbox, addMailItem, dismissMailItem, dueLabel, isMailEvent, whenLabel, type MailItem } from "../../core/mailInbox";
+import { loadMailInbox, onMailUpdated, addMailItem, dismissMailItem, dueLabel, isMailEvent, whenLabel, type MailItem } from "../../core/mailInbox";
 import { onAppResumed } from "../../core/healthRefresh";
 
 const SHOWN = 4;
@@ -30,6 +30,7 @@ export function MailInboxCard() {
   }, [uid, version]);
   // New email items (the server scans overnight) show when the app resumes.
   useEffect(() => onAppResumed(() => setVersion(v => v + 1)), []);
+  useEffect(() => onMailUpdated(() => setVersion(v => v + 1)), []);
 
   if (!uid || !state || (!state.items.length && !state.needsReconnect)) return null;
 

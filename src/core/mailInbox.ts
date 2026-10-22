@@ -1,5 +1,6 @@
 // ─── "From your email" ─────────────────────────────────────────────
-// The nightly Gmail scan (api/_lib/familyMail.js) puts the to-dos it finds
+// The Gmail scan (api/_lib/familyMail.js: nightly, plus when the app opens,
+// at most every 2 hours) puts the to-dos it finds
 // (sign a form, RSVP, pay by a date, check in for a flight) in
 // users/{uid}/data/mail_inbox. Nothing becomes a task until she taps Add.
 // School and kids' activity dates go straight onto the shared calendar;
@@ -8,6 +9,7 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth, loadData, saveData } from "./firebase";
 import { createItem } from "./householdItems";
+import { withTimeout } from "./timeout";
 
 export type MailCategory = "school" | "activities" | "health" | "travel" | "deadline" | "other";
 
@@ -127,6 +129,7 @@ export interface MailScanResult {
 
 // "Scan now": the server reads new family email and sorts it.
 export async function scanMailNow(): Promise<MailScanResult> {
+  noteScan();
   const empty = { scanned: 0, eventsAdded: 0, tasksFound: 0, receiptsFound: 0 };
   const token = await auth.currentUser?.getIdToken();
   if (!token) return { ...empty, error: "not_authenticated" };
@@ -139,4 +142,41 @@ export async function scanMailNow(): Promise<MailScanResult> {
   if (res.status === 429) return { ...empty, error: "limit_reached" };
   if (!res.ok) return { ...empty, error: "sync_failed" };
   return { ...empty, ...(await res.json()) };
+}
+
+// ── Scan on app open ──
+// The server scans every inbox once a night; this also scans when HerNest
+// opens or comes back, at most every 2 hours, so new school mail shows up
+// the same day. Cheap: mail already read is skipped, and the AI only runs
+// when new family mail came in (inside the household's daily limit).
+// Screens re-read when MAIL_UPDATED fires.
+export const MAIL_UPDATED = "hn-mail-updated";
+const AUTO_SCAN_GAP_MS = 2 * 60 * 60 * 1000;
+const SCAN_KEY = "hn_mail_scan_at";
+let lastScan = 0;
+let autoScanning = false;
+
+function noteScan() {
+  lastScan = Date.now();
+  try { localStorage.setItem(SCAN_KEY, String(lastScan)); } catch { /* private mode */ }
+}
+
+function lastScanAt(): number {
+  try { return Math.max(lastScan, Number(localStorage.getItem(SCAN_KEY)) || 0); } catch { return lastScan; }
+}
+
+export async function autoScanMail(): Promise<void> {
+  if (autoScanning || Date.now() - lastScanAt() < AUTO_SCAN_GAP_MS) return;
+  autoScanning = true;
+  try {
+    const r = await withTimeout(scanMailNow(), 60_000);
+    if (r && typeof r === "object" && !r.error && r.scanned > 0) window.dispatchEvent(new Event(MAIL_UPDATED));
+  } finally {
+    autoScanning = false;
+  }
+}
+
+export function onMailUpdated(fn: () => void): () => void {
+  window.addEventListener(MAIL_UPDATED, fn);
+  return () => window.removeEventListener(MAIL_UPDATED, fn);
 }

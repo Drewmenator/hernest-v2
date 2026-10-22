@@ -137,6 +137,12 @@ export async function syncAllConnectors(uid: string, force = false): Promise<voi
     } catch (e) { console.warn("[ConnectorSync] saving", p.provider, "failed:", e); }
   }
 
+  // Gmail: scan for new school and family mail (at most every 2 hours).
+  // After the calendar saves: the scan also adds school dates to the same doc.
+  if (await isConnected(uid, "gmail", "accessToken")) {
+    import("./mailInbox").then(m => m.autoScanMail()).catch(() => {});
+  }
+
   // Oura: refresh sleep/readiness server-side, then auto-log wellness so
   // Thrive/briefing see it without the user ever opening a form.
   await syncOuraNow(uid);

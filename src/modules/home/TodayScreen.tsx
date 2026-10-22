@@ -27,6 +27,7 @@ import { PlusIcon, SparkleIcon, CheckIcon, BudgetIcon, PlanIcon, CalendarIcon, S
 import type { WeatherData } from "../../core/weather";
 import { loadHomeDocs, refreshHomeDocs } from "./homeData";
 import { onAppResumed } from "../../core/healthRefresh";
+import { onMailUpdated } from "../../core/mailInbox";
 import { GetStartedCard } from "./GetStartedCard";
 import { MailInboxCard } from "./MailInboxCard";
 import {
@@ -221,6 +222,8 @@ function useTodayData(tripsOn: boolean) {
   // Fresh read (skips the short caches), and again whenever the app resumes.
   const reload = () => { refreshHomeDocs(); setTick(t => t + 1); };
   useEffect(() => onAppResumed(() => { refreshHomeDocs(); setTick(t => t + 1); }), []);
+  // A Gmail scan can add school dates to the calendar.
+  useEffect(() => onMailUpdated(() => { refreshHomeDocs(); setTick(t => t + 1); }), []);
   return { data, failed, reload };
 }
 
