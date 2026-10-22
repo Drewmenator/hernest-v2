@@ -21,9 +21,9 @@ export interface Briefing {
   bills?:       { message: string } | null;  // replaced the old Budget pulse (Oct 2026)
   trips?:       { statusMessage: string; urgentActions: string[]; excitementNote: string; packingStatus?: string };
   circle:       { checkinMessage?: string; birthdayAlert?: string; communityNote?: string };
-  energy:       { predictedLevel: string; predictionBasis: string; tip: string; scheduleSuggestion: string };
+  energy?:      { predictedLevel: string; predictionBasis: string; tip: string; scheduleSuggestion: string } | null;  // only with body data
   affirmation:  { text: string; theme: string };
-  travelBrief?: { urgentActions: string[]; packingTip: string; weatherHint: string; kidsTip?: string; excitement: string };
+  travelBrief?: { urgentActions: string[]; packingTip: string; weatherHint?: string | null; kidsTip?: string; excitement: string };
 }
 
 // Fixed answer shape for the briefing (structured outputs): the API returns
@@ -42,19 +42,19 @@ const BRIEFING_SCHEMA = js.object({
     highlights: js.array(js.object({ time: js.string(), title: js.string(), icon: js.string() })),
     densityNote: opt, conflicts: js.array(js.string()),
   }),
-  tasks: js.object({ aiSuggestion: js.string(), completionNote: js.string() }),
+  tasks: js.object({ aiSuggestion: opt, completionNote: opt }),
   bills: js.nullable(js.object({ message: js.string() })),
   trips: js.nullable(js.object({
     statusMessage: js.string(), urgentActions: js.array(js.string()), excitementNote: js.string(), packingStatus: opt,
   })),
   circle: js.object({ checkinMessage: opt, birthdayAlert: opt, communityNote: opt }),
-  energy: js.object({
+  energy: js.nullable(js.object({
     predictedLevel: js.enum(["high", "medium", "low", "very-low"]),
-    predictionBasis: js.string(), tip: js.string(), scheduleSuggestion: js.string(),
-  }),
+    predictionBasis: js.string(), tip: opt, scheduleSuggestion: opt,
+  })),
   affirmation: js.object({ text: js.string(), theme: js.string() }),
   travelBrief: js.nullable(js.object({
-    urgentActions: js.array(js.string()), packingTip: js.string(), weatherHint: js.string(), kidsTip: opt, excitement: js.string(),
+    urgentActions: js.array(js.string()), packingTip: js.string(), weatherHint: opt, kidsTip: opt, excitement: js.string(),
   })),
 });
 
@@ -93,7 +93,7 @@ async function runGenerate({ uid, profile, familyMembers, weather }: {
   const windowPrompt = window === "morning"
     ? "Generate a warm, energizing morning briefing. Focus on today's priorities, schedule, and what matters most today."
     : window === "afternoon"
-    ? "Generate a midday check-in briefing. Focus on progress made, what's still pending, energy levels, and afternoon priorities."
+    ? "Generate a midday check-in briefing. Focus on what's still pending and afternoon priorities."
     : "Generate a gentle evening wind-down briefing. Focus on what was accomplished today, tomorrow's prep, and winding down.";
   const contextStr = `${appCtx ? buildBriefingPrompt(appCtx) + "\n\n" : ""}${weatherStr ? weatherStr + "\n" : ""}Time of day: ${window}. ${windowPrompt}`;
   const focusData  = selectFocusWord(appCtx.tone);
@@ -101,6 +101,10 @@ async function runGenerate({ uid, profile, familyMembers, weather }: {
   const familyRoster = familyMembers.length > 0
     ? "Family: " + familyMembers.map(m => { const a = displayAge(m); return `${m.name} (${m.role}${a != null ? ", age " + a : ""}${m.notes ? ", " + m.notes : ""})`; }).join("; ")
     : "";
+
+  // Energy and the travel brief only when there is real data behind them.
+  const hasBody = appCtx?.thrive?.readiness != null || !!appCtx?.thrive?.bodyFacts?.length;
+  const travelSoon = (appCtx?.trips?.next?.daysUntil ?? 99) <= 14;
 
   const date = new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" });
 
@@ -127,13 +131,13 @@ Answer in this shape (null for anything you have no data for):
   "greeting": "warm personal greeting using her name and today ${date}",
   "priorities": [{"rank":1,"text":"specific action","emoji":"emoji","source":"task|calendar|school|bills|trip|circle|health","urgency":"critical|high|medium|low","whyToday":"why now","estimatedMinutes":5}],
   "calendar": {"highlights":[{"time":"","title":"","icon":""}],"densityNote":"optional note if heavy","conflicts":[]},
-  "tasks": {"aiSuggestion":"one specific task suggestion","completionNote":"encouraging note on completion rate"},
+  "tasks": {"aiSuggestion":"the one task from TASKS to do first, by its name, or null if there are none","completionNote":null},
   "bills": {"message":"one short, calm line about bills that are overdue or due in the next few days, using only the BILLS data"} or null if no bills are overdue or due soon,
   "trips": {"statusMessage":"","urgentActions":[""],"excitementNote":"","packingStatus":""},
   "circle": {"checkinMessage":"optional","birthdayAlert":"optional","communityNote":"optional"},
-  "energy": {"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest measured signals: body readiness if present, else sleep and heart rate variability vs her usual (e.g. readiness 62 + 5.8h sleep). Don't ask how she feels","tip":"specific energy tip","scheduleSuggestion":"when to tackle what"},
+  "energy": ${hasBody ? `{"predictedLevel":"high|medium|low|very-low","predictionBasis":"cite the strongest measured signals: body readiness if present, else sleep and heart rate variability vs her usual (e.g. readiness 62 + 5.8h sleep). Don't ask how she feels","tip":"one tip tied to those numbers, or null","scheduleSuggestion":"when to tackle which of her real tasks or events, or null"}` : "null (no body data today)"},
   "affirmation": {"text":"warm personal affirmation","theme":"${appCtx?.toneConfig?.affirmationTheme || "self-compassion"}"},
-  "travelBrief": ${appCtx?.trips?.isClose ? '{"urgentActions":[""],"packingTip":"","weatherHint":"","kidsTip":"","excitement":""}' : 'null'}
+  "travelBrief": ${travelSoon ? '{"urgentActions":[""],"packingTip":"","weatherHint":"only from weather data you were given, else null","kidsTip":"","excitement":""}' : 'null'}
 }
 Return up to 5 priorities, most important first; on a light day 1 or 2 is right, and an empty list is fine. Set trips and travelBrief to null unless that data exists.`;
 
@@ -143,8 +147,9 @@ Return up to 5 priorities, most important first; on a light day 1 or 2 is right,
   const parsed = JSON.parse(result.text) as Briefing;
   if (!parsed.priorities) parsed.priorities = [];
   if (!parsed.calendar) parsed.calendar = { highlights: [] };
-  if (!parsed.tasks) parsed.tasks = { aiSuggestion: "", completionNote: "" };
-  if (!parsed.energy) parsed.energy = { predictedLevel: "medium", predictionBasis: "", tip: "", scheduleSuggestion: "" };
+  parsed.tasks = { aiSuggestion: parsed.tasks?.aiSuggestion || "", completionNote: parsed.tasks?.completionNote || "" };
+  if (parsed.energy) parsed.energy = { ...parsed.energy, tip: parsed.energy.tip || "", scheduleSuggestion: parsed.energy.scheduleSuggestion || "" };
+  if (!hasBody) parsed.energy = null;
   if (!parsed.affirmation) parsed.affirmation = { text: "", theme: "" };
   if (!parsed.circle) parsed.circle = {};
   if (!parsed.focusWord) parsed.focusWord = { word: "Today", emoji: "✦", why: "Focus on what matters most." };

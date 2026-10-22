@@ -371,7 +371,7 @@ export function buildStatePromptAddendum(state: HouseholdStateResult): string {
   const { primary, active, cleoTone, suppressNotifications } = state;
 
   const toneInstructions: Record<HouseholdStateResult["cleoTone"], string> = {
-    warm_proactive:    "Be warm and proactive. Offer forward-looking suggestions. This household has capacity right now.",
+    warm_proactive:    "Be warm and proactive. This household has capacity right now, so point ahead to things already in her tasks, calendar or bills; don't invent new to-dos.",
     supportive_simple: "Keep responses focused and practical. Avoid overwhelming with too many suggestions.",
     validating_brief:  "Validate first, always. Keep recommendations short — one or two actions maximum. This household is stretched.",
     calm_analytical:   "Be calm and analytical. Focus on practical tradeoffs. Avoid alarming language.",

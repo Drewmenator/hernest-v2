@@ -18,7 +18,7 @@ export function isFiller(text: string | null | undefined): boolean {
 interface FilterableBriefing {
   priorities?: { rank: number; text: string; whyToday?: string }[];
   tasks?: { aiSuggestion: string; completionNote: string };
-  energy?: { tip: string; scheduleSuggestion: string };
+  energy?: { tip: string; scheduleSuggestion: string } | null;
 }
 
 export function cleanBriefing<B extends FilterableBriefing>(b: B): B {

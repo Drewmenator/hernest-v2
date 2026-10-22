@@ -76,7 +76,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
     const lines = week.flatMap(d => byDay[d].map(i => `${new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}: ${i.title}${i.who ? ` (${i.who})` : ""}`));
     openCleo(lines.length
       ? `Help me get ahead of this week. Here's what's on:\n${lines.slice(0, 25).join("\n")}`
-      : "Help me plan this week — it looks quiet so far. What should I get ahead of?");
+      : "Help me plan this week. The calendar looks quiet so far. Is there anything in my tasks, bills or school items I should get ahead of?");
   };
 
   return (

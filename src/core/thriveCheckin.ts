@@ -87,7 +87,8 @@ export function buildCheckinFallback(w: WearableDay | null, name: string): strin
 // ── AI check-in with cache + fallback ───────────────────────────────
 export async function generateCheckin(uid: string, name: string, w: WearableDay | null): Promise<string> {
   const fallback = buildCheckinFallback(w, name);
-  if (!w) return fallback;
+  // Nothing measured today: the fallback, not an AI note about nothing.
+  if (!w || !checkinFacts(w).length) return fallback;
 
   try {
     const [{ ai }, { loadData, saveData }] = await Promise.all([import("./ai"), import("./firebase")]);
@@ -101,11 +102,11 @@ export async function generateCheckin(uid: string, name: string, w: WearableDay 
     const tone = dayTone(w);
 
     const sys = `You are Cleo, a warm household chief of staff. Write ONE short note for today (2-3 sentences, max 55 words) for ${name || "her"} using ONLY the measured data below. Rules:
-- Reference 2-3 of the strongest signals in plain language. No jargon, no listing every number.
+- Reference up to 3 of the strongest signals in plain language. No jargon, no listing every number.
 - Never invent data. Never mention data you weren't given.
 - Read her day from the numbers; don't ask how she feels or how her energy is.
 - Tone: ${tone === "lighter" ? "protective and permission-giving, her body needs a lighter day" : tone === "strong" ? "quietly energizing, it's a strong day" : "steady and encouraging"}.
-- End with one small, practical suggestion for today, not a question.
+- End with one small suggestion for today tied to these numbers (e.g. short sleep: keep the evening light), not a question and not a generic wellness tip.
 - No greetings like "Good morning" (the UI adds context), no emoji except at most one ✦, no em dashes.`;
 
     const result = await ai(sys, facts, "cleo_checkin");
