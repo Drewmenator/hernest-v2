@@ -9,7 +9,9 @@
 	<key>NSCalendarsUsageDescription</key>
 	<string>HerNest shows the events from your iPhone calendars alongside school, trip and family dates so Cleo can plan your day.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>HerNest reads your sleep, steps, heart rate, exercise and mindful minutes from Apple Health to fill in your wellness check-in and give Cleo context. It never writes to Apple Health.</string>
+	<string>HerNest reads your sleep, steps, heart rate, exercise, workouts and mindful minutes from Apple Health to fill in your wellness check-in and give Cleo context. It never writes to Apple Health.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HerNest uses your location to show your local weather and suggest what to wear. It is only used while you have the app open.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>HerNest uses the camera when you choose to photograph a bill or school calendar so Cleo can read it.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

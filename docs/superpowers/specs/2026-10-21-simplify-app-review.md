@@ -256,6 +256,7 @@ No layout change yet; just removes the embarrassing parts.
 5. **Chores show up in Plan** as tasks with a name.
 
 ### Phase 2b: Rethink Wellness and Style (M to L, about a week each)
+**Status (21 Oct): built** on branch `claude/simplify-phase2b-wellness-style-872350` (items 1 and 3, plus workouts from Apple Health for item 2); not yet merged into dev or checked on a real iPhone.
 1. **Wellness** (section 4a): one screen; check-in with the only mood logger; "move this week" goal with dots; one suggestion; optional habits; plain weekly summary. Remove the weekly AI score and Coach chat.
 2. **Apple Health on the iPhone (HealthKit)** instead of the iOS Shortcut, so sleep, steps and workouts arrive by themselves. Needs Apple's permission wording and a note for App Review.
 3. **Style** (section 4b): opens on "Today's outfit" using the weather and calendar the app already has; "Coming up" events; Saved looks with the wishlist merged in; short set-once profile in US sizes and dollars.
