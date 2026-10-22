@@ -5,7 +5,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { T, F } from "../../config/theme";
-import { useStore, openCleo } from "../../core/store";
+import { useStore } from "../../core/store";
+import { openCleo } from "../../shared/utils/openCleo";
 import { loadData, saveData } from "../../core/firebase";
 import { markPaid, undoPaid, type Bill } from "../../core/bills";
 import { formatMoney } from "../../shared/utils/money";

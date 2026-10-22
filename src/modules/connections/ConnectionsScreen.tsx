@@ -11,6 +11,7 @@ import { PageTitle } from "../../shared/components";
 import { connectOAuth, getConnectorHealth, syncAllConnectors, type ConnectorHealth } from "../../core/connectorSync";
 import toast from "react-hot-toast";
 import { appleHealthSupported, connectAppleHealth, isAppleHealthConnected } from "../../core/appleHealth";
+import { PLAN_TAB_KEY } from "../plan/planHelpers";
 
 type ConnectorKind = "oauth" | "deeplink" | "soon" | "health";
 
@@ -40,8 +41,8 @@ const CONNECTORS: Connector[] = [
 // Manual data sources already built into other screens — surfaced here so this
 // screen is the complete inventory of what feeds Cleo.
 const MANUAL_SOURCES = [
-  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: "◎", tab: "budget" },
-  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "calendar" },
+  { id: "bill_screenshot", name: "Bill screenshot", blurb: "Snap a bill or subscription list, HerNest adds the bills", icon: "◎", tab: "budget", planTab: "" },
+  { id: "newsletter", name: "School newsletter paste", blurb: "Paste any newsletter, events extracted per child", icon: "◆", tab: "plan", planTab: "school" },
 ];
 
 const CATEGORIES: Connector["category"][] = ["Calendar", "Email", "School", "Finance", "Wellness"];
@@ -256,7 +257,7 @@ export function ConnectionsScreen() {
               <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: "0 0 2px" }}>{s.name}</p>
               <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: 0, lineHeight: 1.4 }}>{s.blurb}</p>
             </div>
-            <button onClick={() => setActiveTab(s.tab)} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
+            <button onClick={() => { if (s.planTab) { try { sessionStorage.setItem(PLAN_TAB_KEY, s.planTab); } catch { /* private mode */ } } setActiveTab(s.tab); }} style={{ fontFamily: F.sans, fontSize: 12.5, fontWeight: 700, color: T.esp, background: "none", border: `1.5px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", cursor: "pointer", flexShrink: 0, minHeight: 36 }}>Open</button>
           </div>
         ))}
       </div>

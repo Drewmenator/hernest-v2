@@ -125,8 +125,6 @@ interface AppStore {
   showSettings: boolean;
   showUpgrade: boolean;
   // A question to start the Cleo tab with (set by "Ask Cleo" buttons).
-  cleoPrompt: string | null;
-  setCleoPrompt: (p: string | null) => void;
   isPro: boolean;
   setIsPro: (v: boolean) => void;
   isOnline: boolean;
@@ -171,7 +169,7 @@ const defaultFinancialSnapshot: FinancialSnapshot = {
 export const useStore = create<AppStore>()(
   immer((set) => ({
     user: null, authChecked: false, profile: null, activeTab: "home",
-    screen: "loading", showMore: false, showSettings: false, showUpgrade: false, isPro: false, cleoPrompt: null,
+    screen: "loading", showMore: false, showSettings: false, showUpgrade: false, isPro: false,
     isOnline: navigator.onLine, familyMembers: [], dailyUsage: 0, usageLimit: 500,
     householdSnapshot: null, householdInsights: [], activeScenario: null, householdRefreshing: false,
     currentHouseholdId: null, householdRole: null, householdMembers: [],
@@ -185,7 +183,6 @@ export const useStore = create<AppStore>()(
     setShowMore: (show) => set((s) => { s.showMore = show; }),
     setShowSettings: (show) => set((s) => { s.showSettings = show; }),
     setShowUpgrade: (show) => set((s) => { s.showUpgrade = show; }),
-    setCleoPrompt: (p) => set((s) => { s.cleoPrompt = p; }),
     setIsPro: (v) => set((s) => { s.isPro = v; }),
     setIsOnline: (online) => set((s) => { s.isOnline = online; }),
     incrementUsage: () => set((s) => { s.dailyUsage += 1; }),
@@ -197,7 +194,6 @@ export const useStore = create<AppStore>()(
       // Residue from these leaked across accounts on shared devices
       s.isPro = false; s.familyMembers = [];
       s.showMore = false; s.showSettings = false; s.showUpgrade = false;
-      s.cleoPrompt = null;
     }),
     setHouseholdSnapshot: (snap) => set((s) => { s.householdSnapshot = snap; }),
     setHouseholdInsights: (insights) => set((s) => { s.householdInsights = insights; }),
@@ -230,11 +226,3 @@ export const useStore = create<AppStore>()(
     }),
   }))
 );
-
-// Every "Ask Cleo" button goes to the one Cleo tab. The optional question is
-// left in cleoPrompt for the Cleo screen to pick up (and clear).
-export function openCleo(prompt?: string): void {
-  const st = useStore.getState();
-  st.setCleoPrompt(prompt?.trim() || null);
-  st.setActiveTab("cleo");
-}

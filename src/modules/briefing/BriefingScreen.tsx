@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { T, F } from "../../config/theme";
-import { useStore, openCleo } from "../../core/store";
+import { useStore } from "../../core/store";
+import { openCleo } from "../../shared/utils/openCleo";
 import { Card, PageTitle, Pill, AIBadge, Spinner, EmptyState } from "../../shared/components";
 import { db as localDb } from "../../core/db";
 import { TONE_PROFILES, type AppContext } from "../../core/contextBuilder";
