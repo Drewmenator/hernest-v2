@@ -70,14 +70,14 @@ export function CalendarScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="CALENDAR" title={onDevice ? "iPhone Calendars" : "Apple Calendar"} />
+      <PageTitle eyebrow="Calendar" title={onDevice ? "iPhone Calendars" : "Apple Calendar"} />
 
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 22 }}></span>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{onDevice ? "iPhone Calendars" : "Apple Calendar"}</p>
-            <p style={{ fontFamily: F.sans, fontSize: 11, color: appleConnected ? T.sage : T.taupe, margin: "2px 0 0" }}>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: appleConnected ? T.sage : T.taupe, margin: "2px 0 0" }}>
               {appleConnected ? "✓ Connected — shows in Plan → Week" : onDevice ? "Every calendar on this iPhone" : "iCloud Calendar sync"}
             </p>
           </div>
@@ -98,7 +98,7 @@ export function CalendarScreen() {
       {showAppleModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(42,31,24,0.5)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: "24px 24px 0 0", padding: "24px 20px", width: "100%", maxWidth: 430, boxShadow: "0 -8px 40px rgba(42,31,24,0.15)" }}>
-            <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: "0 0 6px" }}>Connect Apple Calendar</p>
+            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: "0 0 6px" }}>Connect Apple Calendar</p>
             <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 4px" }}>Use an app-specific password — not your Apple ID password.</p>
             <a href="https://appleid.apple.com/account/manage" target="_blank" rel="noreferrer" style={{ fontFamily: F.sans, fontSize: 12, color: "#0071e3", display: "block", marginBottom: 16 }}>Generate one at appleid.apple.com ›</a>
             <input value={appleEmail} onChange={e => setAppleEmail(e.target.value)} placeholder="you@icloud.com" type="email" style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />

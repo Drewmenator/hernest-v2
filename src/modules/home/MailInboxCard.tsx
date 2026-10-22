@@ -5,18 +5,11 @@
 // her to reconnect Gmail when Google has signed the app out.
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { T, F } from "../../config/theme";
+import { T, S } from "../../config/theme";
+import { Card, SectionHeader, ListRow, Button, TextButton } from "../../shared/components";
 import { useStore } from "../../core/store";
 import { todayLocal } from "../../core/dateAwareness";
 import { loadMailInbox, addMailItem, dismissMailItem, dueLabel, isMailEvent, whenLabel, type MailItem } from "../../core/mailInbox";
-
-const card: React.CSSProperties = { background: T.ivory, border: `1px solid ${T.linen}`, borderRadius: 20, padding: 16, marginBottom: 12 };
-const eyebrow: React.CSSProperties = { fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
-const pill = (primary: boolean): React.CSSProperties => ({
-  padding: "7px 12px", borderRadius: 20, border: primary ? "none" : `1px solid ${T.linen}`,
-  background: primary ? T.esp : "none", color: primary ? "#fff" : T.esp,
-  fontFamily: F.sans, fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 36, flexShrink: 0,
-});
 
 const SHOWN = 4;
 
@@ -58,34 +51,32 @@ export function MailInboxCard() {
   const shown = showAll ? state.items : state.items.slice(0, SHOWN);
 
   return (
-    <div style={card}>
-      <p style={eyebrow}>From your email</p>
-      {state.needsReconnect && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0 10px" }}>
-          <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0, lineHeight: 1.5 }}>
-            Google signed Cleo out of your Gmail. Reconnect so she can keep checking school and family email.
-          </p>
-          <button onClick={reconnect} style={pill(true)}>Reconnect</button>
-        </div>
-      )}
-      {shown.map((it, i) => (
-        <div key={it.id} style={{ padding: "9px 0", borderTop: i || state.needsReconnect ? `1px solid ${T.linen}` : "none" }}>
-          <p style={{ fontFamily: F.sans, fontSize: 13.5, fontWeight: 600, color: T.esp, margin: 0 }}>{it.title}</p>
-          <p style={{ fontFamily: F.sans, fontSize: 11.5, color: T.taupe, margin: "2px 0 8px", lineHeight: 1.4 }}>
-            {[isMailEvent(it) ? whenLabel(it) : dueLabel(it.dueDate, today), it.child, it.subject].filter(Boolean).join(" · ")}
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => act(it, true)} disabled={busy === it.id} style={pill(true)}>{busy === it.id ? "…" : isMailEvent(it) ? "Add to calendar" : "Add"}</button>
-            <button onClick={() => act(it, false)} disabled={busy === it.id} style={pill(false)}>Not now</button>
+    <section aria-label="From your email">
+      <SectionHeader title="From your email" />
+      <Card style={{ padding: `${S.xs}px ${S.lg}px` }}>
+        {state.needsReconnect && (
+          <ListRow divider={false}
+            title="Reconnect Gmail"
+            detail="Google signed Cleo out of your Gmail. Reconnect so she can keep checking school and family email."
+            actions={<Button size="sm" onClick={reconnect} style={{ width: "auto" }}>Reconnect</Button>} />
+        )}
+        {shown.map((it, i) => (
+          <ListRow key={it.id} divider={i > 0 || state.needsReconnect}
+            title={it.title}
+            detail={[isMailEvent(it) ? whenLabel(it) : dueLabel(it.dueDate, today), it.child, it.subject].filter(Boolean).join(" · ")}
+            actions={<>
+              <Button size="sm" onClick={() => act(it, true)} disabled={busy === it.id} style={{ width: "auto" }}>
+                {busy === it.id ? "Saving…" : isMailEvent(it) ? "Add to calendar" : "Add to Plan"}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => act(it, false)} disabled={busy === it.id} style={{ width: "auto" }}>Not now</Button>
+            </>} />
+        ))}
+        {state.items.length > SHOWN && (
+          <div style={{ borderTop: `1px solid ${T.divider}` }}>
+            <TextButton onClick={() => setShowAll(v => !v)}>{showAll ? "Show fewer" : `Show all ${state.items.length}`}</TextButton>
           </div>
-        </div>
-      ))}
-      {state.items.length > SHOWN && (
-        <button onClick={() => setShowAll(v => !v)}
-          style={{ background: "none", border: "none", padding: 0, fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: T.goldText, cursor: "pointer", minHeight: 32 }}>
-          {showAll ? "Show fewer" : `Show all ${state.items.length}`}
-        </button>
-      )}
-    </div>
+        )}
+      </Card>
+    </section>
   );
 }

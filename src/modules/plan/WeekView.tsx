@@ -84,8 +84,8 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <button onClick={() => setOffset(o => o - 1)} aria-label="Previous week" style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", fontFamily: F.sans, fontSize: 18, cursor: "pointer", color: T.esp, minHeight: 44 }}>‹</button>
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: 0 }}>{offset === 0 ? "This week" : offset === 1 ? "Next week" : offset === -1 ? "Last week" : rangeLabel}</p>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{rangeLabel} · {total} thing{total === 1 ? "" : "s"}</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: 0 }}>{offset === 0 ? "This week" : offset === 1 ? "Next week" : offset === -1 ? "Last week" : rangeLabel}</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "2px 0 0" }}>{rangeLabel} · {total} thing{total === 1 ? "" : "s"}</p>
         </div>
         <button onClick={() => setOffset(o => o + 1)} aria-label="Next week" style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 10, padding: "8px 16px", fontFamily: F.sans, fontSize: 18, cursor: "pointer", color: T.esp, minHeight: 44 }}>›</button>
       </div>
@@ -105,7 +105,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
           {people.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
               {people.map(p => (
-                <button key={p.id} onClick={() => setWho(who === p.name ? "" : p.name)} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${who === p.name ? T.gold : T.linen}`, background: who === p.name ? T.goldP : "#fff", color: who === p.name ? T.gold : T.bark, fontFamily: F.sans, fontSize: 11, cursor: "pointer", minHeight: 30 }}>{p.name}</button>
+                <button key={p.id} onClick={() => setWho(who === p.name ? "" : p.name)} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${who === p.name ? T.gold : T.linen}`, background: who === p.name ? T.goldP : "#fff", color: who === p.name ? T.gold : T.bark, fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 30 }}>{p.name}</button>
               ))}
             </div>
           )}
@@ -122,7 +122,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
         const isPast = d < today;
         return (
           <div key={d} style={{ marginBottom: 10, opacity: isPast ? 0.6 : 1 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: isToday ? T.gold : T.taupe, margin: "0 0 6px" }}>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: isToday ? T.gold : T.taupe, margin: "0 0 6px" }}>
               {new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}{isToday ? " · Today" : ""}
             </p>
             {items.length === 0 ? (
@@ -134,7 +134,7 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
                   <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{meta.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0 }}>{i.title}</p>
-                    <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>
+                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "2px 0 0" }}>
                       {[fmtTime(i.time), meta.label, i.who].filter(Boolean).join(" · ") || "All day"}
                     </p>
                   </div>
@@ -147,9 +147,9 @@ export function WeekView({ people, chores, schoolEvents, tasks }: {
 
       {undated.length > 0 && (
         <Card>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>🧺 Chores this week</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>🧺 Chores this week</p>
           {undated.map(i => (
-            <p key={i.id} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px" }}>{i.title} <span style={{ color: T.gold, fontSize: 11 }}>→ {i.who}</span></p>
+            <p key={i.id} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 6px" }}>{i.title} <span style={{ color: T.gold, fontSize: 12 }}>→ {i.who}</span></p>
           ))}
         </Card>
       )}

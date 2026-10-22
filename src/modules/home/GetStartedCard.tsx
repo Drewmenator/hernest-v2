@@ -44,7 +44,7 @@ export function GetStartedCard() {
   return (
     <div style={{ background: T.ivory, border: `1.5px solid ${T.gold}40`, borderRadius: 20, padding: "16px", marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <p style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: T.goldText, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.goldText, margin: 0 }}>GETTING STARTED · {doneCount}/3</p>
         <button onClick={() => { localStorage.setItem("hn_getstarted_done", "1"); setDismissed(true); }}
           style={{ background: "none", border: "none", color: T.taupe, fontSize: 15, cursor: "pointer", padding: 0 }}>×</button>
       </div>
@@ -55,7 +55,7 @@ export function GetStartedCard() {
           <span style={{ width: 20, textAlign: "center", color: it.done ? T.sage : T.gold, fontSize: 14, flexShrink: 0 }}>{it.done ? "✓" : "→"}</span>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 600, color: T.esp, margin: 0, textDecoration: it.done ? "line-through" : "none" }}>{it.label}</p>
-            <p style={{ fontFamily: F.sans, fontSize: 10.5, color: T.taupe, margin: "1px 0 0" }}>{it.sub}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "1px 0 0" }}>{it.sub}</p>
           </div>
         </div>
       ))}

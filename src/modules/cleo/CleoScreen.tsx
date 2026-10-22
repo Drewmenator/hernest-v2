@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { trackEvent } from "../../core/analytics";
-import { T, F } from "../../config/theme";
+import { T, F, TYPE } from "../../config/theme";
 import { useStore } from "../../core/store";
-import { Spinner } from "../../shared/components";
+import { Spinner, Button, CleoActionCard } from "../../shared/components";
+import { SparkleIcon, MicIcon, ArrowUpIcon, StopIcon } from "../../shared/components/Icons";
 import { askCleo, askCleoStreaming } from "../../core/aiOrchestrator";
 import { FLAGS } from "../../config";
 import { bus } from "../../core/events";
@@ -398,72 +399,77 @@ export function CleoScreen() {
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100svh - 90px)", animation:"fadeUp .3s ease both" }}>
 
       {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
-        <div style={{ width:44, height:44, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold},#8B6914)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>✦</div>
-        <div>
-          <p style={{ fontFamily:F.sans, fontSize:15, fontWeight:700, color:T.esp, margin:0 }}>Cleo</p>
-          <p style={{ fontFamily:F.sans, fontSize:11, color:T.sage, margin:0 }}>
-            ● {householdCtxStr ? "Household-aware" : "Your AI chief of staff"}
+      <header style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12, flexShrink:0 }}>
+        <div aria-hidden="true" style={{ width:44, height:44, borderRadius:14, background:T.cleoBg, display:"grid", placeItems:"center" }}>
+          <SparkleIcon size={22} color={T.action} filled />
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <h1 style={{ fontFamily:F.sans, fontSize:TYPE.section, fontWeight:700, color:T.text, margin:0 }}>Cleo</h1>
+          <p style={{ fontFamily:F.sans, fontSize:TYPE.support, color:T.text2, margin:0 }}>
+            {householdCtxStr ? "Knows your household" : "Your assistant"}
           </p>
         </div>
-        <button onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}
-          style={{ marginLeft:"auto", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, padding:"5px 10px", fontFamily:F.sans, fontSize:11, color:T.taupe, cursor:"pointer", minHeight:32 }}>
+        <Button size="sm" variant="secondary" style={{ width:"auto" }}
+          onClick={()=>{ setMsgs([]); setMemSuggestions([]); sessionStorage.removeItem(`cleo_session_${user?.uid}`); }}>
           New chat
-        </button>
-      </div>
+        </Button>
+      </header>
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as any }}>
-        {msgs.map((m,i)=>(
-          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:12 }}>
-            {m.role==="assistant" && (
-              <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:8, flexShrink:0, alignSelf:"flex-end", fontSize:14 }}>✦</div>
-            )}
-            <div style={{ maxWidth:"82%", display:"flex", flexDirection:"column", gap:4 }}>
+      <div role="log" aria-live="polite" style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" as never }}>
+        {msgs.map((m,i)=>{
+          const mine = m.role==="user";
+          const crisis = m.type==="crisis";
+          return (
+          <div key={i} style={{ display:"flex", justifyContent:mine?"flex-end":"flex-start", marginBottom:12 }}>
+            <div style={{ maxWidth:"86%", display:"flex", flexDirection:"column", gap:6, alignItems:mine?"flex-end":"flex-start" }}>
               <div style={{
-                background: m.role==="user" ? `linear-gradient(135deg,${T.esp},#4a3020)` : m.type==="crisis" ? `${T.blush}15` : "#fff",
-                borderRadius: m.role==="user" ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
+                background: mine ? T.text : crisis ? T.personalBg : T.surface,
+                borderRadius: mine ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
                 padding: "12px 16px",
-                border: m.role==="assistant" ? `1px solid ${m.type==="crisis"?T.blush:T.linen}` : "none",
+                boxShadow: mine ? "none" : "0 1px 2px rgba(28,61,90,0.05), 0 4px 14px rgba(28,61,90,0.05)",
               }}>
-                {m.content.split("\n").filter(l=>l.trim()).map((line,j)=>{
+                {m.content.split("\n").filter(l=>l.trim()).map((line,j,arr)=>{
                   const parts = line.split(/\*\*(.*?)\*\*/g);
                   return (
-                    <p key={j} style={{ fontFamily:F.sans, fontSize:13, color:m.role==="user"?"rgba(255,255,255,.9)":m.type==="crisis"?T.blush:T.esp, margin:"0 0 6px", lineHeight:1.6 }}>
+                    <p key={j} style={{ fontFamily:F.sans, fontSize:TYPE.body, color:mine?"#fff":T.text, margin:j===arr.length-1?0:"0 0 8px", lineHeight:1.5 }}>
                       {parts.map((part,pi) => pi%2===1 ? <strong key={pi}>{part}</strong> : part)}
                     </p>
                   );
                 })}
               </div>
 
-              {m.role==="assistant" && m.type!=="crisis" && i < msgs.length-1 && (
-                <div style={{ display:"flex", gap:6, paddingLeft:4 }}>
-                  <button onClick={()=>saveFeedback(i,"up",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="up"?1:0.4, padding:"2px 4px" }}>👍</button>
-                  <button onClick={()=>saveFeedback(i,"down",m.content)} style={{ background:"none", border:"none", fontSize:14, cursor:"pointer", opacity:feedback[i]==="down"?1:0.4, padding:"2px 4px" }}>👎</button>
+              {m.role==="assistant" && !crisis && i < msgs.length-1 && (
+                <div style={{ display:"flex", gap:4 }}>
+                  {(["up","down"] as const).map(kind=>(
+                    <button key={kind} onClick={()=>saveFeedback(i,kind,m.content)} aria-pressed={feedback[i]===kind}
+                      style={{ background:feedback[i]===kind?T.cleoBg:"none", border:"none", borderRadius:99, padding:"4px 10px", minHeight:32, fontFamily:F.sans, fontSize:13, fontWeight:600, color:feedback[i]===kind?T.action:T.text2, cursor:"pointer" }}>
+                      {kind==="up" ? "Helpful" : "Not helpful"}
+                    </button>
+                  ))}
                 </div>
               )}
 
               {m.type==="task-suggestion" && m.tasks && pendingTasks.length>0 && i===msgs.length-1 && (
-                <div style={{ background:`${T.gold}10`, border:`1px solid ${T.gold}30`, borderRadius:14, padding:"12px 14px" }}>
-                  <p style={{ fontFamily:F.sans, fontSize:11, fontWeight:700, color:T.gold, margin:"0 0 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Add to Plan?</p>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={confirmTasks} style={{ flex:1, padding:"8px", background:T.gold, color:"#fff", border:"none", borderRadius:10, fontFamily:F.sans, fontSize:12, fontWeight:600, cursor:"pointer", minHeight:36, touchAction:"manipulation" }}>✓ Yes, add {pendingTasks.length > 1 ? "all" : "it"}</button>
-                    <button onClick={dismissTasks} style={{ flex:1, padding:"8px", background:"none", border:`1px solid ${T.linen}`, borderRadius:10, fontFamily:F.sans, fontSize:12, color:T.taupe, cursor:"pointer", minHeight:36 }}>Not now</button>
-                  </div>
+                <div style={{ alignSelf:"stretch" }}>
+                  <CleoActionCard state="waiting"
+                    title={`Add ${pendingTasks.length > 1 ? `these ${pendingTasks.length} tasks` : "this task"} to Plan?`}
+                    confirmLabel={pendingTasks.length > 1 ? "Add all" : "Add it"}
+                    onConfirm={confirmTasks} onDecline={dismissTasks} />
                 </div>
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {!loading && <MemorySuggestionCard suggestions={memSuggestions} onAnswer={answerMemory} />}
 
         {loading && (
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-            <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${T.gold}40,${T.esp}20)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>✦</div>
-            <div style={{ background:"#fff", borderRadius:"20px 20px 20px 4px", padding:"12px 16px", border:`1px solid ${T.linen}` }}>
-              <div style={{ display:"flex", gap:4 }}>
-                {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:T.taupe, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
+          <div role="status" aria-label="Cleo is thinking" style={{ display:"flex", marginBottom:12 }}>
+            <div style={{ background:T.surface, borderRadius:"20px 20px 20px 6px", padding:"14px 18px", boxShadow:"0 1px 2px rgba(28,61,90,0.05)" }}>
+              <div style={{ display:"flex", gap:5 }}>
+                {[0,1,2].map(i=><div key={i} style={{ width:8, height:8, borderRadius:"50%", background:T.wisteria, animation:`breathe 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
               </div>
             </div>
           </div>
@@ -471,10 +477,10 @@ export function CleoScreen() {
 
         {msgs.length === 1 && !loading && (
           <div style={{ marginBottom:12 }}>
-            <p style={{ fontFamily:F.sans, fontSize:11, color:T.taupe, margin:"0 0 8px", textAlign:"center" }}>Quick start</p>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
+            <p style={{ fontFamily:F.sans, fontSize:TYPE.support, fontWeight:600, color:T.text2, margin:"4px 0 8px" }}>Try asking</p>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
               {QUICK_REPLIES.map(q=>(
-                <button key={q} onClick={()=>send(q)} style={{ padding:"8px 14px", borderRadius:20, border:`1px solid ${T.linen}`, background:T.ivory, fontFamily:F.sans, fontSize:12, color:T.bark, cursor:"pointer", touchAction:"manipulation", minHeight:36 }}>{q}</button>
+                <button key={q} onClick={()=>send(q)} style={{ padding:"9px 14px", borderRadius:99, border:"none", background:T.cleoBg, fontFamily:F.sans, fontSize:14, fontWeight:600, color:T.action, cursor:"pointer", touchAction:"manipulation", minHeight:40 }}>{q}</button>
               ))}
             </div>
           </div>
@@ -483,26 +489,28 @@ export function CleoScreen() {
       </div>
 
       {/* Input */}
-      <div style={{ borderTop:`1px solid ${T.linen}`, paddingTop:10, flexShrink:0 }}>
-        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+      <div style={{ paddingTop:10, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"flex-end", background:T.surface, borderRadius:24, padding:6, boxShadow:"0 2px 10px rgba(28,61,90,0.08)" }}>
           <textarea
             ref={inputRef}
             value={input}
             onChange={e=>{ setInput(e.target.value); e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"; }}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
-            placeholder="Talk to Cleo..."
+            placeholder="Message Cleo"
+            aria-label="Message Cleo"
             rows={1}
             disabled={loading}
-            style={{ flex:1, background:T.ivory, border:`1.5px solid ${T.linen}`, borderRadius:16, padding:"12px 14px", fontFamily:F.sans, fontSize:16, color:T.esp, outline:"none", resize:"none", lineHeight:1.5, minHeight:48, WebkitOverflowScrolling:"touch" as any }}
+            style={{ flex:1, background:"transparent", border:"none", padding:"10px 8px 10px 12px", fontFamily:F.sans, fontSize:16, color:T.text, outline:"none", resize:"none", lineHeight:1.5, minHeight:44, WebkitOverflowScrolling:"touch" as never }}
           />
-          <button onClick={startVoice} disabled={loading} style={{ width:48, height:48, borderRadius:16, background:recording?T.blush:T.sand, border:`1px solid ${recording?T.blush:T.linen}`, color:recording?"#fff":T.taupe, fontSize:20, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
-            {recording?"⏹":"🎤"}
+          <button onClick={startVoice} disabled={loading} aria-label={recording ? "Stop recording" : "Speak to Cleo"}
+            style={{ width:44, height:44, borderRadius:22, background:recording?T.dangerBg:"transparent", border:"none", cursor:"pointer", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
+            {recording ? <StopIcon size={20} color={T.danger} filled /> : <MicIcon size={22} color={T.text2} />}
           </button>
-          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:48, height:48, borderRadius:16, background:input.trim()?`linear-gradient(135deg,${T.esp},#4a2e18)`:T.linen, border:"none", color:"#fff", fontSize:18, cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation" }}>
-            {loading?<Spinner size={16} color="#fff"/>:"→"}
+          <button onClick={()=>send()} disabled={!input.trim()||loading} aria-label="Send"
+            style={{ width:44, height:44, borderRadius:22, background:input.trim()?T.action:T.divider, border:"none", cursor:input.trim()?"pointer":"not-allowed", flexShrink:0, touchAction:"manipulation", display:"grid", placeItems:"center" }}>
+            {loading?<Spinner size={16} color="#fff"/>:<ArrowUpIcon size={20} color="#fff" strokeWidth={2.4}/>}
           </button>
         </div>
-        <p style={{ fontFamily:F.sans, fontSize:10, color:T.taupe, textAlign:"center", margin:"6px 0 0" }}>Enter to send · Shift+Enter for new line</p>
       </div>
     </div>
   );

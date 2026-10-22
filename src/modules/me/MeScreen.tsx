@@ -1,8 +1,8 @@
 // ─── Me tab ────────────────────────────────────────────────────────
 // The part of the app that is just for her: Wellness (Thrive) and Style.
-// Both screens are shown as they are; their redesign is a separate phase.
+// Wellness and Style share one segmented switch (Wisteria, warm blush).
 import React from "react";
-import { T, F } from "../../config/theme";
+import { Segmented } from "../../shared/components";
 import { useStore } from "../../core/store";
 import { ME_SEGMENT_KEY, type MeSegment } from "./meSegment";
 
@@ -19,19 +19,7 @@ export function MeScreen({ segment }: { segment: MeSegment }) {
 
   return (
     <div>
-      <div role="tablist" aria-label="Me" style={{ display: "flex", gap: 4, padding: 4, background: T.sand, borderRadius: 14, marginBottom: 16 }}>
-        {([["wellness", "Wellness"], ["style", "Style"]] as const).map(([id, label]) => {
-          const on = segment === id;
-          return (
-            <button key={id} role="tab" aria-selected={on} onClick={() => pick(id)}
-              style={{ flex: 1, minHeight: 40, borderRadius: 11, border: "none", cursor: "pointer", touchAction: "manipulation",
-                background: on ? "#fff" : "transparent", boxShadow: on ? "0 1px 4px rgba(46,31,20,.10)" : "none",
-                fontFamily: F.sans, fontSize: 13, fontWeight: on ? 700 : 500, color: on ? T.esp : T.taupe }}>
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      <Segmented label="Me" value={segment} onChange={pick} options={[{ id: "wellness", label: "Wellness" }, { id: "style", label: "Style" }]} />
       {segment === "style" ? <StyleScreen /> : <ThriveScreen />}
     </div>
   );

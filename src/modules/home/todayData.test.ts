@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, NEEDS_MAX } from "./todayData";
+import { buildNeedsYou, billsThisWeek, eventsTodayTomorrow, nextTrip, alreadyHandled, NEEDS_MAX } from "./todayData";
 import type { Bill } from "../../core/bills";
 
 const NOW = new Date(2026, 9, 21, 8); // Wed 2026-10-21, 8am local
@@ -134,5 +134,30 @@ describe("buildNeedsYou with task ownership", () => {
     const bills = [bill("Rent", "2026-10-21", { payer: "sam" })];
     expect(buildNeedsYou({ bills }, { tripsOn: false, now: NOW, viewerUid: "alex" })).toEqual([]);
     expect(buildNeedsYou({ bills }, { tripsOn: false, now: NOW, viewerUid: "sam" })).toHaveLength(1);
+  });
+});
+
+describe("alreadyHandled", () => {
+  const me = "u-me";
+  const base = { createdBy: me, assigneeUid: "u-dan", assigneeName: "Daniel Lee", status: "pending" };
+  it("shows tasks the viewer handed off that were accepted, first name only, max two", () => {
+    const out = alreadyHandled([
+      { id: "a", title: "School pickup", state: "accepted", dueDate: "2026-10-21", ...base },
+      { id: "b", title: "Call plumber", state: "accepted", dueDate: "2026-10-23", ...base },
+      { id: "c", title: "Book dentist", state: "accepted", dueDate: "2026-10-22", ...base },
+    ], me);
+    expect(out.map(x => x.id)).toEqual(["a", "c"]);
+    expect(out[0].who).toBe("Daniel");
+  });
+  it("leaves out proposed, declined, done, and tasks someone else asked for", () => {
+    expect(alreadyHandled([
+      { id: "p", title: "x", state: "proposed", ...base },
+      { id: "d", title: "x", state: "declined", ...base },
+      { id: "f", title: "x", state: "done", ...base, status: "completed" },
+      { id: "o", title: "x", state: "accepted", ...base, createdBy: "u-dan", assigneeUid: me },
+    ], me)).toEqual([]);
+  });
+  it("is empty without a viewer", () => {
+    expect(alreadyHandled([{ id: "a", title: "x", state: "accepted", ...base }])).toEqual([]);
   });
 });

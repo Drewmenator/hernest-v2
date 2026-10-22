@@ -40,7 +40,7 @@ const OUTFIT_SCHEMA = s.object({
   tip: s.nullable(s.string()),
 });
 
-const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" };
+const label: React.CSSProperties = { fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: "6px 0", fontFamily: F.sans, fontSize: 12, fontWeight: 600, color: T.goldText, cursor: "pointer", minHeight: 32 };
 const chip = (on: boolean): React.CSSProperties => ({
   padding: "8px 13px", borderRadius: 20, border: `1.5px solid ${on ? T.esp : T.linen}`, background: on ? T.esp : "#fff",
@@ -48,14 +48,14 @@ const chip = (on: boolean): React.CSSProperties => ({
 });
 const actionBtn = (primary: boolean): React.CSSProperties => ({
   flex: 1, padding: "11px 8px", borderRadius: 12, border: primary ? "none" : `1.5px solid ${T.linen}`,
-  background: primary ? `linear-gradient(135deg,${T.esp},#4a2e18)` : "#fff", color: primary ? "#fff" : T.esp,
+  background: primary ? T.action : "#fff", color: primary ? "#fff" : T.esp,
   fontFamily: F.sans, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44, touchAction: "manipulation",
 });
 
 function OutfitView({ outfit }: { outfit: Outfit }) {
   return (
     <>
-      <p style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
+      <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, color: T.esp, margin: "0 0 10px", lineHeight: 1.3 }}>{outfit.headline}</p>
       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 10px" }}>
         {outfit.pieces.map((p, i) => (
           <li key={i} style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, padding: "5px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
@@ -222,11 +222,11 @@ export function StyleScreen() {
 
   return (
     <div style={{ animation: "fadeUp .45s ease both" }}>
-      <PageTitle eyebrow="JUST FOR YOU" title="Style" />
+      <PageTitle eyebrow="Just for you" title="Style" />
 
       {/* 1. Today's outfit */}
       <Card>
-        <p style={label}>{shown?.occasion ? `TODAY'S OUTFIT · ${occasionLabel(shown.occasion).toUpperCase()}` : "TODAY'S OUTFIT"}</p>
+        <p style={label}>{shown?.occasion ? `TODAY'S OUTFIT · ${occasionLabel(shown.occasion).toUpperCase()}` : "Today's outfit"}</p>
         {ctxLoaded && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "-4px 0 12px", lineHeight: 1.5 }}>{context}</p>}
 
         {loading || (!shown && !error) ? (
@@ -258,7 +258,7 @@ export function StyleScreen() {
       {/* 2. Coming up */}
       {upcoming.length > 0 && (
         <Card>
-          <p style={label}>COMING UP</p>
+          <p style={label}>Coming up</p>
           {upcoming.map((e, i) => {
             const open = plan?.eventId === e.id;
             return (
@@ -302,7 +302,7 @@ export function StyleScreen() {
               return (
                 <div key={l.id} style={{ display: "flex", gap: 8, padding: "10px 0", borderTop: i ? `1px solid ${T.linen}` : "none" }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 2px" }}>
+                    <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 2px" }}>
                       {v.title}{l.savedAt ? ` · ${new Date(l.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                     </p>
                     <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.esp, margin: 0 }}>{v.headline || "Saved look"}</p>
@@ -333,7 +333,7 @@ export function StyleScreen() {
       {/* 4. Your style (set once) */}
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <p style={label}>YOUR STYLE</p>
+          <p style={label}>Your style</p>
           {!profileOpen && <button onClick={() => { setDraft(profile); setEditingProfile(true); }} style={linkBtn}>Edit</button>}
         </div>
         {!profileOpen ? (
@@ -341,7 +341,7 @@ export function StyleScreen() {
         ) : (
           <>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.esp, margin: "0 0 12px" }}>Three quick things and Cleo's ideas fit you better.</p>
-            <p style={{ ...label, margin: "0 0 8px" }}>SIZE (US)</p>
+            <p style={{ ...label, margin: "0 0 8px" }}>Size (US)</p>
             {isOldSize(draft.size) && (
               <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 8px" }}>You saved "{draft.size}" before. Pick your US size so ideas fit.</p>
             )}
@@ -352,7 +352,7 @@ export function StyleScreen() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {STYLE_WORDS.map(w => <button key={w} onClick={() => toggleWord(w)} style={chip(draft.words.includes(w))}>{w}</button>)}
             </div>
-            <p style={{ ...label, margin: "0 0 8px" }}>TYPICAL BUDGET FOR AN OUTFIT</p>
+            <p style={{ ...label, margin: "0 0 8px" }}>Typical budget for an outfit</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
               {BUDGET_STEPS.map(b => (
                 <button key={b} onClick={() => setDraft(d => ({ ...d, budget: d.budget === b ? null : b }))} style={chip(draft.budget === b)}>

@@ -53,7 +53,7 @@ interface Draft {
 const EMPTY_DRAFT: Draft = { name: "", relationId: "child", birthDate: "", age: "", notes: "", giftIdeas: "", checkIn: "", schoolName: "", grade: "" };
 
 const inputStyle = { width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "11px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 8, boxSizing: "border-box" as const };
-const labelStyle = { display: "block", fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 4px 2px" };
+const labelStyle = { display: "block", fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 4px 2px" };
 const chip = (on: boolean, color: string = T.esp) => ({ padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${on ? color : T.linen}`, background: on ? `${color}15` : "#fff", color: on ? color : T.bark, fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 });
 
 export function FamilyScreen() {
@@ -148,8 +148,8 @@ export function FamilyScreen() {
 
   const editor = (
     <Card>
-      <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 12px" }}>
-        {editingId === "new" ? "ADD SOMEONE" : `EDIT ${draft.name.toUpperCase()}`}
+      <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 12px" }}>
+        {editingId === "new" ? "Add someone" : `EDIT ${draft.name.toUpperCase()}`}
       </p>
       <input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="Name" style={inputStyle} />
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
@@ -168,10 +168,10 @@ export function FamilyScreen() {
           <input value={draft.schoolName} onChange={e => setDraft({ ...draft, schoolName: e.target.value })} placeholder="School name (optional)" style={inputStyle} />
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
             {US_GRADES.map(g => (
-              <button key={g} onClick={() => setDraft({ ...draft, grade: draft.grade === g ? "" : g })} style={{ ...chip(draft.grade === g, T.sky), padding: "4px 9px", fontSize: 11, minHeight: 28 }}>{g}</button>
+              <button key={g} onClick={() => setDraft({ ...draft, grade: draft.grade === g ? "" : g })} style={{ ...chip(draft.grade === g, T.sky), padding: "4px 9px", fontSize: 12, minHeight: 28 }}>{g}</button>
             ))}
           </div>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "0 0 10px 2px", lineHeight: 1.5 }}>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "0 0 10px 2px", lineHeight: 1.5 }}>
             School dates and newsletters go in Plan → School.
           </p>
         </>
@@ -218,15 +218,15 @@ export function FamilyScreen() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: T.esp, margin: 0 }}>{p.name}</p>
-            <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0" }}>{details}</p>
-            {p.notes && <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "2px 0 0", fontStyle: "italic" }}>{p.notes}</p>}
+            <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "2px 0 0" }}>{details}</p>
+            {p.notes && <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "2px 0 0", fontStyle: "italic" }}>{p.notes}</p>}
           </div>
-          <button onClick={() => startEdit(p)} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, color: T.taupe, cursor: "pointer", minHeight: 30 }}>Edit</button>
+          <button onClick={() => startEdit(p)} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer", minHeight: 30 }}>Edit</button>
         </div>
         {(p.giftIdeas || (bday != null && bday <= 30)) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingLeft: 56 }}>
             {p.giftIdeas && <p style={{ flex: 1, fontFamily: F.sans, fontSize: 12, color: T.bark, margin: 0 }}>🎁 {p.giftIdeas}</p>}
-            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 11, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}>✦ Gift ideas</button>
+            <button onClick={() => askGiftIdeas(p)} style={{ marginLeft: "auto", background: T.goldP, border: `1px solid ${T.gold}40`, borderRadius: 8, padding: "5px 10px", fontFamily: F.sans, fontSize: 12, color: T.gold, cursor: "pointer", minHeight: 30, flexShrink: 0 }}>✦ Gift ideas</button>
           </div>
         )}
       </div>
@@ -239,7 +239,7 @@ export function FamilyScreen() {
 
       {upcoming.length > 0 && (
         <div style={{ background: `linear-gradient(135deg,${T.blush}15,${T.gold}10)`, border: `1px solid ${T.blush}30`, borderRadius: 16, padding: "12px 16px", marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.blush, margin: "0 0 8px" }}>🎂 Coming up</p>
           {upcoming.map(p => {
             const d = bdayOf(p);
             return (
@@ -254,13 +254,13 @@ export function FamilyScreen() {
 
       {checkInsDue.length > 0 && (
         <div style={{ marginBottom: 12 }}>
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>Time to check in</p>
           {checkInsDue.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: T.ivory, borderRadius: 14, border: `1.5px solid ${T.sage}30`, marginBottom: 6 }}>
               <p style={{ flex: 1, fontFamily: F.sans, fontSize: 13, color: T.esp, margin: 0 }}>
-                {p.name} <span style={{ color: T.taupe, fontSize: 11 }}>· {p.lastCheckIn ? `last ${p.lastCheckIn.slice(5).replace("-", "/")}` : "no check-in yet"}</span>
+                {p.name} <span style={{ color: T.taupe, fontSize: 12 }}>· {p.lastCheckIn ? `last ${p.lastCheckIn.slice(5).replace("-", "/")}` : "no check-in yet"}</span>
               </p>
-              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 11, cursor: "pointer", minHeight: 32 }}>✓ Talked</button>
+              <button onClick={() => markTalked(p)} style={{ background: T.sage, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontFamily: F.sans, fontSize: 12, cursor: "pointer", minHeight: 32 }}>✓ Talked</button>
             </div>
           ))}
         </div>
@@ -281,7 +281,7 @@ export function FamilyScreen() {
         if (!list.length) return null;
         return (
           <div key={g.title} style={{ marginBottom: 14 }}>
-            <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>{g.title}</p>
+            <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>{g.title}</p>
             {list.map(row)}
           </div>
         );

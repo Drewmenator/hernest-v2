@@ -179,8 +179,8 @@ export function CleoSetupScreen({ onComplete }: { onComplete?: () => void }) {
       {/* Header */}
       <div style={{ padding: "calc(52px + env(safe-area-inset-top, 0px)) 24px 16px", borderBottom: `1px solid ${T.linen}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <p style={{ fontFamily: F.serif, fontSize: 22, fontStyle: "italic", color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
-          <p style={{ fontFamily: F.sans, fontSize: 11, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
+          <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 22, color: T.esp, margin: 0 }}>Meet Cleo ✦</p>
+          <p style={{ fontFamily: F.sans, fontSize: 12, color: T.taupe, margin: "4px 0 0" }}>Your household AI chief of staff</p>
         </div>
         {!done && (
           <button onClick={skip} style={{ background: "none", border: "none", fontFamily: F.sans, fontSize: 12, color: T.taupe, cursor: "pointer", padding: "4px 0", textDecoration: "underline", flexShrink: 0 }}>

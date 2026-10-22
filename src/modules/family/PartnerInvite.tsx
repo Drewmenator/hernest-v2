@@ -79,14 +79,14 @@ export function PartnerInvite() {
   return (
     <div style={{ marginTop: 12 }}>
       <Card>
-        <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 8px" }}>INVITE YOUR PARTNER</p>
+        <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 8px" }}>Invite your partner</p>
         <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px", lineHeight: 1.6 }}>
           Your partner joins your household and sees the parts you choose. Bills are shared so either of you can mark one paid.
         </p>
         {!inviteSent ? <>
           <input value={partnerEmail} onChange={e => setPartnerEmail(e.target.value)} placeholder="Partner's email address" type="email"
             style={{ width: "100%", background: T.sand, border: `1.5px solid ${T.linen}`, borderRadius: 12, padding: "12px 14px", fontFamily: F.sans, fontSize: 16, color: T.esp, outline: "none", marginBottom: 16, boxSizing: "border-box", minHeight: 48 }} />
-          <p style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.taupe, margin: "0 0 10px" }}>WHAT TO SHARE</p>
+          <p style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 600, color: T.taupe, margin: "0 0 10px" }}>What to share</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {SHARE_OPTIONS.map(opt => {
               const on = shareCategories.includes(opt.id);
@@ -109,10 +109,10 @@ export function PartnerInvite() {
         </> : (
           <div style={{ textAlign: "center", padding: "16px 0" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>✦</div>
-            <p style={{ fontFamily: F.serif, fontSize: 20, fontStyle: "italic", color: T.esp, margin: "0 0 8px" }}>Invite ready!</p>
+            <p style={{ fontFamily: F.serif, letterSpacing: "-0.02em", fontWeight: 700, fontSize: 20, color: T.esp, margin: "0 0 8px" }}>Invite ready!</p>
             <p style={{ fontFamily: F.sans, fontSize: 13, color: T.taupe, margin: "0 0 16px" }}>Share this link with {partnerEmail}. When they open it and sign in, they'll join your household.</p>
             {inviteLink && <>
-              <div style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, wordBreak: "break-all", fontFamily: F.sans, fontSize: 11, color: T.bark, textAlign: "left" }}>{inviteLink}</div>
+              <div style={{ background: T.sand, border: `1px solid ${T.linen}`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, wordBreak: "break-all", fontFamily: F.sans, fontSize: 12, color: T.bark, textAlign: "left" }}>{inviteLink}</div>
               <button onClick={shareLink} style={{ width: "100%", background: T.esp, color: "#fff", border: "none", borderRadius: 12, padding: "13px", fontFamily: F.sans, fontSize: 14, fontWeight: 700, cursor: "pointer", minHeight: 48, marginBottom: 8, touchAction: "manipulation" }}>Copy / share link</button>
             </>}
             <button onClick={() => { setInviteSent(false); setInviteLink(""); }} style={{ background: "none", border: `1px solid ${T.linen}`, borderRadius: 12, padding: "8px 20px", fontFamily: F.sans, fontSize: 13, color: T.taupe, cursor: "pointer", minHeight: 40 }}>Send another</button>
